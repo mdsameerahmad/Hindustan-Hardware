@@ -6,16 +6,18 @@ import {
   useState,
   type ReactNode,
 } from "react"
+import { catalogueApi, type BackendBrand, type BackendCategory } from "./api/catalogueApi"
+import { useAuth } from "./authContext"
 import {
-  initialBrands,
-  initialOrders,
-  initialProducts,
   orderStages,
   type Brand,
   type Order,
   type OrderStatus,
   type Product,
 } from "./data"
+import { cartApi, guestTokenStorage, wishlistApi } from "./features/commerceApi"
+import type { CartData } from "./features/commerceTypes"
+import { transformBackendProduct } from "./utils/productTransform"
 
 type CartLine = {
   productId: string
@@ -29,6 +31,7 @@ type Toast = {
 type StoreValue = {
   products: Product[]
   brands: Brand[]
+  categories: BackendCategory[]
   orders: Order[]
   cart: CartLine[]
   wishlist: string[]
@@ -50,9 +53,13 @@ type StoreValue = {
   deleteBrand: (id: string) => void
   adjustStock: (id: string, stock: number) => void
   notify: (message: string) => void
+  refreshBackendCart: () => Promise<void>
+  backendCart: CartData | null
+  getProductAsync: (id: string) => Promise<Product | undefined>
   cartCount: number
   cartTotal: number
 }
+
 
 const StoreContext = createContext<StoreValue | null>(null)
 
@@ -66,28 +73,44 @@ function readStored<T>(key: string, fallback: T): T {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  // Purge obsolete mock catalogue localStorage on startup
   const [products, setProducts] = useState<Product[]>(() => {
-    const stored = readStored<Product[]>("hh-products", [])
-    if (!stored.length || !stored[0]?.brandId) return initialProducts
-    const storedById = new Map(stored.map((product) => [product.id, product]))
-    return initialProducts.map((seed) => {
-      const previous = storedById.get(seed.id)
-      return previous
-        ? {
-            ...seed,
-            price: previous.price,
-            stock: previous.stock,
-            active: previous.active,
-          }
-        : seed
-    })
+    try {
+      // Invalidate if local storage contains old demo seeds
+      const stored = readStored<Product[]>("hh-products", [])
+      const hasMockSeeds = stored.some((p) => p.id?.startsWith("seed-") || p.brandId === "store-select")
+      if (hasMockSeeds) {
+        localStorage.removeItem("hh-products")
+        return []
+      }
+      return stored
+    } catch {
+      return []
+    }
   })
-  const [brands, setBrands] = useState<Brand[]>(() =>
-    readStored("hh-brands", initialBrands),
-  )
-  const [orders, setOrders] = useState(() =>
-    readStored("hh-orders", initialOrders),
-  )
+
+  const [brands, setBrands] = useState<Brand[]>(() => {
+    try {
+      const stored = readStored<Brand[]>("hh-brands", [])
+      const hasMockBrands = stored.some((b) => b.id === "store-select" || b.id === "astral-pipes")
+      if (hasMockBrands) {
+        localStorage.removeItem("hh-brands")
+        return []
+      }
+      return stored
+    } catch {
+      return []
+    }
+  })
+  const [categories, setCategories] = useState<BackendCategory[]>([])
+  const [orders, setOrders] = useState<Order[]>(() => {
+    try {
+      localStorage.removeItem("hh-orders")
+      return []
+    } catch {
+      return []
+    }
+  })
   const [cart, setCart] = useState<CartLine[]>(() => readStored("hh-cart", []))
   const [wishlist, setWishlist] = useState<string[]>(() =>
     readStored("hh-wishlist", []),
@@ -96,6 +119,55 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     readStored("hh-compare", []),
   )
   const [toasts, setToasts] = useState<Toast[]>([])
+
+  // Hydrate categories, brands and catalogue products from backend catalogue API backed by database
+  useEffect(() => {
+    let isMounted = true
+
+    catalogueApi
+      .getCategories()
+      .then((backendCats) => {
+        if (!isMounted || !backendCats || !backendCats.length) return
+        setCategories(backendCats)
+      })
+      .catch(() => {})
+
+    catalogueApi
+      .getBrands()
+      .then((backendBrands) => {
+        if (!isMounted || !backendBrands || !backendBrands.length) return
+        const mappedBrands: Brand[] = backendBrands.map((b: BackendBrand) => ({
+          id: b.id,
+          name: b.name,
+          slug: b.slug,
+          logo: b.logo_url || undefined,
+          description: b.description || `${b.name} genuine plumbing and hardware products.`,
+          supportedCategories: [],
+          active: b.is_active,
+          displayOrder: b.display_order ?? 0,
+        }))
+        setBrands(mappedBrands)
+      })
+      .catch(() => {
+        // Do not fabricate mock brands on failure
+      })
+
+    // Hydrate top catalogue products from backend for fast local lookup (e.g. cart/wishlist details)
+    catalogueApi
+      .listProducts({ page: 1, limit: 100 })
+      .then((res) => {
+        if (!isMounted || !res || !res.items.length) return
+        const transformed = res.items.map(transformBackendProduct)
+        setProducts(transformed)
+      })
+      .catch(() => {
+        // Do not fabricate mock products on failure
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   useEffect(
     () => localStorage.setItem("hh-products", JSON.stringify(products)),
@@ -119,6 +191,95 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [compareIds],
   )
 
+  const { isAuthenticated } = useAuth()
+  const [backendCart, setBackendCart] = useState<CartData | null>(null)
+
+  // Sync with live backend Cart (Guest or Authenticated)
+  const refreshBackendCart = async () => {
+    try {
+      if (isAuthenticated) {
+        // Check if there is an unmerged guest cart
+        const guestToken = guestTokenStorage.get()
+        if (guestToken) {
+          try {
+            const merged = await cartApi.mergeGuestCart(guestToken)
+            setBackendCart(merged)
+            setCart(
+              merged.items.map((i) => ({
+                productId: i.productId,
+                quantity: i.quantity,
+              })),
+            )
+            return
+          } catch {
+            guestTokenStorage.clear()
+          }
+        }
+        const userCart = await cartApi.getCustomerCart()
+        setBackendCart(userCart)
+        setCart(
+          userCart.items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+          })),
+        )
+      } else {
+        const guestToken = guestTokenStorage.get()
+        if (guestToken) {
+          try {
+            const gCart = await cartApi.getGuestCart(guestToken)
+            setBackendCart(gCart)
+            setCart(
+              gCart.items.map((i) => ({
+                productId: i.productId,
+                quantity: i.quantity,
+              })),
+            )
+          } catch {
+            guestTokenStorage.clear()
+          }
+        }
+      }
+    } catch {
+      // Offline or network error -> fallback to local state
+    }
+  }
+
+  // Fetch a product by ID if not in products cache and add to cache
+  const getProductAsync = async (id: string): Promise<Product | undefined> => {
+    const existing = products.find((p) => p.id === id)
+    if (existing) return existing
+    try {
+      const fetched = await catalogueApi.getProductById(id)
+      if (fetched) {
+        const transformed = transformBackendProduct(fetched)
+        setProducts((prev) => (prev.some((p) => p.id === transformed.id) ? prev : [...prev, transformed]))
+        return transformed
+      }
+    } catch {
+      // product not found
+    }
+    return undefined
+  }
+
+  // Fetch backend wishlist if authenticated
+  const refreshBackendWishlist = async () => {
+    if (!isAuthenticated) return
+    try {
+      const liveWishlist = await wishlistApi.getWishlist()
+      if (Array.isArray(liveWishlist)) {
+        setWishlist(liveWishlist.map((w) => w.productId))
+      }
+    } catch {
+      // Fallback to local
+    }
+  }
+
+  useEffect(() => {
+    refreshBackendCart()
+    refreshBackendWishlist()
+  }, [isAuthenticated])
+
   const notify = (message: string) => {
     const id = Date.now()
     setToasts((items) => [...items, { id, message }])
@@ -128,7 +289,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     )
   }
 
-  const addToCart = (productId: string, quantity = 1) => {
+  const addToCart = async (productId: string, quantity = 1) => {
+    // Optimistic UI update
     setCart((items) => {
       const current = items.find((item) => item.productId === productId)
       return current
@@ -139,27 +301,97 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           )
         : [...items, { productId, quantity }]
     })
-    notify("Added to your demo cart")
+    notify("Added to cart")
+
+    // Async backend persistence
+    try {
+      if (isAuthenticated) {
+        const updated = await cartApi.addCustomerCartItem({ productId, quantity })
+        setBackendCart(updated)
+      } else {
+        let token = guestTokenStorage.get()
+        if (!token) {
+          const init = await cartApi.createGuestCart()
+          token = init.guestToken
+        }
+        const updated = await cartApi.addGuestCartItem(token, { productId, quantity })
+        setBackendCart(updated)
+      }
+    } catch {
+      // Backend error will not break UI
+    }
   }
 
-  const updateCart = (productId: string, quantity: number) => {
+  const updateCart = async (productId: string, quantity: number) => {
     if (quantity < 1) return
     setCart((items) =>
       items.map((item) =>
         item.productId === productId ? { ...item, quantity } : item,
       ),
     )
+
+    try {
+      const itemToUpdate = backendCart?.items.find((i) => i.productId === productId)
+      if (itemToUpdate) {
+        if (isAuthenticated) {
+          const updated = await cartApi.updateCustomerCartItem(itemToUpdate.id, quantity)
+          setBackendCart(updated)
+        } else {
+          const token = guestTokenStorage.get()
+          if (token) {
+            const updated = await cartApi.updateGuestCartItem(token, itemToUpdate.id, quantity)
+            setBackendCart(updated)
+          }
+        }
+      }
+    } catch {}
   }
 
-  const removeFromCart = (productId: string) => {
+  const removeFromCart = async (productId: string) => {
     setCart((items) => items.filter((item) => item.productId !== productId))
     notify("Item removed from cart")
+
+    try {
+      const itemToRemove = backendCart?.items.find((i) => i.productId === productId)
+      if (itemToRemove) {
+        if (isAuthenticated) {
+          const updated = await cartApi.removeCustomerCartItem(itemToRemove.id)
+          setBackendCart(updated)
+        } else {
+          const token = guestTokenStorage.get()
+          if (token) {
+            const updated = await cartApi.removeGuestCartItem(token, itemToRemove.id)
+            setBackendCart(updated)
+          }
+        }
+      }
+    } catch {}
   }
 
-  const toggleWishlist = (id: string) => {
+  const toggleWishlist = async (id: string) => {
+    const isCurrentlyWishlisted = wishlist.includes(id)
     setWishlist((items) =>
-      items.includes(id) ? items.filter((item) => item !== id) : [...items, id],
+      isCurrentlyWishlisted ? items.filter((item) => item !== id) : [...items, id],
     )
+
+    if (isAuthenticated) {
+      try {
+        if (isCurrentlyWishlisted) {
+          await wishlistApi.removeFromWishlist(id)
+          notify("Removed from wishlist")
+        } else {
+          await wishlistApi.addToWishlist(id)
+          notify("Saved to your wishlist")
+        }
+      } catch {
+        // Rollback on network rejection
+        setWishlist((items) =>
+          isCurrentlyWishlisted ? [...items, id] : items.filter((item) => item !== id),
+        )
+      }
+    } else {
+      notify(isCurrentlyWishlisted ? "Removed from wishlist" : "Saved to wishlist")
+    }
   }
 
   const toggleCompare = (id: string) => {
@@ -290,6 +522,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     () => ({
       products,
       brands,
+      categories,
       orders,
       cart,
       wishlist,
@@ -311,16 +544,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteBrand,
       adjustStock,
       notify,
+      refreshBackendCart,
+      backendCart,
+      getProductAsync,
       cartCount: cart.reduce((sum, item) => sum + item.quantity, 0),
-      cartTotal: cart.reduce(
-        (sum, item) =>
-          sum +
-          (products.find((p) => p.id === item.productId)?.price ?? 0) *
-            item.quantity,
-        0,
-      ),
+      cartTotal:
+        backendCart?.subtotal ??
+        cart.reduce((sum, item) => {
+          const matched = products.find((p) => p.id === item.productId)
+          const fallbackBackendItem = backendCart?.items.find((b) => b.productId === item.productId)
+          const price = matched?.price ?? fallbackBackendItem?.unitPrice ?? 0
+          return sum + price * item.quantity
+        }, 0),
     }),
-    [products, brands, orders, cart, wishlist, compareIds, toasts],
+    [products, brands, categories, orders, cart, wishlist, compareIds, toasts, backendCart],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

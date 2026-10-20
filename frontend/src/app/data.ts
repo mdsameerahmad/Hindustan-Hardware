@@ -38,6 +38,7 @@ export type Product = {
   description: string
   featured?: boolean
   active?: boolean
+  discountPercentage?: number | null
   specs: Record<string, string>
 }
 

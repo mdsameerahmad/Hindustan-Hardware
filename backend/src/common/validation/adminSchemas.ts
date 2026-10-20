@@ -1,0 +1,68 @@
+import { z } from 'zod';
+
+export const adminOrderQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+  status: z
+    .enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'])
+    .optional(),
+  paymentStatus: z.enum(['pending', 'paid', 'failed', 'cancelled']).optional(),
+  userId: z.string().uuid().optional(),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+  sortBy: z.enum(['created_at', 'total_amount', 'order_number']).default('created_at'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+});
+
+export const updateOrderStatusSchema = z.object({
+  status: z.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']),
+  reason: z.string().trim().min(3).max(500).optional(),
+});
+
+export const collectCodPaymentSchema = z.object({
+  notes: z.string().trim().max(500).optional(),
+});
+
+export const inventoryAdjustmentSchema = z.object({
+  productId: z.string().uuid('Product ID must be a valid UUID'),
+  variantId: z.string().uuid('Variant ID must be a valid UUID').nullable().optional(),
+  quantityChange: z.number().int().refine((val) => val !== 0, {
+    message: 'Quantity change must be a non-zero integer',
+  }),
+  movementType: z.enum(['adjustment', 'restock', 'correction', 'return']).default('adjustment'),
+  reason: z.string().trim().min(3, 'Reason must be at least 3 characters').max(500),
+  referenceId: z.string().trim().max(100).optional(),
+});
+
+export const inventoryMovementQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  productId: z.string().uuid().optional(),
+  variantId: z.string().uuid().optional(),
+  movementType: z.enum(['adjustment', 'restock', 'correction', 'order_deduction', 'order_cancellation', 'return']).optional(),
+});
+
+export const adminCustomerQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+  search: z.string().trim().optional(),
+  role: z.enum(['customer', 'admin']).optional(),
+});
+
+export const adminProductQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  categoryId: z.string().uuid().optional(),
+  brandId: z.string().uuid().optional(),
+  isActive: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  search: z.string().trim().optional(),
+});
+
+export const adminAuditLogQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  resourceType: z.string().trim().optional(),
+  resourceId: z.string().trim().optional(),
+  action: z.string().trim().optional(),
+  actorId: z.string().uuid().optional(),
+});
