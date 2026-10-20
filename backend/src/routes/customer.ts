@@ -14,6 +14,7 @@ import { logger } from '../common/utils/logger';
 import { AddressService } from '../services/addressService';
 import { WishlistService } from '../services/wishlistService';
 import { OrderService } from '../services/orderService';
+import { DeliveryTrackingService } from '../services/deliveryTrackingService';
 import {
   orderQuerySchema,
   cancelOrderSchema,
@@ -236,6 +237,26 @@ customerRouter.get('/me/orders/:orderId/status', authenticate, async (req: Reque
 
     const statusTracking = await OrderService.getOrderStatusTracking(paramParsed.data.orderId, req.user!.id);
     return sendSuccess(res, statusTracking, 'Order status tracking retrieved successfully');
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/v1/customers/me/orders/:orderId/tracking
+ * Retrieves live delivery tracking details (latest valid GPS, staleness status, assignment).
+ */
+customerRouter.get('/me/orders/:orderId/tracking', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const paramParsed = orderIdParamSchema.safeParse(req.params);
+    if (!paramParsed.success) return next(paramParsed.error);
+
+    const liveTracking = await DeliveryTrackingService.getOrderLiveTracking(
+      paramParsed.data.orderId,
+      req.user!.id,
+      req.user!.role
+    );
+    return sendSuccess(res, liveTracking, 'Live order delivery tracking retrieved successfully');
   } catch (err) {
     next(err);
   }

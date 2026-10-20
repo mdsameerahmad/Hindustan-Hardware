@@ -22,8 +22,15 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().url('SUPABASE_URL must be a valid URL').optional().or(z.literal('')),
   SUPABASE_ANON_KEY: z.string().min(1).optional().or(z.literal('')),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional().or(z.literal('')),
-  DATABASE_URL: z.string().optional().or(z.literal('')),
   REQUEST_BODY_LIMIT: z.string().default('1mb'),
+  // Live Delivery Tracking configuration
+  TRACKING_FRESHNESS_THRESHOLD_SECONDS: z.string().default('120').transform((val) => parseInt(val, 10) || 120),
+  TRACKING_MAX_ACCURACY_METERS: z.string().default('500').transform((val) => parseInt(val, 10) || 500),
+  TRACKING_MAX_UPDATE_FREQUENCY_SECONDS: z.string().default('5').transform((val) => parseInt(val, 10) || 5),
+  // OSRM Routing Service Configuration
+  OSRM_ROUTER_URL: z.string().url().default('https://router.project-osrm.org'),
+  ROUTING_CACHE_TTL_SECONDS: z.string().default('60').transform((val) => parseInt(val, 10) || 60),
+  ROUTING_MIN_DISTANCE_RECALCULATE_METERS: z.string().default('50').transform((val) => parseInt(val, 10) || 50),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

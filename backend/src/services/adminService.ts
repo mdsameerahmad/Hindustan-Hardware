@@ -864,7 +864,7 @@ export class AdminService {
     page?: number;
     limit?: number;
     search?: string;
-    role?: 'customer' | 'admin';
+    role?: 'customer' | 'admin' | 'staff' | 'delivery_partner';
   }): Promise<PaginatedResult<AdminCustomerRecord>> {
     const client = getSupabaseAdminClient() || getSupabaseClient();
     if (!client) throw new InternalServerError('Database service is unavailable.');

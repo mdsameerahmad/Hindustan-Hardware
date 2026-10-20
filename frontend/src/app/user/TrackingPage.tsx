@@ -5,6 +5,8 @@ import { useAuth } from "../authContext"
 import { Badge, Button, EmptyState, PageHeader } from "../components"
 import { useOrderStatus } from "../features/hooks/useOrderStatus"
 
+import { LiveTrackingCard } from "../components/LiveTrackingCard"
+
 type InfoProps = {
   label: string
   value: React.ReactNode
@@ -229,6 +231,12 @@ export function TrackingPage() {
 
         {/* Informational Sidebar */}
         <aside className="space-y-5">
+          {/* Live Delivery Tracking Map Card */}
+          <LiveTrackingCard
+            orderId={tracking.orderId}
+            orderNumber={tracking.orderNumber}
+          />
+
           <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
             <h3 className="font-bold text-ink">Store Fulfillment Dispatch</h3>
             <p className="mt-1 text-xs text-slate-500 leading-relaxed">

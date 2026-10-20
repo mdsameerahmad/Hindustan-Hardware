@@ -2,11 +2,15 @@ import { createApp } from './app';
 import { env } from './config/env';
 import { logger } from './common/utils/logger';
 import { checkSupabaseHealth } from './config/supabase';
+import { initSocketIO } from './common/socket/trackingSocket';
 import http from 'http';
 
 function startServer(): void {
   const app = createApp();
   const server = http.createServer(app);
+
+  // Initialize Socket.IO tracking gateway with the HTTP server
+  initSocketIO(server);
 
   server.listen(env.PORT, env.HOST, async () => {
     logger.info(`Server started on http://${env.HOST === '0.0.0.0' ? 'localhost' : env.HOST}:${env.PORT}`);
@@ -29,7 +33,7 @@ function startServer(): void {
   const shutdown = (signal: string) => {
     logger.info(`Received ${signal}. Shutting down gracefully...`);
     server.close(() => {
-      logger.info('HTTP server closed.');
+      logger.info('HTTP & Socket.IO server closed.');
       process.exit(0);
     });
 

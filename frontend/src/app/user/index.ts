@@ -14,5 +14,6 @@ export { ProductDetailPage } from "./ProductDetailPage"
 export { ProductsPage } from "./ProductsPage"
 export { Footer, SearchBox, StorefrontLayout, UserNavAction } from "./StorefrontLayout"
 export { TrackingPage } from "./TrackingPage"
+export { LiveTrackingDetailPage } from "./LiveTrackingDetailPage"
 export { WishlistPage } from "./WishlistPage"
 

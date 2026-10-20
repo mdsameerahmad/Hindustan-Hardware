@@ -74,3 +74,22 @@ export const adminRateLimiter = rateLimit({
   },
 });
 
+/**
+ * Rate limiter for live GPS location updates from delivery partners.
+ * Protects against runaway client loops while allowing legitimate active GPS updates.
+ */
+export const trackingRateLimiter = rateLimit({
+  windowMs: 10 * 1000, // 10 seconds
+  max: 10, // Max 10 requests per 10-second window per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    return sendError(
+      res,
+      'TOO_MANY_REQUESTS',
+      'Location update rate limit exceeded. Please throttle GPS updates.',
+      429
+    );
+  },
+});
+

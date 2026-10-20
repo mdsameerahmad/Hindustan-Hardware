@@ -5,7 +5,7 @@
 
 import { apiRequest, tokenStorage } from './client'
 
-export type UserRole = 'customer' | 'admin' | 'staff'
+export type UserRole = 'customer' | 'admin' | 'staff' | 'delivery_partner'
 
 export interface UserProfile {
   id: string

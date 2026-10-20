@@ -3,8 +3,14 @@
  * Communicates with the Express + TypeScript backend.
  */
 
-const API_BASE_URL: string =
-  (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:5000/api/v1"
+const getApiBaseUrl = (): string => {
+  if (typeof window !== "undefined" && window.location.hostname && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+    return `http://${window.location.hostname}:5000/api/v1`
+  }
+  return (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:5000/api/v1"
+}
+
+const API_BASE_URL: string = getApiBaseUrl()
 
 export interface ApiResponse<T = any> {
   success: boolean
@@ -158,7 +164,8 @@ export async function apiRequest<T = any>(
   }
 
   const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`
-  const url = `${API_BASE_URL}${cleanEndpoint}`
+  const baseUrl = getApiBaseUrl()
+  const url = `${baseUrl}${cleanEndpoint}`
 
   let response: Response
   try {

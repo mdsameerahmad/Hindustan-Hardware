@@ -44,13 +44,19 @@ export function AuthPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successInfo, setSuccessInfo] = useState<{ title: string; text: string } | null>(null)
 
-  // Redirect destination if specified (defaults to home "/" instead of "/account")
-  const from = (state as any)?.from?.pathname || (user?.role === "admin" ? "/admin" : "/")
+  // Redirect destination if specified (defaults to home "/" or "/admin" or "/partner/dashboard")
+  const getDefaultRedirect = (role?: string) => {
+    if (role === "admin" || role === "staff") return "/admin"
+    if (role === "delivery_partner") return "/partner/dashboard"
+    return "/"
+  }
+
+  const from = (state as any)?.from?.pathname || getDefaultRedirect(user?.role)
 
   // If already authenticated and not showing success screen, redirect
   useEffect(() => {
     if (isAuthenticated && !successInfo) {
-      navigate(user?.role === "admin" ? "/admin" : "/", { replace: true })
+      navigate(getDefaultRedirect(user?.role), { replace: true })
     }
   }, [isAuthenticated, successInfo, navigate, user?.role])
 

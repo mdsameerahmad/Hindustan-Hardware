@@ -592,6 +592,24 @@ export const adminApi = {
       requiresAuth: true,
     })
   },
+
+  // ----------------- Delivery Management: Assign Partner -----------------
+  assignDeliveryPartner: async (payload: {
+    orderId: string
+    deliveryPartnerId: string
+    notes?: string
+  }) => {
+    return apiRequest<{
+      id: string
+      orderId: string
+      deliveryPartnerId: string
+      status: string
+    }>("/admin/deliveries/assign", {
+      method: "POST",
+      requiresAuth: true,
+      body: JSON.stringify(payload),
+    })
+  },
 }
 
 

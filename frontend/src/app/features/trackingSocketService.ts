@@ -1,0 +1,217 @@
+/**
+ * Real-Time Socket.IO Client Service for Hindustan Hardware Delivery Tracking.
+ * Connects to the Express + TypeScript Socket.IO backend with Supabase JWT authentication.
+ * 
+ * Handshake Contract:
+ * - socket = io(SOCKET_BASE_URL, { auth: { token: supabaseAccessToken }, transports: ['websocket', 'polling'] })
+ * 
+ * Events Contract:
+ * - Client -> Server: 'delivery:subscribe', payload: { deliveryId: string }
+ * - Client -> Server: 'delivery:unsubscribe', payload: { deliveryId: string }
+ * - Server -> Client: 'delivery:location_update', payload: DeliveryLocationBroadcastPayload
+ * - Server -> Client: 'delivery:status_update', payload: DeliveryStatusBroadcastPayload
+ * - Server -> Client: 'error', payload: { code: string; message: string }
+ */
+
+import { io, Socket } from "socket.io-client"
+import { tokenStorage } from "../api/client"
+
+export interface DeliveryLocationBroadcastPayload {
+  deliveryId: string
+  orderId: string
+  latitude: number
+  longitude: number
+  accuracy: number | null
+  speed: number | null
+  heading: number | null
+  deviceTimestamp: string
+  serverReceivedAt: string
+  isStale: boolean
+}
+
+export interface DeliveryStatusBroadcastPayload {
+  deliveryId: string
+  orderId: string
+  status: "assigned" | "picked_up" | "out_for_delivery" | "delivered" | "failed" | "cancelled"
+  timestamp: string
+  notes?: string | null
+}
+
+export interface SocketSubscriptionResponse {
+  success: boolean
+  deliveryId: string
+  message: string
+  isLiveTrackingAvailable?: boolean
+}
+
+const getSocketBaseUrl = (): string => {
+  if (typeof window !== "undefined" && window.location.hostname && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+    return `http://${window.location.hostname}:5000`
+  }
+  return (
+    (import.meta.env.VITE_SOCKET_URL as string) ||
+    ((import.meta.env.VITE_API_BASE_URL as string)
+      ? (import.meta.env.VITE_API_BASE_URL as string).replace(/\/api\/v1\/?$/, "")
+      : "http://localhost:5000")
+  )
+}
+
+const SOCKET_BASE_URL: string = getSocketBaseUrl()
+
+class TrackingSocketService {
+  private socket: Socket | null = null
+  private activeSubscriptions = new Set<string>()
+  private listenersCount = 0
+
+  /**
+   * Get or initialize the singleton Socket.IO connection.
+   * Authenticates using the user's stored access token in the handshake.
+   */
+  public connect(): Socket | null {
+    const token = tokenStorage.get()
+    if (!token) {
+      this.disconnect()
+      return null
+    }
+
+    if (this.socket) {
+      if (this.socket.disconnected) {
+        this.socket.auth = { token }
+        this.socket.connect()
+      }
+      return this.socket
+    }
+
+    this.socket = io(SOCKET_BASE_URL, {
+      auth: { token },
+      transports: ["websocket", "polling"],
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
+    })
+
+    this.socket.on("connect", () => {
+      // On reconnect, re-subscribe to all active deliveries
+      if (this.activeSubscriptions.size > 0 && this.socket) {
+        this.activeSubscriptions.forEach((deliveryId) => {
+          this.socket!.emit("delivery:subscribe", { deliveryId })
+        })
+      }
+    })
+
+    this.socket.on("connect_error", (_err) => {
+      // If token expired, tokenStorage will be checked on next connect attempt
+    })
+
+    return this.socket
+  }
+
+  /**
+   * Subscribe to live updates for a specific delivery assignment UUID.
+   */
+  public subscribeToDelivery(
+    deliveryId: string,
+    onLocationUpdate: (payload: DeliveryLocationBroadcastPayload) => void,
+    onStatusUpdate?: (payload: DeliveryStatusBroadcastPayload) => void,
+    onError?: (err: { code?: string; message: string }) => void,
+  ): () => void {
+    const s = this.connect()
+    this.listenersCount++
+    this.activeSubscriptions.add(deliveryId)
+
+    const handleLocationUpdate = (payload: DeliveryLocationBroadcastPayload) => {
+      if (payload && payload.deliveryId === deliveryId) {
+        // Validate coordinates
+        if (
+          typeof payload.latitude === "number" &&
+          !isNaN(payload.latitude) &&
+          typeof payload.longitude === "number" &&
+          !isNaN(payload.longitude) &&
+          payload.latitude >= -90 &&
+          payload.latitude <= 90 &&
+          payload.longitude >= -180 &&
+          payload.longitude <= 180
+        ) {
+          onLocationUpdate(payload)
+        }
+      }
+    }
+
+    const handleStatusUpdate = (payload: DeliveryStatusBroadcastPayload) => {
+      if (payload && payload.deliveryId === deliveryId) {
+        if (onStatusUpdate) {
+          onStatusUpdate(payload)
+        }
+      }
+    }
+
+    const handleError = (errorPayload: { code?: string; message: string }) => {
+      if (onError) {
+        onError(errorPayload)
+      }
+    }
+
+    if (s) {
+      s.on("delivery:location_update", handleLocationUpdate)
+      s.on("delivery:status_update", handleStatusUpdate)
+      s.on("error", handleError)
+
+      // Emit subscribe to server
+      s.emit(
+        "delivery:subscribe",
+        { deliveryId },
+        (res?: SocketSubscriptionResponse) => {
+          if (res && !res.success && onError) {
+            onError({ message: res.message })
+          }
+        },
+      )
+    }
+
+    // Return cleanup unsubscribe function
+    return () => {
+      this.listenersCount = Math.max(0, this.listenersCount - 1)
+      this.activeSubscriptions.delete(deliveryId)
+
+      if (this.socket) {
+        this.socket.off("delivery:location_update", handleLocationUpdate)
+        this.socket.off("delivery:status_update", handleStatusUpdate)
+        this.socket.off("error", handleError)
+
+        if (this.socket.connected) {
+          this.socket.emit("delivery:unsubscribe", { deliveryId })
+        }
+      }
+
+      // If no components are listening anywhere in the application, disconnect cleanly
+      if (this.listenersCount === 0) {
+        this.disconnect()
+      }
+    }
+  }
+
+  /**
+   * Disconnect socket cleanly.
+   */
+  public disconnect(): void {
+    if (this.socket) {
+      this.socket.removeAllListeners()
+      this.socket.disconnect()
+      this.socket = null
+      this.activeSubscriptions.clear()
+      this.listenersCount = 0
+    }
+  }
+
+  /**
+   * Check connection status.
+   */
+  public isConnected(): boolean {
+    return Boolean(this.socket && this.socket.connected)
+  }
+}
+
+export const trackingSocketService = new TrackingSocketService()

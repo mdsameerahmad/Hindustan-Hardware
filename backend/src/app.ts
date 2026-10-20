@@ -20,13 +20,18 @@ export function createApp(): Application {
     })
   );
 
-  // 2. CORS configuration with explicit origin allowlist
+  // 2. CORS configuration with explicit origin allowlist + local LAN support
   app.use(
     cors({
       origin: (origin, callback) => {
         // Allow requests with no origin (like mobile apps, curl, server-to-server)
         if (!origin) return callback(null, true);
-        if (env.CORS_ORIGIN.indexOf(origin) !== -1 || env.CORS_ORIGIN.includes('*')) {
+        if (
+          env.CORS_ORIGIN.indexOf(origin) !== -1 ||
+          env.CORS_ORIGIN.includes('*') ||
+          (env.NODE_ENV !== 'production' &&
+            (/^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(origin)))
+        ) {
           return callback(null, true);
         }
         return callback(new Error(`CORS blocked: Origin ${origin} not allowed`), false);

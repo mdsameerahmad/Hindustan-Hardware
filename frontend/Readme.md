@@ -1009,10 +1009,114 @@ A comprehensive repository-wide audit was conducted across every page, route, ho
 - **Backend Test Suite**: `npm test` &mdash; **142 of 142 tests passing (100%)**.
 
 ---
-*Maintained by the Hindustan Hardware development team. Built with React 19, TypeScript, and Vite.*
 
+## 20. Frontend Phase 1 — Live Delivery Tracking Map UI & Backend REST Integration
 
+### Objective Completed
+Successfully implemented **Frontend Phase 1** of the real-time delivery tracking module (Blinkit / Zomato style):
+1. **Interactive Leaflet Map Component (`LiveTrackingMap`)**:
+   - Integrated OpenStreetMap tiles and Leaflet rendering.
+   - Custom delivery truck marker created with the authentic project asset `frontend/truckLogo.png` (served via `public/truckLogo.png`), complete with golden pulse animation during active live tracking.
+   - Clean unmounting and memory safety (preventing duplicate map containers during re-renders or hot reloads).
+   - GeoJSON LineString road geometry rendering with automatic coordinate conversion (`[lng, lat]` &rarr; `[lat, lng]`).
+   - Dynamic viewport auto-fitting (`fitBounds`) to encapsulate both partner and destination markers.
+2. **Rectangular Live-Tracking Map Card (`LiveTrackingCard`)**:
+   - Embedded seamlessly on the existing `/track-order/:orderId` page (`TrackingPage.tsx`).
+   - Positioned in the right-hand column directly above Store Fulfillment Dispatch and COD verification.
+   - Includes real-time indicators: Green pulsing dot for active GPS, Amber for signal delay, Gray for waiting on assignment.
+   - Provides an accessible click action and quick badge to navigate to the full dedicated live tracking screen.
+   - Displays clear, honest states for unassigned deliveries, waiting for first GPS fix, signal staleness, and completed delivery.
+3. **Dedicated Full Tracking Route (`/track-order/:id/live` -> `LiveTrackingDetailPage`)**:
+   - Comprehensive full-screen tracking view with enlarged interactive Leaflet map.
+   - Detailed breakdown of partner contact details, best-effort dynamic road ETA, remaining distance in kilometers, store fulfillment center, and last GPS fix timestamp.
+   - Return navigation back to the milestone progress page (`/track-order/:id`).
+4. **Backend REST API Client (`deliveryTrackingApi`)**:
+   - `GET /api/v1/customers/me/orders/:orderId/tracking`: Resolves order reference to delivery assignment ID, delivery partner profile, and latest persisted GPS.
+   - `GET /api/v1/deliveries/:deliveryId/location`: Authoritatively fetches latest GPS coordinates.
+   - `GET /api/v1/deliveries/:deliveryId/route`: Retrieves OSRM-calculated road geometry LineString.
+   - `GET /api/v1/deliveries/:deliveryId/eta`: Dynamic best-effort arrival duration and freshness indicators.
+   - Authenticated with customer's Supabase JWT via standard `Authorization: Bearer <token>`.
 
+### Files Created & Modified
+- `frontend/src/app/features/deliveryTrackingApi.ts` — Typed REST API client and domain models for live delivery tracking.
+- `frontend/src/app/components/LiveTrackingMap.tsx` — Reusable Leaflet map component with truck marker, route line, and destination pin.
+- `frontend/src/app/components/LiveTrackingCard.tsx` — Rectangular live tracking card for the order tracking page.
+- `frontend/src/app/user/LiveTrackingDetailPage.tsx` — Dedicated full tracking page at `/track-order/:id/live`.
+- `frontend/src/app/user/TrackingPage.tsx` — Integrated `LiveTrackingCard` into desktop right sidebar.
+- `frontend/src/app/App.tsx` — Registered `/track-order/:id/live` route.
+- `frontend/src/index.css` — Imported `leaflet/dist/leaflet.css`.
+- `frontend/public/truckLogo.png` — Static delivery truck icon copied from `frontend/truckLogo.png`.
 
+### Verification Summary
+- **Frontend Build**: `npm run build` &mdash; **0 errors (built in 2.21s)**.
+- **Strict Phase Boundary**: Socket.IO live push events and background partner location ingestion were intentionally not started and remain reserved for Frontend Phase 2.
 
+---
 
+## 21. Frontend Phase 2 — Real-Time Socket.IO Integration & Live Delivery Marker Updates
+
+### Objective Completed
+Successfully implemented **Frontend Phase 2** of the real-time delivery tracking module:
+1. **Socket.IO Client Service (`trackingSocketService`)**:
+   - Integrated `socket.io-client@^4.8.1`.
+   - Singleton connection manager that avoids creating duplicate sockets across re-renders.
+   - Handshake authentication via `auth: { token: supabaseAccessToken }`, extracted safely from `tokenStorage.get()`.
+   - Automatic room re-subscription upon reconnect.
+   - Auto-disconnect cleanup when no tracking components are mounted anywhere in the application.
+2. **Room Subscription & Event Lifecycle**:
+   - Client subscription: `delivery:subscribe` with payload `{ deliveryId: 'assignment-uuid' }`.
+   - Client unsubscription: `delivery:unsubscribe` with payload `{ deliveryId: 'assignment-uuid' }`.
+   - Server broadcast listener: `delivery:location_update` updating vehicle coordinates, speed, heading, and freshness in real time.
+   - Server status listener: `delivery:status_update` capturing lifecycle transitions (`in_transit`, `delivered`).
+   - Clean unsubscription on component unmount to prevent duplicate listeners or socket leaks.
+3. **Smooth Marker Movement Without Full Map Reinitialization**:
+   - `LiveTrackingMap.tsx` updates the existing `L.Marker` position directly using `marker.setLatLng()` without remounting or recreating the Leaflet map container.
+   - Preserves user map panning/zooming by restricting `fitBounds` strictly to the initial coordinate load.
+   - Prevents older or out-of-order GPS packets from overwriting newer location fixes by asserting ISO device timestamps.
+4. **Live Status Feedback**:
+   - Dynamic real-time indicators for `Live GPS` (pulsing green dot), `Signal Delayed` (amber dot when GPS > 120s stale), or `Connecting to Vehicle GPS`.
+   - Immediate halting of live tracking and socket unsubscription when the order transitions to `delivered` or `cancelled`.
+
+### Files Created & Modified
+- `frontend/src/app/features/trackingSocketService.ts` — Typed Socket.IO singleton client with reconnect and room subscription lifecycle.
+- `frontend/src/app/components/LiveTrackingCard.tsx` — Connected `trackingSocketService` to live push broadcasts.
+- `frontend/src/app/user/LiveTrackingDetailPage.tsx` — Real-time live marker updates on the dedicated full-screen tracking view.
+- `frontend/src/app/components/LiveTrackingMap.tsx` — Prevented viewport hijacking on real-time marker position updates.
+- `frontend/.env` — Added `VITE_SOCKET_URL=http://localhost:5000`.
+
+### Verification Summary
+- **Frontend Build**: `npm run build` &mdash; **0 errors (built in 2.56s)**.
+
+---
+
+## 22. Frontend Phase 3 — Real GPS Capture, Delivery Partner Location Reporting & End-to-End Live Tracking Completion
+
+### Objective Completed
+Successfully completed **Frontend Phase 3**, concluding all frontend phases for the real-time live delivery tracking module:
+1. **Device GPS Ingestion Hook (`useDeviceGps`)**:
+   - Uses browser `navigator.geolocation.watchPosition` with `{ enableHighAccuracy: true, maximumAge: 3000, timeout: 12000 }`.
+   - Validates coordinates (`latitude: [-90, 90]`, `longitude: [-180, 180]`, finite numbers) and device timestamp before submitting.
+   - Throttling & network conservation: minimum 5s time interval and 5m Haversine displacement threshold.
+   - Handles permission states (`prompt`, `granted`, `denied`, `unsupported`) with user-friendly alerts.
+   - Memory cleanup: clears `watchPosition` on unmount or when broadcast is stopped.
+2. **Delivery Partner GPS Controller (`DeliveryPartnerGpsController`)**:
+   - Embedded directly on [`AdminOrderDetailPage.tsx`](file:///d:/Dowbloads/Hardware%20E-Commerce%20Website%20Prototype/frontend/src/app/admin/AdminOrderDetailPage.tsx) for active delivery assignments.
+   - Shows live GPS broadcasting telemetry: broadcast status (Standby / Broadcasting), real GPS accuracy in meters, speed in km/h, and fix count.
+   - Single-click controls to start/pause broadcasting and progress assignment milestones (`picked_up` &rarr; `out_for_delivery` &rarr; `delivered`).
+   - Automatically disables broadcasts once delivery reaches a terminal status (`delivered`, `cancelled`).
+3. **End-to-End Verification Across Backend & Storefront**:
+   - Partner submits location to `POST /api/v1/deliveries/:deliveryId/location`.
+   - Backend validates assignment, timestamps, and coordinates, persisting to `delivery_locations` and `delivery_location_history`.
+   - Backend emits `delivery:location_update` to Socket.IO room `delivery:<id>`.
+   - Customer's active `LiveTrackingCard` (on `/track-order/:id`) and `LiveTrackingDetailPage` (on `/track-order/:id/live`) receive the broadcast and move the `truckLogo.png` marker in real time.
+
+### Files Created & Modified
+- `frontend/src/app/features/useDeviceGps.ts` — Custom hook for browser Geolocation API capture, validation, and throttled submission.
+- `frontend/src/app/components/DeliveryPartnerGpsController.tsx` — Driver/Fleet control panel with telemetry and status controls.
+- `frontend/src/app/features/deliveryTrackingApi.ts` — Added `submitLocationUpdate` and `updateDeliveryStatus`.
+- `frontend/src/app/admin/AdminOrderDetailPage.tsx` — Integrated `DeliveryPartnerGpsController` for active orders.
+
+### Verification Summary
+- **Frontend Build**: `npm run build` &mdash; **0 errors (built in 3.37s)**.
+- **Backend Build & Typecheck**: `npm run build` &mdash; **0 errors**.
+- **Backend Test Suite**: `tests/delivery_tracking.test.ts`, `tests/socket_tracking.test.ts`, `tests/road_routing.test.ts`, `tests/e2e_tracking_lifecycle.test.ts` &mdash; **49 of 49 passed (100%)**.

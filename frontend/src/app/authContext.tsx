@@ -15,6 +15,7 @@ interface AuthContextValue {
   isAuthenticated: boolean
   isAdmin: boolean
   isStaffOrAdmin: boolean
+  isDeliveryPartner: boolean
   login: (payload: LoginPayload) => Promise<void>
   register: (payload: RegisterPayload) => Promise<{ requiresVerification: boolean }>
   logout: () => Promise<void>
@@ -116,6 +117,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = Boolean(user && tokenStorage.get())
   const isAdmin = Boolean(user && user.role === "admin")
   const isStaffOrAdmin = Boolean(user && (user.role === "admin" || user.role === "staff"))
+  const isDeliveryPartner = Boolean(
+    user && (user.role === "delivery_partner" || user.role === "admin" || user.role === "staff")
+  )
 
   const value: AuthContextValue = {
     user,
@@ -123,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated,
     isAdmin,
     isStaffOrAdmin,
+    isDeliveryPartner,
     login,
     register,
     logout,

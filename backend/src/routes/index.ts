@@ -8,7 +8,7 @@ import { publicBrandRouter } from './brand';
 import { publicProductRouter } from './product';
 import { cartRouter } from './cart';
 import { checkoutRouter } from './checkout';
-
+import { deliveryRouter } from './delivery';
 
 export const apiV1Router = Router();
 
@@ -31,6 +31,9 @@ apiV1Router.use('/cart', cartRouter);
 
 // Mount checkout routes under /api/v1/checkout
 apiV1Router.use('/checkout', checkoutRouter);
+
+// Mount delivery tracking routes under /api/v1/deliveries
+apiV1Router.use('/deliveries', deliveryRouter);
 
 // Mount admin management routes under /api/v1/admin
 apiV1Router.use('/admin', adminRouter);

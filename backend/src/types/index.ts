@@ -1,4 +1,4 @@
-export type UserRole = 'customer' | 'admin' | 'staff';
+export type UserRole = 'customer' | 'admin' | 'staff' | 'delivery_partner';
 
 export interface UserProfile {
   id: string;
@@ -453,6 +453,194 @@ export interface AdminCustomerRecord {
   totalSpent: number;
   createdAt: string;
   updatedAt: string;
+}
+
+// ============================================================================
+// Phase 1 — Live Delivery Tracking Foundation & Domain Types
+// ============================================================================
+
+export type DeliveryAssignmentStatus =
+  | 'assigned'
+  | 'picked_up'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'failed'
+  | 'cancelled';
+
+export interface DeliveryAssignmentRecord {
+  id: string;
+  orderId: string;
+  deliveryPartnerId: string;
+  customerId: string;
+  status: DeliveryAssignmentStatus;
+  notes: string | null;
+  assignedAt: string;
+  pickedUpAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deliveryPartner?: {
+    id: string;
+    fullName: string;
+    phone: string | null;
+  };
+}
+
+export interface AssignedDeliveryItem {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  status: DeliveryAssignmentStatus;
+  assignedAt: string;
+  pickedUpAt: string | null;
+  completedAt: string | null;
+  notes: string | null;
+  destination: {
+    recipientName: string;
+    phone: string | null;
+    addressLine1: string;
+    addressLine2: string | null;
+    landmark: string | null;
+    city: string;
+    state: string;
+    postalCode: string;
+  };
+  codAmount: number | null;
+  paymentMethod: string;
+  paymentStatus: string;
+  itemsSummary: {
+    productName: string;
+    quantity: number;
+    unitPrice: number;
+    variantTitle?: string | null;
+  }[];
+}
+
+export interface PaginatedAssignedDeliveries {
+  items: AssignedDeliveryItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+}
+
+export interface DeliveryLocationRecord {
+  id: string;
+  deliveryAssignmentId: string;
+  orderId: string;
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  speed: number | null;
+  heading: number | null;
+  deviceTimestamp: string;
+  serverReceivedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  isStale?: boolean;
+}
+
+export interface DeliveryLocationHistoryRecord {
+  id: string;
+  deliveryAssignmentId: string;
+  orderId: string;
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  speed: number | null;
+  heading: number | null;
+  deviceTimestamp: string;
+  serverReceivedAt: string;
+  createdAt: string;
+}
+
+export interface OrderLiveTrackingResponse {
+  orderId: string;
+  orderNumber: string;
+  orderStatus: OrderStatus;
+  assignment: {
+    id: string;
+    status: DeliveryAssignmentStatus;
+    assignedAt: string;
+    pickedUpAt: string | null;
+    completedAt: string | null;
+    deliveryPartner: {
+      fullName: string;
+      phone: string | null;
+    } | null;
+  } | null;
+  latestLocation: {
+    latitude: number;
+    longitude: number;
+    accuracy: number | null;
+    speed: number | null;
+    heading: number | null;
+    deviceTimestamp: string;
+    serverReceivedAt: string;
+    isStale: boolean;
+  } | null;
+  store: StoreOriginInfo;
+  destination: RouteCoordinate | null;
+  isLiveTrackingAvailable: boolean;
+  trackingMessage: string;
+}
+
+export interface RouteCoordinate {
+  latitude: number;
+  longitude: number;
+}
+
+export interface RouteGeometry {
+  type: 'LineString';
+  coordinates: [number, number][]; // [longitude, latitude] GeoJSON format
+}
+
+export interface StoreOriginInfo {
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  latitude: number;
+  longitude: number;
+  coordinateStatus: 'approximate_locality';
+}
+
+export interface RouteCalculationResult {
+  deliveryId: string;
+  orderId: string;
+  store: StoreOriginInfo;
+  origin: RouteCoordinate;
+  destination: RouteCoordinate;
+  distanceMeters: number;
+  durationSeconds: number;
+  geometry: RouteGeometry;
+  provider: string;
+  calculatedAt: string;
+  cached: boolean;
+}
+
+export interface DeliveryEtaResponse {
+  deliveryId: string;
+  orderId: string;
+  isAvailable: boolean;
+  statusMessage: string;
+  eta: {
+    estimatedDurationSeconds: number;
+    estimatedArrivalTimestamp: string;
+    distanceMeters: number;
+    calculatedAt: string;
+  } | null;
+  locationFreshness: {
+    lastGpsTimestamp: string | null;
+    serverReceivedAt: string | null;
+    isStale: boolean;
+    accuracyMeters: number | null;
+  };
 }
 
 

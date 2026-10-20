@@ -24,6 +24,12 @@ import { BrandService } from '../services/brandService';
 import { ProductService } from '../services/productService';
 import { ImageService } from '../services/imageService';
 import { AdminService } from '../services/adminService';
+import { DeliveryTrackingService } from '../services/deliveryTrackingService';
+import {
+  createDeliveryAssignmentSchema,
+  deliveryAssignmentIdParamSchema,
+  updateAssignmentStatusSchema,
+} from '../common/validation/trackingSchemas';
 import {
   adminOrderQuerySchema,
   updateOrderStatusSchema,
@@ -465,4 +471,54 @@ adminRouter.get('/audit-logs', async (req: Request, res: Response, next: NextFun
     next(err);
   }
 });
+
+// ----------------- Phase 5 Delivery Partner Assignment -----------------
+/**
+ * POST /api/v1/admin/deliveries/assign
+ * Assigns or reassigns an authorized delivery partner to an order.
+ */
+adminRouter.post('/deliveries/assign', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = createDeliveryAssignmentSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+
+    const assignment = await DeliveryTrackingService.assignDeliveryPartner({
+      orderId: parsed.data.orderId,
+      deliveryPartnerId: parsed.data.deliveryPartnerId,
+      actorId: req.user!.id,
+      notes: parsed.data.notes,
+    });
+
+    return sendSuccess(res, assignment, 'Delivery partner assigned successfully', 201);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PATCH /api/v1/admin/deliveries/:assignmentId/status
+ * Updates delivery assignment status (e.g. picked_up, out_for_delivery, delivered, cancelled).
+ */
+adminRouter.patch('/deliveries/:assignmentId/status', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const paramParsed = deliveryAssignmentIdParamSchema.safeParse(req.params);
+    if (!paramParsed.success) return next(paramParsed.error);
+
+    const bodyParsed = updateAssignmentStatusSchema.safeParse(req.body);
+    if (!bodyParsed.success) return next(bodyParsed.error);
+
+    const updated = await DeliveryTrackingService.updateAssignmentStatus({
+      assignmentId: paramParsed.data.deliveryId,
+      status: bodyParsed.data.status,
+      actorId: req.user!.id,
+      actorRole: req.user!.role,
+      notes: bodyParsed.data.notes,
+    });
+
+    return sendSuccess(res, updated, 'Delivery assignment status updated successfully');
+  } catch (err) {
+    next(err);
+  }
+});
+
 

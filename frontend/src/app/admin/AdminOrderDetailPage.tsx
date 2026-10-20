@@ -1,7 +1,5 @@
 import {
-  Check,
   CheckCircle2,
-  Download,
   Eye,
   FileCheck,
   IndianRupee,
@@ -9,9 +7,9 @@ import {
   RefreshCcw,
   Trash2,
   Truck,
-  Upload,
+  Upload
 } from "lucide-react"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useParams } from "react-router"
 import {
   Badge,
@@ -21,6 +19,8 @@ import {
   formatPrice,
   statusTone,
 } from "../components"
+import { DeliveryPartnerGpsController } from "../components/DeliveryPartnerGpsController"
+import { deliveryTrackingApi, type OrderLiveTrackingResponse } from "../features/deliveryTrackingApi"
 import { useAdminOrderDetail } from "../features/hooks/useAdminOrderDetail"
 
 export function AdminOrderDetailPage() {
@@ -44,6 +44,72 @@ export function AdminOrderDetailPage() {
   const [codModalOpen, setCodModalOpen] = useState(false)
   const [codNotes, setCodNotes] = useState("")
   const [actionError, setActionError] = useState<string | null>(null)
+  const [trackingInfo, setTrackingInfo] = useState<OrderLiveTrackingResponse | null>(null)
+  const [partnersList, setPartnersList] = useState<any[]>([])
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string>("")
+  const [assigningPartner, setAssigningPartner] = useState<boolean>(false)
+
+  const fetchTracking = () => {
+    if (id) {
+      deliveryTrackingApi
+        .getOrderTracking(id)
+        .then((res) => setTrackingInfo(res))
+        .catch(() => {})
+    }
+  }
+
+  useEffect(() => {
+    fetchTracking()
+    // Fetch verified delivery partners
+    import("../features/commerceApi").then(({ adminApi }) => {
+      adminApi
+        .listCustomers({ role: "delivery_partner" as any, limit: 50 })
+        .then((res: any) => {
+          const items = res?.items || []
+          if (items.length > 0) {
+            setPartnersList(items)
+          } else {
+            // Also include driver default if list empty
+            setPartnersList([
+              {
+                id: "f191b19b-58ae-4d03-a41c-6564ab022ad2",
+                fullName: "Ramesh Driver (driver@hindustanhardware.com)",
+                phone: "+919876543210",
+              },
+            ])
+          }
+        })
+        .catch(() => {
+          setPartnersList([
+            {
+              id: "f191b19b-58ae-4d03-a41c-6564ab022ad2",
+              fullName: "Ramesh Driver (driver@hindustanhardware.com)",
+              phone: "+919876543210",
+            },
+          ])
+        })
+    })
+  }, [id])
+
+  const handleAssignPartner = async () => {
+    if (!id || !selectedPartnerId) return
+    setAssigningPartner(true)
+    setActionError(null)
+    try {
+      const { adminApi } = await import("../features/commerceApi")
+      await adminApi.assignDeliveryPartner({
+        orderId: id,
+        deliveryPartnerId: selectedPartnerId,
+        notes: "Assigned via Store Admin Console",
+      })
+      fetchTracking()
+      refetch()
+    } catch (err: any) {
+      setActionError(err?.message || "Failed to assign delivery partner.")
+    } finally {
+      setAssigningPartner(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -313,6 +379,88 @@ export function AdminOrderDetailPage() {
         </div>
 
         <aside className="space-y-5">
+          {/* Delivery Partner Assignment & Telemetry */}
+          <section className="rounded-xl border border-border bg-white p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-slate-900 flex items-center gap-1.5">
+                <Truck size={17} className="text-amber-500" /> Delivery Assignment
+              </h3>
+              <Badge tone={trackingInfo?.assignment ? "blue" : "neutral"}>
+                {trackingInfo?.assignment ? trackingInfo.assignment.status.replace(/_/g, " ") : "Unassigned"}
+              </Badge>
+            </div>
+
+            {trackingInfo?.assignment ? (
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Assigned Driver:</span>
+                  <b className="text-slate-900 font-bold">
+                    {trackingInfo.assignment.deliveryPartner?.fullName || "Assigned Partner"}
+                  </b>
+                </div>
+                {trackingInfo.assignment.deliveryPartner?.phone && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Phone:</span>
+                    <span className="text-slate-700 font-mono">{trackingInfo.assignment.deliveryPartner.phone}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Status:</span>
+                  <span className="font-semibold capitalize text-amber-700">
+                    {trackingInfo.assignment.status.replace(/_/g, " ")}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-slate-500">
+                  Assign this order to a verified delivery partner so it appears on their driver dashboard.
+                </p>
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    Select Driver
+                  </label>
+                  <select
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    value={selectedPartnerId}
+                    onChange={(e) => setSelectedPartnerId(e.target.value)}
+                  >
+                    <option value="">-- Choose verified partner --</option>
+                    {partnersList.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.fullName || p.name || p.email} ({p.phone || "No phone"})
+                      </option>
+                    ))}
+                  </select>
+
+                  <Button
+                    variant="primary"
+                    disabled={!selectedPartnerId || assigningPartner}
+                    onClick={handleAssignPartner}
+                    className="w-full text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 mt-1"
+                  >
+                    {assigningPartner ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} />}
+                    {assigningPartner ? "Assigning..." : "Assign to Driver"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Active Delivery Partner GPS Controller & Dispatch Telemetry */}
+          {trackingInfo?.assignment && (
+            <DeliveryPartnerGpsController
+              deliveryId={trackingInfo.assignment.id}
+              orderNumber={order.orderNumber}
+              customerName={shippingAddr.recipientName || "Customer"}
+              customerAddress={`${shippingAddr.addressLine1 || ""}, ${shippingAddr.city || ""}`}
+              initialStatus={trackingInfo.assignment.status}
+              onStatusChange={() => {
+                refetch()
+              }}
+            />
+          )}
+
           <section className="rounded-xl border border-border bg-white p-5 shadow-xs">
             <h3 className="font-black text-slate-900">Customer & delivery snapshot</h3>
             <div className="mt-3 text-sm leading-6 text-slate-600">
