@@ -21,6 +21,17 @@ cp "$artifact_dir/package.json" "$artifact_dir/package-lock.json" "$release_dir/
 cd "$release_dir"
 npm ci --omit=dev --no-audit --no-fund
 NODE_ENV=production pm2 restart hindustan-hardware-api --update-env
-curl --fail --silent --show-error --max-time 10 \
-  https://api.hindustan-hardware.in/health
-pm2 save
+health_url="https://api.hindustan-hardware.in/api/v1/health/ready"
+for attempt in $(seq 1 20); do
+  if curl --fail --silent --show-error --max-time 10 "$health_url"; then
+    echo
+    pm2 save
+    exit 0
+  fi
+  echo "Health check attempt $attempt failed; retrying in 3 seconds..."
+  sleep 3
+done
+
+echo "Backend did not become ready at $health_url. Recent PM2 logs:"
+pm2 logs hindustan-hardware-api --lines 50 --nostream || true
+exit 1
