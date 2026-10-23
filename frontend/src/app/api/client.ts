@@ -4,10 +4,9 @@
  */
 
 const getApiBaseUrl = (): string => {
-  if (typeof window !== "undefined" && window.location.hostname && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
-    return `http://${window.location.hostname}:5000/api/v1`
-  }
-  return (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:5000/api/v1"
+  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined
+  if (configuredBaseUrl?.trim()) return configuredBaseUrl.trim().replace(/\/$/, "")
+  return "http://localhost:5000/api/v1"
 }
 
 const API_BASE_URL: string = getApiBaseUrl()

@@ -45,15 +45,15 @@ export interface SocketSubscriptionResponse {
 }
 
 const getSocketBaseUrl = (): string => {
-  if (typeof window !== "undefined" && window.location.hostname && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
-    return `http://${window.location.hostname}:5000`
+  const configuredSocketUrl = import.meta.env.VITE_SOCKET_URL as string | undefined
+  if (configuredSocketUrl?.trim()) return configuredSocketUrl.trim().replace(/\/$/, "")
+
+  const configuredApiUrl = import.meta.env.VITE_API_BASE_URL as string | undefined
+  if (configuredApiUrl?.trim()) {
+    return configuredApiUrl.trim().replace(/\/api\/v1\/?$/, "").replace(/\/$/, "")
   }
-  return (
-    (import.meta.env.VITE_SOCKET_URL as string) ||
-    ((import.meta.env.VITE_API_BASE_URL as string)
-      ? (import.meta.env.VITE_API_BASE_URL as string).replace(/\/api\/v1\/?$/, "")
-      : "http://localhost:5000")
-  )
+
+  return "http://localhost:5000"
 }
 
 const SOCKET_BASE_URL: string = getSocketBaseUrl()
