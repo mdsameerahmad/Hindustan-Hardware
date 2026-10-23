@@ -95,6 +95,8 @@ export interface ProductListParams {
   availability?: 'in_stock' | 'all'
 }
 
+export type ProductFilters = ProductListParams
+
 export interface PaginationMeta {
   page: number
   limit: number

@@ -77,8 +77,8 @@ export function OrderDetailPage() {
         title={`Order ${order.orderNumber}`}
         description={`Placed on ${formatDateTime(order.createdAt)}`}
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={() => refetch()} className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <Button variant="outline" onClick={() => refetch()} className="flex items-center gap-1.5 flex-1 sm:flex-initial text-xs">
               <RefreshCcw size={15} /> Refresh
             </Button>
             {order.invoiceUrl ? (
@@ -87,7 +87,7 @@ export function OrderDetailPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 download
-                className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] text-black font-extrabold px-4 py-2 text-xs shadow-md hover:brightness-105 active:scale-[0.98] transition border border-[#B89124]/40"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] text-black font-extrabold px-3 py-2 text-xs shadow-md hover:brightness-105 active:scale-[0.98] transition border border-[#B89124]/40 flex-1 sm:flex-initial"
                 title="Download / View the official invoice receipt uploaded by the store"
               >
                 <Printer size={15} className="text-black" /> Print invoice
@@ -96,15 +96,15 @@ export function OrderDetailPage() {
               <Button
                 variant="outline"
                 onClick={() => window.print()}
-                className="flex items-center gap-1.5"
+                className="flex items-center gap-1.5 flex-1 sm:flex-initial text-xs"
                 title="Print order receipt"
               >
                 <Printer size={15} /> Print invoice
               </Button>
             )}
             {!["delivered", "cancelled"].includes(order.status) && (
-              <Link to={`/track-order/${order.id}`}>
-                <Button>Track delivery</Button>
+              <Link to={`/track-order/${order.id}`} className="w-full sm:w-auto">
+                <Button className="w-full sm:w-auto text-xs">Track delivery</Button>
               </Link>
             )}
           </div>
@@ -114,23 +114,23 @@ export function OrderDetailPage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="space-y-6">
           {/* Order Items Snapshot */}
-          <div className="rounded-xl border border-border bg-white p-6 shadow-sm">
+          <div className="rounded-xl border border-border bg-white p-4 sm:p-6 shadow-sm">
             <h2 className="font-black text-lg text-ink">Items in this order</h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Immutable prices recorded at checkout from verified backend store catalogue.
             </p>
             <div className="mt-4 divide-y divide-border">
               {order.items.map((item) => (
-                <div key={item.id} className="flex justify-between items-center py-4 first:pt-0">
-                  <div className="flex-1">
-                    <b className="text-ink block">{item.productName}</b>
+                <div key={item.id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1.5 sm:gap-4 py-3 sm:py-4 first:pt-0">
+                  <div className="flex-1 min-w-0">
+                    <b className="text-ink block text-sm sm:text-base leading-snug">{item.productName}</b>
                     <p className="text-xs text-slate-500 mt-0.5">
                       {item.variantTitle ? `Variant: ${item.variantTitle} · ` : ""}
                       {item.sku ? `SKU: ${item.sku} · ` : ""}
                       Qty: {item.quantity} &times; {formatPrice(item.unitPrice)}
                     </p>
                   </div>
-                  <b className="text-ink text-base font-black">
+                  <b className="text-ink text-sm sm:text-base font-black self-end sm:self-center">
                     {formatPrice(item.lineSubtotal)}
                   </b>
                 </div>

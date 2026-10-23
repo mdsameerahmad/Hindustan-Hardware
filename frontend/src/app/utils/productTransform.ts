@@ -3,8 +3,8 @@
  * ensuring complete compatibility with existing UI components.
  */
 
-import type { BackendProduct } from './api/catalogueApi'
-import type { Product } from './data'
+import type { BackendProduct } from '../api/catalogueApi'
+import type { Product } from '../data'
 
 export const DEFAULT_PRODUCT_IMAGE =
   'https://images.unsplash.com/photo-1642797735471-3e90055c5ff9?auto=format&fit=crop&w=800&q=80'

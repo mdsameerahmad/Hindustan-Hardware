@@ -275,31 +275,33 @@ export function ProductsPage() {
         }
       />
 
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-white p-4">
-        <div className="flex items-center gap-3">
+      <div className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-border bg-white p-3 sm:p-4 shadow-sm">
+        <div className="flex items-center justify-between sm:justify-start gap-3">
           <Button
             variant="outline"
-            className="lg:hidden"
+            className="lg:hidden shrink-0 border-[#D4AF37]/50 text-slate-800 hover:border-[#D4AF37] hover:bg-[#FAF8F5]"
             onClick={() => setMobileFilters(true)}
           >
-            <SlidersHorizontal size={17} />
-            Filters
+            <SlidersHorizontal size={16} className="text-[#B89124]" />
+            <span className="font-semibold text-xs sm:text-sm">Filters</span>
           </Button>
-          <span className="text-sm text-slate-500">
-            <b className="text-ink">{pagination.total}</b> products available
+          <span className="text-xs sm:text-sm text-slate-500 font-medium">
+            <b className="text-ink font-bold">{pagination.total}</b> products available
           </span>
         </div>
-        <select
-          value={sort}
-          onChange={(event) => handleSortChange(event.target.value)}
-          className="field max-w-56"
-          aria-label="Sort products"
-        >
-          <option value="newest">Sort: Newest First</option>
-          <option value="low">Price: Low to high</option>
-          <option value="high">Price: High to low</option>
-          <option value="name">Name: A to Z</option>
-        </select>
+        <div className="w-full sm:w-auto">
+          <select
+            value={sort}
+            onChange={(event) => handleSortChange(event.target.value)}
+            className="field w-full sm:w-56 text-xs sm:text-sm py-2 px-3 rounded-lg border-border bg-slate-50/50 hover:bg-white focus:bg-white transition"
+            aria-label="Sort products"
+          >
+            <option value="newest">Sort: Newest First</option>
+            <option value="low">Price: Low to high</option>
+            <option value="high">Price: High to low</option>
+            <option value="name">Name: A to Z</option>
+          </select>
+        </div>
       </div>
 
       {(categoryParam || brandParam || query) && (

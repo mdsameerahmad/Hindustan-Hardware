@@ -33,16 +33,16 @@ export function UserNavAction() {
   if (isAuthenticated && user) {
     const label = user.profile?.full_name ? user.profile.full_name.split(" ")[0] : "Account"
     return (
-      <Link to="/account" className="header-action">
+      <Link to="/account" className="header-action" title={`Signed in as ${label}`}>
         <UserRound size={20} className="text-[#D4AF37]" />
-        <span className="text-[11px] font-bold text-white max-w-[80px] truncate">{label}</span>
+        <span className="hidden md:inline text-[11px] font-bold text-white max-w-[80px] truncate">{label}</span>
       </Link>
     )
   }
   return (
-    <Link to="/login" className="header-action">
+    <Link to="/login" className="header-action" title="Login or Register">
       <UserRound size={20} className="text-white" />
-      <span className="text-[11px] font-medium text-[#CCCCCC]">Login / Register</span>
+      <span className="hidden md:inline text-[11px] font-medium text-[#CCCCCC]">Login / Register</span>
     </Link>
   )
 }
@@ -448,8 +448,8 @@ export function StorefrontLayout() {
   }, [pathname])
 
   return (
-    <div className="min-h-screen bg-canvas pb-16 md:pb-0 font-sans">
-      <header className="sticky top-0 z-40 bg-[#0B0B0B] text-white shadow-md">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-canvas pb-16 md:pb-0 font-sans">
+      <header className="sticky top-0 z-40 w-full bg-[#0B0B0B] text-white shadow-md">
         {/* Top utility bar */}
         <div className="hidden border-b border-[#222222] bg-[#000000] px-4 py-2 text-xs text-[#AAAAAA] md:block">
           <div className="container-wide flex items-center justify-between">
@@ -476,25 +476,18 @@ export function StorefrontLayout() {
         </div>
 
         {/* Main Navbar */}
-        <div className="container-wide flex items-center gap-5 py-3">
-          <button
-            aria-label="Open menu"
-            className="text-white hover:text-[#D4AF37] md:hidden"
-            onClick={() => setMenuOpen(!menuOpen)}
-          >
-            <Menu size={24} />
-          </button>
-
+        <div className="container-wide flex items-center gap-2 sm:gap-5 py-2.5 sm:py-3">
           {/* Logo with gold seal mark from reference */}
-          <Link to="/" className="flex shrink-0 items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-full border-2 border-[#D4AF37] bg-transparent text-[#D4AF37] shadow-sm">
-              <Wrench size={20} />
+          <Link to="/" className="flex shrink-0 items-center gap-2 sm:gap-3 min-w-0">
+            <span className="grid h-9 w-9 sm:h-11 sm:w-11 place-items-center rounded-full border-2 border-[#D4AF37] bg-transparent text-[#D4AF37] shadow-sm shrink-0">
+              <Wrench size={18} className="sm:hidden" />
+              <Wrench size={20} className="hidden sm:block" />
             </span>
-            <span className="leading-tight">
-              <strong className="block font-serif text-lg font-black tracking-wider text-white">
+            <span className="leading-tight truncate">
+              <strong className="block font-serif text-base sm:text-lg font-black tracking-wider text-white truncate">
                 HINDUSTAN
               </strong>
-              <span className="block text-[10px] font-bold tracking-[0.25em] text-[#D4AF37] uppercase">
+              <span className="block text-[8.5px] sm:text-[10px] font-bold tracking-[0.2em] sm:tracking-[0.25em] text-[#D4AF37] uppercase truncate">
                 HARDWARE & SANITARY
               </span>
             </span>
@@ -506,15 +499,15 @@ export function StorefrontLayout() {
           </div>
 
           {/* Nav actions with icons & gold badges */}
-          <div className="ml-auto flex items-center gap-1 sm:gap-2">
-            <UserNavAction />
-            <Link to="/wishlist" className="header-action hidden lg:flex">
+          <div className="ml-auto flex items-center gap-0.5 sm:gap-1.5 md:gap-2 shrink-0">
+            <Link to="/wishlist" className="header-action" title="Wishlist">
               <Heart size={20} className="text-white" />
-              <span className="text-[11px] font-medium text-[#CCCCCC]">Wishlist</span>
+              <span className="hidden md:inline text-[11px] font-medium text-[#CCCCCC]">Wishlist</span>
             </Link>
             <Link
               to="/my-orders"
-              className="header-action relative hidden lg:flex"
+              className="header-action relative"
+              title="My Orders"
             >
               <div className="relative">
                 <Package size={20} className="text-white" />
@@ -524,9 +517,9 @@ export function StorefrontLayout() {
                   </span>
                 )}
               </div>
-              <span className="text-[11px] font-medium text-[#CCCCCC]">Orders</span>
+              <span className="hidden md:inline text-[11px] font-medium text-[#CCCCCC]">Orders</span>
             </Link>
-            <Link to="/cart" className="header-action relative">
+            <Link to="/cart" className="header-action relative" title="Shopping Cart">
               <div className="relative">
                 <ShoppingCart size={20} className="text-white" />
                 {cartCount > 0 && (
@@ -535,8 +528,9 @@ export function StorefrontLayout() {
                   </span>
                 )}
               </div>
-              <span className="text-[11px] font-medium text-[#CCCCCC]">Cart</span>
+              <span className="hidden md:inline text-[11px] font-medium text-[#CCCCCC]">Cart</span>
             </Link>
+            <UserNavAction />
           </div>
         </div>
 
@@ -644,7 +638,7 @@ export function StorefrontLayout() {
           </div>
         )}
       </header>
-      <main>
+      <main className="w-full max-w-full min-w-0">
         <Outlet />
       </main>
       <Footer />

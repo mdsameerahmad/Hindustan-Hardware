@@ -44,31 +44,33 @@ export function ProductCard({ product }: { product: Product }) {
           </span>
         )}
       </div>
-      <div className="flex flex-1 flex-col p-4">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-[#888888]">
+      <div className="flex flex-1 flex-col p-2.5 sm:p-4">
+        <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#888888]">
           {product.brandName}
         </p>
         <Link
           to={`/product/${product.id}`}
-          className="mt-1 line-clamp-2 min-h-10 text-sm font-bold leading-snug text-[#0B0B0B] hover:text-[#B89124] transition"
+          className="mt-0.5 sm:mt-1 line-clamp-2 min-h-8 sm:min-h-10 text-xs sm:text-sm font-bold leading-snug text-[#0B0B0B] hover:text-[#B89124] transition"
         >
           {product.name}
         </Link>
-        <p className="mt-1 text-xs text-[#777777]">
-          {product.material} · {product.diameter}
-        </p>
-        <div className="mt-3 flex items-baseline gap-2">
-          <span className="text-lg font-black text-[#0B0B0B]">
+        {(product.material || product.diameter) && (
+          <p className="mt-0.5 sm:mt-1 text-[11px] sm:text-xs text-[#777777] truncate">
+            {[product.material, product.diameter].filter(Boolean).join(" · ")}
+          </p>
+        )}
+        <div className="mt-2 sm:mt-3 flex flex-wrap items-baseline gap-1 sm:gap-2">
+          <span className="text-sm sm:text-lg font-black text-[#0B0B0B]">
             {formatPrice(product.price)}
           </span>
           {product.mrp && (
-            <span className="text-xs text-[#999999] line-through">
+            <span className="text-[10px] sm:text-xs text-[#999999] line-through">
               {formatPrice(product.mrp)}
             </span>
           )}
         </div>
         <p
-          className={`mt-1 text-[11px] font-bold ${
+          className={`mt-1 text-[10px] sm:text-[11px] font-bold ${
             product.stock > 10
               ? "text-emerald-700"
               : product.stock > 0
@@ -80,24 +82,24 @@ export function ProductCard({ product }: { product: Product }) {
             ? "In stock"
             : product.stock > 0
               ? `Only ${product.stock} left`
-              : "Awaiting stock verification"}
+              : "Awaiting stock"}
         </p>
         {product.comparisonGroupId && (
-          <label className="mt-2.5 flex cursor-pointer items-center gap-2 text-xs font-semibold text-[#555555]">
+          <label className="mt-2 flex cursor-pointer items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-semibold text-[#555555]">
             <input
               type="checkbox"
               checked={compareIds.includes(product.id)}
               onChange={() => toggleCompare(product.id)}
               className="accent-[#D4AF37]"
             />
-            Compare equivalent
+            <span className="truncate">Compare equivalent</span>
           </label>
         )}
         <button
           onClick={() => addToCart(product.id)}
-          className="btn-cart-gradient mt-4 flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-bold transition"
+          className="btn-cart-gradient mt-2.5 sm:mt-4 flex w-full items-center justify-center gap-1.5 sm:gap-2 rounded-lg py-2 sm:py-2.5 text-[11px] sm:text-xs font-bold transition shadow-sm active:scale-95"
         >
-          <ShoppingCart size={15} className="text-[#D4AF37]" />
+          <ShoppingCart size={14} className="text-[#D4AF37]" />
           <span className="text-[#F3E5AB]">Add to Cart</span>
         </button>
       </div>

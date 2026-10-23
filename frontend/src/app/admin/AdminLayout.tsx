@@ -5,6 +5,7 @@ import {
   FileText,
   Gauge,
   LayoutDashboard,
+  LogOut,
   Menu,
   Package,
   Settings,
@@ -31,13 +32,21 @@ export function AdminHeaderUser() {
   }
 
   return (
-    <div className="flex items-center gap-3">
-      <Badge tone="blue">{role.toUpperCase()}</Badge>
-      <span className="text-xs font-semibold text-slate-700 hidden sm:inline max-w-[150px] truncate">
+    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+      <Badge tone="blue" className="text-[10px] sm:text-xs px-2 py-0.5 sm:px-2.5 sm:py-1">
+        {role.toUpperCase()}
+      </Badge>
+      <span className="text-xs font-semibold text-slate-700 hidden md:inline max-w-[140px] truncate">
         {email}
       </span>
-      <Button variant="ghost" onClick={handleLogout} className="text-xs py-1.5 px-3">
-        Sign Out
+      <Button
+        variant="ghost"
+        onClick={handleLogout}
+        className="text-xs py-1.5 px-2.5 sm:px-3 flex items-center gap-1.5 text-slate-600 hover:text-rose-600 hover:bg-rose-50"
+        title="Sign Out"
+      >
+        <LogOut size={15} />
+        <span className="hidden sm:inline">Sign Out</span>
       </Button>
     </div>
   )
@@ -51,7 +60,6 @@ const adminNav = [
   ["Inventory", "/admin/inventory", Gauge],
   ["Orders", "/admin/orders", ClipboardList],
   ["Customers", "/admin/customers", Users],
-  ["Audit Logs", "/admin/audit", FileText],
   ["Delivery Management", "/admin/deliveries", Truck],
   ["Bulk Inquiries", "/admin/inquiries", Building2],
   ["Store Settings", "/admin/settings", Settings],
@@ -61,9 +69,18 @@ export function AdminLayout() {
   const [open, setOpen] = useState(false)
   return (
     <div className="min-h-screen bg-[#F5F5F5] lg:flex font-sans">
+      {/* Mobile Backdrop */}
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden"
+          onClick={() => setOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0B0B0B] text-white border-r border-[#1C1C1C] transition-transform lg:static lg:translate-x-0 ${
-          open ? "translate-x-0" : "-translate-x-full"
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0B0B0B] text-white border-r border-[#1C1C1C] transition-transform duration-300 lg:static lg:translate-x-0 ${
+          open ? "translate-x-0 shadow-2xl" : "-translate-x-full"
         }`}
       >
         <div className="flex h-20 items-center justify-between border-b border-[#1C1C1C] px-6">
@@ -83,7 +100,7 @@ export function AdminLayout() {
           <button
             onClick={() => setOpen(false)}
             aria-label="Close sidebar"
-            className="lg:hidden text-[#888888] hover:text-white"
+            className="lg:hidden text-[#888888] hover:text-white p-1 rounded-md"
           >
             <X size={20} />
           </button>
@@ -122,25 +139,23 @@ export function AdminLayout() {
           </Link>
         </div>
       </aside>
-      <div className="flex-1">
-        <header className="flex h-20 items-center justify-between border-b border-[#E8E8E8] bg-white px-6">
-          <div className="flex items-center gap-3">
+      <div className="flex-1 min-w-0">
+        <header className="flex h-14 sm:h-16 md:h-20 items-center justify-between border-b border-[#E8E8E8] bg-white px-3 sm:px-6 gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
             <button
               onClick={() => setOpen(true)}
               aria-label="Open sidebar"
-              className="lg:hidden text-[#0B0B0B]"
+              className="lg:hidden text-[#0B0B0B] p-1.5 rounded-lg hover:bg-slate-100 shrink-0"
             >
-              <Menu size={22} />
+              <Menu size={20} />
             </button>
-            <h2 className="text-lg font-bold text-[#0B0B0B]">
+            <h2 className="text-sm sm:text-base md:text-lg font-black text-[#0B0B0B] truncate">
               Operations Control
             </h2>
           </div>
-          <div className="flex items-center gap-3">
-            <AdminHeaderUser />
-          </div>
+          <AdminHeaderUser />
         </header>
-        <main className="p-4 sm:p-6 lg:p-8">
+        <main className="p-3 sm:p-6 lg:p-8 min-w-0">
           <Outlet />
         </main>
       </div>

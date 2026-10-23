@@ -135,8 +135,8 @@ export function ProductDetailPage() {
   }
 
   return (
-    <div className="container-wide py-7">
-      <p className="mb-5 text-xs font-bold text-slate-500">
+    <div className="container-wide py-7 pb-28 md:pb-7">
+      <p className="mb-5 text-xs font-bold text-slate-500 truncate">
         Home / {product.category} / {product.name}
       </p>
       <div className="grid gap-8 rounded-2xl border border-border bg-white p-5 md:p-8 lg:grid-cols-[1fr_1fr]">
@@ -372,15 +372,15 @@ export function ProductDetailPage() {
           </div>
         </section>
       )}
-      <div className="fixed bottom-16 left-0 right-0 z-30 flex gap-2 border-t border-border bg-white p-3 md:hidden">
+      <div className="fixed bottom-14 left-0 right-0 z-30 flex gap-2 border-t border-border bg-white p-3 md:hidden shadow-lg">
         <Button
           variant="outline"
-          className="flex-1"
+          className="flex-1 py-2 text-xs sm:text-sm"
           onClick={() => addToCart(product.id, quantity)}
         >
           Add to Cart
         </Button>
-        <Button className="flex-1" onClick={buyNow}>
+        <Button className="flex-1 py-2 text-xs sm:text-sm" onClick={buyNow}>
           Buy Now
         </Button>
       </div>

@@ -100,8 +100,8 @@ export function CategoriesPage() {
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_330px]">
-        <div className="rounded-xl border border-border bg-white shadow-xs">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_360px] gap-6 items-start">
+        <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-white shadow-xs">
           {loading ? (
             <div className="flex h-56 flex-col items-center justify-center gap-3">
               <Loader2 className="h-7 w-7 animate-spin text-brand" />
@@ -114,8 +114,10 @@ export function CategoriesPage() {
               <p className="text-xs text-slate-500 mt-1">Create your first category using the panel on the right.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="data-table">
+          <>
+            {/* Desktop & Tablet Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="data-table w-full">
                 <thead>
                   <tr>
                     <th>Category</th>
@@ -129,14 +131,14 @@ export function CategoriesPage() {
                   {items.map((item) => (
                     <tr key={item.id}>
                       <td>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
                           <img
                             src={item.imageUrl || "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80"}
                             alt=""
-                            className="h-11 w-11 rounded-lg object-cover bg-slate-100"
+                            className="h-10 w-10 sm:h-11 sm:w-11 rounded-lg object-cover bg-slate-100 shrink-0"
                           />
-                          <div>
-                            <b className="block font-semibold text-slate-900">{item.name}</b>
+                          <div className="min-w-0 flex-1">
+                            <b className="block font-semibold text-slate-900 truncate">{item.name}</b>
                             {item.description && (
                               <small className="line-clamp-1 text-slate-500 max-w-xs">{item.description}</small>
                             )}
@@ -171,11 +173,55 @@ export function CategoriesPage() {
                 </tbody>
               </table>
             </div>
-          )}
+
+            {/* Mobile Card List */}
+            <div className="block md:hidden divide-y divide-border">
+              {items.map((item) => (
+                <div key={item.id} className="p-3.5 space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <img
+                        src={item.imageUrl || "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80"}
+                        alt=""
+                        className="h-10 w-10 rounded-lg object-cover bg-slate-100 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <b className="block text-xs sm:text-sm font-bold text-slate-900 truncate">{item.name}</b>
+                        <span className="block font-mono text-[10px] sm:text-xs text-slate-400 truncate">/{item.slug}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        disabled={actionLoading}
+                        onClick={() => handleToggleVisibility(item)}
+                        className="cursor-pointer hover:opacity-80"
+                      >
+                        <Badge tone={item.isActive ? "success" : "neutral"}>
+                          {item.isActive ? "Visible" : "Hidden"}
+                        </Badge>
+                      </button>
+                      <button
+                        disabled={actionLoading}
+                        onClick={() => handleDelete(item.id, item.name)}
+                        className="table-action text-red-600 hover:bg-red-50"
+                        title="Delete Category"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                  {item.description && (
+                    <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-2">{item.description}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
         </div>
 
-        <aside className="h-fit rounded-xl border border-border bg-white p-5 shadow-xs">
-          <h2 className="font-black text-slate-900">Add category</h2>
+        <aside className="h-fit min-w-0 rounded-xl border border-border bg-white p-4 sm:p-5 shadow-xs">
+          <h2 className="text-base sm:text-lg font-black text-slate-900">Add category</h2>
           <p className="text-xs text-slate-500 mt-1">Create an authoritative category in the database.</p>
 
           {formError && (

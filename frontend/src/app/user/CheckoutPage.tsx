@@ -169,14 +169,14 @@ export function CheckoutPage() {
         description="Verify your delivery details, live stock availability, and place your order via Cash on Delivery."
       />
 
-      <div className="mb-8 grid grid-cols-4 rounded-xl border border-border bg-white text-center">
-        {["Delivery", "Review", "Payment", "Confirmation"].map((label, index) => (
+      <div className="mb-6 sm:mb-8 grid grid-cols-4 overflow-hidden rounded-xl border border-border bg-white text-center">
+        {["Delivery", "Review", "Payment", "Confirm"].map((label, index) => (
           <div
             key={label}
-            className={`checkout-step ${step >= index + 1 ? "active" : ""}`}
+            className={`checkout-step py-2.5 px-1 sm:py-3.5 sm:px-2 ${step >= index + 1 ? "active" : ""}`}
           >
-            <span>{step > index + 1 ? <Check size={15} /> : index + 1}</span>
-            <b>{label}</b>
+            <span className="h-6 w-6 sm:h-7 sm:w-7 text-xs">{step > index + 1 ? <Check size={13} /> : index + 1}</span>
+            <b className="text-[11px] sm:text-xs truncate">{label}</b>
           </div>
         ))}
       </div>

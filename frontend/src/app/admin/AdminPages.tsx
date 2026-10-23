@@ -1,4 +1,4 @@
-﻿/**
+/**
  * AdminPages.tsx — Backward compatibility barrel export.
  * All administrative pages have been decomposed into dedicated modular files:
  * - AdminOverviewPage.tsx
@@ -20,5 +20,5 @@ export { BrandsAdminPage } from "./BrandsAdminPage"
 export { InventoryPage } from "./InventoryPage"
 export { AdminOrdersPage } from "./AdminOrdersPage"
 export { AdminOrderDetailPage } from "./AdminOrderDetailPage"
-export { GenericAdminPage, Customers, AuditLogsView, Deliveries, Inquiries, Settings } from "./GenericAdminPage"
+export { GenericAdminPage, Customers, Deliveries, Inquiries, Settings } from "./GenericAdminPage"
 export { FormCard, AdminField, SimpleTable } from "./AdminSharedComponents"

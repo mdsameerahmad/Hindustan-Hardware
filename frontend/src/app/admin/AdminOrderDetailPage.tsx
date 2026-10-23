@@ -268,29 +268,29 @@ export function AdminOrderDetailPage() {
 
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
         <div className="space-y-6">
-          <section className="rounded-xl border border-border bg-white p-6 shadow-xs">
+          <section className="rounded-xl border border-border bg-white p-4 sm:p-6 shadow-xs">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-slate-900">Ordered items</h2>
+              <h2 className="text-base sm:text-lg font-black text-slate-900">Ordered items</h2>
               <Badge tone={statusTone(order.status as any)}>{order.status}</Badge>
             </div>
             <div className="mt-4 divide-y divide-border">
               {order.items.map((item) => (
                 <div
-                  className="flex items-center justify-between gap-4 py-4"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 py-3 sm:py-4"
                   key={item.id}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-xs uppercase">
+                    <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-xs uppercase shrink-0">
                       HH
                     </div>
-                    <div>
-                      <b className="block text-slate-900">{item.productName}</b>
-                      <small className="block text-slate-500">
+                    <div className="min-w-0">
+                      <b className="block text-slate-900 text-sm leading-snug">{item.productName}</b>
+                      <small className="block text-slate-500 text-xs">
                         {item.sku ? `SKU: ${item.sku} · ` : ""}Qty: {item.quantity} × {formatPrice(item.unitPrice)}
                       </small>
                     </div>
                   </div>
-                  <b className="text-slate-900">{formatPrice(item.lineSubtotal)}</b>
+                  <b className="text-slate-900 text-sm sm:text-base self-end sm:self-center">{formatPrice(item.lineSubtotal)}</b>
                 </div>
               ))}
             </div>

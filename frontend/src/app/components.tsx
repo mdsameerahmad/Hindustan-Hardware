@@ -138,21 +138,21 @@ export function PageHeader({
   breadcrumbs?: string
 }) {
   return (
-    <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-      <div>
+    <div className="mb-6 sm:mb-7 flex flex-col justify-between gap-3 sm:gap-4 sm:flex-row sm:items-end">
+      <div className="min-w-0 flex-1">
         {breadcrumbs && (
-          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+          <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-400 truncate">
             {breadcrumbs}
           </p>
         )}
-        <h1 className="text-3xl font-black tracking-tight text-ink">{title}</h1>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-ink break-words">{title}</h1>
         {description && (
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+          <p className="mt-1.5 sm:mt-2 max-w-2xl text-xs sm:text-sm leading-5 sm:leading-6 text-slate-500 break-words">
             {description}
           </p>
         )}
       </div>
-      {action}
+      {action && <div className="shrink-0 self-start sm:self-auto">{action}</div>}
     </div>
   )
 }

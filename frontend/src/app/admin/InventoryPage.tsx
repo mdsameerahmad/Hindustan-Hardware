@@ -1,4 +1,4 @@
-﻿import {
+import {
   AlertTriangle,
   Boxes,
   Gauge,
@@ -116,9 +116,9 @@ export function InventoryPage() {
         />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border bg-white shadow-xs">
-        <div className="border-b border-border p-4">
-          <h2 className="text-base font-black text-slate-900">Current Stock by Product</h2>
+      <div className="overflow-hidden rounded-xl border border-border bg-white shadow-xs">
+        <div className="border-b border-border p-4 sm:p-5">
+          <h2 className="text-base sm:text-lg font-black text-slate-900">Current Stock by Product</h2>
           <p className="text-xs text-slate-500">Live authoritative inventory levels across catalog products</p>
         </div>
 
@@ -128,105 +128,186 @@ export function InventoryPage() {
             <p className="text-sm font-medium text-slate-500">Loading catalog inventory...</p>
           </div>
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>SKU</th>
-                <th>Current stock</th>
-                <th>Status</th>
-                <th>Stock adjustment</th>
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            {/* Desktop & Tablet Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="data-table w-full">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>SKU</th>
+                    <th>Current stock</th>
+                    <th>Status</th>
+                    <th>Stock adjustment</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.map((product) => {
+                    const stockVal = product.stock ?? 0
+                    return (
+                      <tr key={product.id}>
+                        <td>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img
+                              src={product.image || "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80"}
+                              alt=""
+                              className="h-10 w-10 rounded-lg object-cover bg-slate-100 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <b className="block text-slate-900 truncate">{product.name}</b>
+                              <small className="text-slate-500 truncate block">
+                                {typeof product.brand === "string"
+                                  ? product.brand
+                                  : (product.brand as any)?.name || product.brandName || "Generic"}
+                              </small>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="font-mono text-xs">HH-{product.id.slice(0, 8).toUpperCase()}</td>
+                        <td>
+                          <b className="text-slate-900 text-base">{stockVal}</b>
+                        </td>
+                        <td>
+                          <Badge
+                            tone={
+                              stockVal === 0
+                                ? "danger"
+                                : stockVal < 10
+                                  ? "warning"
+                                  : "success"
+                            }
+                          >
+                            {stockVal === 0
+                              ? "Out of stock"
+                              : stockVal < 10
+                                ? "Low stock"
+                                : "In stock"}
+                          </Badge>
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenAdjust(product, -1)}
+                              title="Deduct stock"
+                              className="px-2 py-1 text-xs"
+                            >
+                              −1
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenAdjust(product, 10)}
+                              title="Restock 10 units"
+                              className="px-2 py-1 text-xs text-brand"
+                            >
+                              +10 Restock
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenAdjust(product, 1)}
+                              title="Adjust quantity..."
+                              className="px-2.5 py-1 text-xs"
+                            >
+                              Custom
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List */}
+            <div className="block md:hidden divide-y divide-border">
               {products.map((product) => {
                 const stockVal = product.stock ?? 0
                 return (
-                  <tr key={product.id}>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={product.image || "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80"}
-                          alt=""
-                          className="h-10 w-10 rounded-lg object-cover bg-slate-100"
-                        />
-                        <div>
-                          <b className="block text-slate-900">{product.name}</b>
-                          <small className="text-slate-500">
-                            {typeof product.brand === "string"
-                              ? product.brand
-                              : (product.brand as any)?.name || product.brandName || "Generic"}
-                          </small>
+                  <div key={product.id} className="p-3.5 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <img
+                        src={product.image || "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80"}
+                        alt=""
+                        className="h-11 w-11 rounded-lg object-cover bg-slate-100 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <b className="block text-xs font-bold text-slate-900 leading-snug">{product.name}</b>
+                        <span className="block text-[11px] text-slate-500 mt-0.5">
+                          {typeof product.brand === "string"
+                            ? product.brand
+                            : (product.brand as any)?.name || product.brandName || "Generic"} · <span className="font-mono">HH-{product.id.slice(0, 8).toUpperCase()}</span>
+                        </span>
+                        <div className="mt-1.5 flex items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-700">
+                            Current Stock: <b className="text-slate-900 font-black text-sm">{stockVal}</b>
+                          </span>
+                          <Badge
+                            tone={
+                              stockVal === 0
+                                ? "danger"
+                                : stockVal < 10
+                                  ? "warning"
+                                  : "success"
+                            }
+                          >
+                            {stockVal === 0
+                              ? "Out of stock"
+                              : stockVal < 10
+                                ? "Low stock"
+                                : "In stock"}
+                          </Badge>
                         </div>
                       </div>
-                    </td>
-                    <td className="font-mono text-xs">HH-{product.id.slice(0, 8).toUpperCase()}</td>
-                    <td>
-                      <b className="text-slate-900 text-base">{stockVal}</b>
-                    </td>
-                    <td>
-                      <Badge
-                        tone={
-                          stockVal === 0
-                            ? "danger"
-                            : stockVal < 10
-                              ? "warning"
-                              : "success"
-                        }
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenAdjust(product, -1)}
+                        title="Deduct stock"
+                        className="px-2.5 py-1 text-xs"
                       >
-                        {stockVal === 0
-                          ? "Out of stock"
-                          : stockVal < 10
-                            ? "Low stock"
-                            : "In stock"}
-                      </Badge>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenAdjust(product, -1)}
-                          title="Deduct stock"
-                          className="px-2 py-1 text-xs"
-                        >
-                          −1
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenAdjust(product, 10)}
-                          title="Restock 10 units"
-                          className="px-2 py-1 text-xs text-brand"
-                        >
-                          +10 Restock
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenAdjust(product, 1)}
-                          title="Adjust quantity..."
-                          className="px-2.5 py-1 text-xs"
-                        >
-                          Custom
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
+                        −1
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenAdjust(product, 10)}
+                        title="Restock 10 units"
+                        className="px-2.5 py-1 text-xs text-brand font-bold"
+                      >
+                        +10 Restock
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenAdjust(product, 1)}
+                        title="Adjust quantity..."
+                        className="px-2.5 py-1 text-xs"
+                      >
+                        Custom
+                      </Button>
+                    </div>
+                  </div>
                 )
               })}
-            </tbody>
-          </table>
+            </div>
+          </>
         )}
       </div>
 
-      <section className="mt-8 rounded-xl border border-border bg-white shadow-xs">
-        <div className="flex items-center justify-between border-b border-border p-5">
+      <section className="mt-8 overflow-hidden rounded-xl border border-border bg-white shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border p-4 sm:p-5">
           <div>
-            <h2 className="text-base font-black text-slate-900">Inventory movement history</h2>
+            <h2 className="text-base sm:text-lg font-black text-slate-900">Inventory movement history</h2>
             <p className="text-xs text-slate-500">Authoritative audit trail of stock adjustments, orders, and restocks</p>
           </div>
-          <Button variant="ghost" onClick={() => fetchMovPage(movPagination.page)} title="Refresh history">
+          <Button variant="ghost" onClick={() => fetchMovPage(movPagination.page)} title="Refresh history" className="self-start sm:self-auto">
             <RefreshCcw size={15} />
           </Button>
         </div>
@@ -247,51 +328,77 @@ export function InventoryPage() {
             No inventory movement records found yet.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Timestamp</th>
-                  <th>Product</th>
-                  <th>Movement Type</th>
-                  <th>Quantity Delta</th>
-                  <th>Resulting Stock</th>
-                  <th>Reason / Reference</th>
-                </tr>
-              </thead>
-              <tbody>
-                {movements.map((mov) => (
-                  <tr key={mov.id}>
-                    <td className="text-xs text-slate-500">
-                      {new Date(mov.createdAt).toLocaleString()}
-                    </td>
-                    <td>
-                      <b className="text-slate-900">{mov.productName || "Product"}</b>
-                    </td>
-                    <td>
-                      <Badge tone={mov.movementType.includes("cancellation") || mov.movementType === "restock" ? "success" : mov.movementType.includes("deduction") ? "warning" : "blue"}>
-                        {mov.movementType}
-                      </Badge>
-                    </td>
-                    <td>
-                      <b className={mov.quantityChange > 0 ? "text-emerald-700" : "text-rose-700"}>
-                        {mov.quantityChange > 0 ? `+${mov.quantityChange}` : mov.quantityChange}
-                      </b>
-                    </td>
-                    <td>
-                      <span className="font-semibold text-slate-700">{mov.quantityAfter}</span>
-                    </td>
-                    <td className="text-xs text-slate-600 max-w-xs truncate" title={mov.reason}>
-                      {mov.reason}
-                    </td>
+          <>
+            {/* Desktop & Tablet Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="data-table w-full">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Product</th>
+                    <th>Movement Type</th>
+                    <th>Quantity Delta</th>
+                    <th>Resulting Stock</th>
+                    <th>Reason / Reference</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {movements.map((mov) => (
+                    <tr key={mov.id}>
+                      <td className="text-xs text-slate-500">
+                        {new Date(mov.createdAt).toLocaleString()}
+                      </td>
+                      <td>
+                        <b className="text-slate-900">{mov.productName || "Product"}</b>
+                      </td>
+                      <td>
+                        <Badge tone={mov.movementType.includes("cancellation") || mov.movementType === "restock" ? "success" : mov.movementType.includes("deduction") ? "warning" : "blue"}>
+                          {mov.movementType}
+                        </Badge>
+                      </td>
+                      <td>
+                        <b className={mov.quantityChange > 0 ? "text-emerald-700" : "text-rose-700"}>
+                          {mov.quantityChange > 0 ? `+${mov.quantityChange}` : mov.quantityChange}
+                        </b>
+                      </td>
+                      <td>
+                        <span className="font-semibold text-slate-700">{mov.quantityAfter}</span>
+                      </td>
+                      <td className="text-xs text-slate-600 max-w-xs truncate" title={mov.reason}>
+                        {mov.reason}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List */}
+            <div className="block md:hidden divide-y divide-border">
+              {movements.map((mov) => (
+                <div key={mov.id} className="p-3.5 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <b className="text-xs font-bold text-slate-900 leading-snug">{mov.productName || "Product"}</b>
+                    <Badge tone={mov.movementType.includes("cancellation") || mov.movementType === "restock" ? "success" : mov.movementType.includes("deduction") ? "warning" : "blue"}>
+                      {mov.movementType}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500 text-[11px]">{new Date(mov.createdAt).toLocaleString()}</span>
+                    <span className="font-bold">
+                      Delta: <b className={mov.quantityChange > 0 ? "text-emerald-700" : "text-rose-700"}>{mov.quantityChange > 0 ? `+${mov.quantityChange}` : mov.quantityChange}</b> (Stock: {mov.quantityAfter})
+                    </span>
+                  </div>
+                  {mov.reason && (
+                    <p className="text-[11px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">{mov.reason}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
-        <div className="flex items-center justify-between border-t border-border px-5 py-3 text-xs text-slate-500">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border px-4 py-3 sm:px-5 sm:py-3 text-xs text-slate-500">
           <span>Showing {movements.length} of {movPagination.total} movement records</span>
           <div className="flex items-center gap-2">
             <Button

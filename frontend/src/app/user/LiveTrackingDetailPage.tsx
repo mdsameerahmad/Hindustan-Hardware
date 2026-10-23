@@ -332,7 +332,7 @@ export function LiveTrackingDetailPage() {
             </div>
 
             {/* Map Container */}
-            <div className="relative h-[540px] w-full bg-slate-100">
+            <div className="relative h-[340px] sm:h-[440px] lg:h-[540px] w-full bg-slate-100">
               {!assignment ? (
                 <div className="flex h-full w-full flex-col items-center justify-center p-8 text-center">
                   <Clock className="mb-3 h-10 w-10 text-slate-400" />

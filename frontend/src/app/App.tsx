@@ -131,7 +131,6 @@ const router = createBrowserRouter([
           { path: "orders", Component: AdminOrdersPage },
           { path: "orders/:id", Component: AdminOrderDetailPage },
           { path: "customers", element: <GenericAdminPage kind="customers" /> },
-          { path: "audit", element: <GenericAdminPage kind="audit" /> },
           { path: "deliveries", element: <GenericAdminPage kind="deliveries" /> },
           { path: "inquiries", element: <GenericAdminPage kind="inquiries" /> },
           { path: "settings", element: <GenericAdminPage kind="settings" /> },

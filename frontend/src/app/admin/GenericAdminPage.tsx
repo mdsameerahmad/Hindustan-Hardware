@@ -1,4 +1,4 @@
-﻿import {
+import {
   Building2,
   Loader2,
   RefreshCcw,
@@ -13,18 +13,15 @@ import {
   formatPrice,
   statusTone,
 } from "../components"
-import { adminApi } from "../features/commerceApi"
-import { useAdminAuditLogs } from "../features/hooks/useAdminAuditLogs"
 import { useAdminCustomers } from "../features/hooks/useAdminCustomers"
 import { useAdminOrders } from "../features/hooks/useAdminOrders"
 import { useStore } from "../store"
 import { AdminField, FormCard } from "./AdminSharedComponents"
 
-export type GenericKind = "customers" | "deliveries" | "inquiries" | "settings" | "audit"
+export type GenericKind = "customers" | "deliveries" | "inquiries" | "settings"
 
 export function GenericAdminPage({ kind }: { kind: GenericKind }) {
   if (kind === "customers") return <Customers />
-  if (kind === "audit") return <AuditLogsView />
   if (kind === "deliveries") return <Deliveries />
   if (kind === "inquiries") return <Inquiries />
   return <Settings />
@@ -74,146 +71,93 @@ export function Customers() {
             No customer accounts found on record.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Customer</th>
-                  <th>Role</th>
-                  <th>Phone</th>
-                  <th>Orders Count</th>
-                  <th>Total Spent</th>
-                  <th>Registered</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customers.map((c) => (
-                  <tr key={c.id}>
-                    <td>
-                      <div>
-                        <b className="block text-slate-900">{c.fullName || "Unspecified"}</b>
-                        <small className="font-mono text-xs text-slate-400">
-                          {c.id.slice(0, 8)}...
-                        </small>
-                      </div>
-                    </td>
-                    <td>
-                      <Badge tone={c.role === "admin" ? "danger" : c.role === "staff" ? "warning" : "blue"}>
-                        {c.role}
-                      </Badge>
-                    </td>
-                    <td>{c.phone || "—"}</td>
-                    <td>
-                      <b className="text-slate-900">{c.orderCount}</b>
-                    </td>
-                    <td>
-                      <b className="text-emerald-700">{formatPrice(c.totalSpent)}</b>
-                    </td>
-                    <td className="text-xs text-slate-500">
-                      {new Date(c.createdAt).toLocaleDateString()}
-                    </td>
+          <>
+            {/* Desktop & Tablet Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="data-table w-full">
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th>Role</th>
+                    <th>Phone</th>
+                    <th>Orders Count</th>
+                    <th>Total Spent</th>
+                    <th>Registered</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {customers.map((c) => (
+                    <tr key={c.id}>
+                      <td>
+                        <div>
+                          <b className="block text-slate-900">{c.fullName || "Unspecified"}</b>
+                          <small className="font-mono text-xs text-slate-400">
+                            {c.id.slice(0, 8)}...
+                          </small>
+                        </div>
+                      </td>
+                      <td>
+                        <Badge tone={c.role === "admin" ? "danger" : c.role === "staff" ? "warning" : "blue"}>
+                          {c.role}
+                        </Badge>
+                      </td>
+                      <td>{c.phone || "—"}</td>
+                      <td>
+                        <b className="text-slate-900">{c.orderCount}</b>
+                      </td>
+                      <td>
+                        <b className="text-emerald-700">{formatPrice(c.totalSpent)}</b>
+                      </td>
+                      <td className="text-xs text-slate-500">
+                        {new Date(c.createdAt).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List */}
+            <div className="block md:hidden divide-y divide-border">
+              {customers.map((c) => (
+                <div key={c.id} className="p-4 space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <b className="block text-sm font-bold text-slate-900">{c.fullName || "Unspecified"}</b>
+                      <small className="font-mono text-[11px] text-slate-400">
+                        ID: {c.id.slice(0, 8)}...
+                      </small>
+                    </div>
+                    <Badge tone={c.role === "admin" ? "danger" : c.role === "staff" ? "warning" : "blue"}>
+                      {c.role}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                    <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      <span className="text-slate-500 text-[10px] block uppercase font-semibold">Phone</span>
+                      <span className="font-medium text-slate-800">{c.phone || "—"}</span>
+                    </div>
+                    <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      <span className="text-slate-500 text-[10px] block uppercase font-semibold">Orders</span>
+                      <span className="font-bold text-slate-900">{c.orderCount}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <span className="text-slate-500">
+                      Joined {new Date(c.createdAt).toLocaleDateString()}
+                    </span>
+                    <span className="font-bold text-emerald-700">
+                      {formatPrice(c.totalSpent)} spent
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
-        <div className="flex items-center justify-between border-t border-border px-5 py-4 text-xs text-slate-500">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border px-4 py-3 sm:px-5 sm:py-4 text-xs text-slate-500">
           <span>Showing {customers.length} of {pagination.total} customer accounts</span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!pagination.hasPrevPage || loading}
-              onClick={() => fetchPage(pagination.page - 1)}
-            >
-              Previous
-            </Button>
-            <span className="font-semibold text-slate-700">Page {pagination.page} of {pagination.totalPages}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!pagination.hasNextPage || loading}
-              onClick={() => fetchPage(pagination.page + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      </div>
-    </>
-  )
-}
-
-export function AuditLogsView() {
-  const { logs, pagination, loading, error, fetchPage, refetch } = useAdminAuditLogs()
-
-  return (
-    <>
-      <PageHeader
-        title="Administrative Audit Logs"
-        description="Immutable audit trail of privileged administrative actions, inventory movements, and order mutations."
-        action={
-          <Button variant="ghost" onClick={refetch} title="Refresh audit logs">
-            <RefreshCcw size={15} />
-          </Button>
-        }
-      />
-
-      {error && (
-        <div className="mb-6 rounded-lg bg-red-50 p-4 border border-red-200 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      <div className="overflow-hidden rounded-xl border border-border bg-white shadow-xs">
-        {loading ? (
-          <div className="flex h-56 flex-col items-center justify-center gap-3">
-            <Loader2 className="h-7 w-7 animate-spin text-brand" />
-            <p className="text-sm font-medium text-slate-500">Loading audit records...</p>
-          </div>
-        ) : logs.length === 0 ? (
-          <div className="py-16 text-center text-sm text-slate-400">
-            No administrative audit log entries recorded yet.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Timestamp</th>
-                  <th>Action</th>
-                  <th>Entity</th>
-                  <th>Entity ID</th>
-                  <th>Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id}>
-                    <td className="text-xs text-slate-500">
-                      {new Date(log.createdAt).toLocaleString()}
-                    </td>
-                    <td>
-                      <Badge tone={log.action.includes("create") ? "success" : log.action.includes("delete") ? "danger" : "blue"}>
-                        {log.action}
-                      </Badge>
-                    </td>
-                    <td className="font-bold text-slate-700 capitalize">{log.entityType}</td>
-                    <td className="font-mono text-xs text-slate-400">{log.entityId ? log.entityId.slice(0, 8) : "—"}</td>
-                    <td className="text-xs text-slate-600 max-w-sm truncate" title={JSON.stringify(log.details)}>
-                      {typeof log.details === "object" ? JSON.stringify(log.details) : String(log.details || "—")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <div className="flex items-center justify-between border-t border-border px-5 py-3 text-xs text-slate-500">
-          <span>Showing {logs.length} of {pagination.total} audit log records</span>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"

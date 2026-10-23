@@ -1,4 +1,4 @@
-﻿import {
+import {
   Edit3,
   Eye,
   Loader2,
@@ -92,23 +92,23 @@ export function AdminProductsPage() {
       />
 
       <div className="rounded-xl border border-border bg-white shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
-          <div className="relative max-w-md flex-1">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border p-3.5 sm:p-4">
+          <div className="relative w-full sm:max-w-md flex-1">
             <Search
               className="absolute left-3 top-3 text-slate-400"
               size={18}
             />
             <input
-              className="field pl-10"
+              className="field pl-10 w-full text-xs sm:text-sm"
               value={searchQuery}
               onChange={(event) => handleSearchChange(event.target.value)}
               placeholder="Search products by name or description..."
             />
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <select
-              className="field w-auto"
+              className="field flex-1 sm:w-auto text-xs sm:text-sm"
               value={categoryFilter}
               onChange={(e) => handleCategoryChange(e.target.value)}
             >
@@ -120,7 +120,7 @@ export function AdminProductsPage() {
               ))}
             </select>
 
-            <Button variant="ghost" onClick={refetch} title="Refresh products">
+            <Button variant="ghost" onClick={refetch} title="Refresh products" className="p-2 shrink-0">
               <RefreshCcw size={15} />
             </Button>
           </div>
@@ -144,96 +144,156 @@ export function AdminProductsPage() {
             <p className="text-xs text-slate-500 mt-1">Try adjusting your search or category filter.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>SKU</th>
-                  <th>Category</th>
-                  <th>Price</th>
-                  <th>Stock</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((product) => (
-                  <tr key={product.id}>
-                    <td>
-                      <div className="flex min-w-56 items-center gap-3">
-                        <img
-                          src={product.image || "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80"}
-                          alt=""
-                          className="h-11 w-11 rounded-lg object-cover bg-slate-100"
-                        />
-                        <div>
-                          <b className="block font-semibold text-slate-900">{product.name}</b>
-                          <small className="text-slate-500">
-                            {typeof product.brand === "string"
-                              ? product.brand
-                              : (product.brand as any)?.name || product.brandName || "Generic"}
-                          </small>
-                        </div>
-                      </div>
-                    </td>
-                    <td>{product.id ? `HH-${product.id.slice(0, 8).toUpperCase()}` : "—"}</td>
-                    <td>
-                      {typeof product.category === "string"
-                        ? product.category
-                        : (product.category as any)?.name || "Unassigned"}
-                    </td>
-                    <td>
-                      <b>{formatPrice(product.price)}</b>
-                    </td>
-                    <td>
-                      <span
-                        className={
-                          product.stock < 10 ? "font-bold text-amber-700" : "text-slate-700"
-                        }
-                      >
-                        {product.stock ?? 0}
-                      </span>
-                    </td>
-                    <td>
-                      <Badge
-                        tone={product.active === false ? "neutral" : "success"}
-                      >
-                        {product.active === false ? "Inactive" : "Active"}
-                      </Badge>
-                    </td>
-                    <td>
-                      <div className="flex gap-1">
-                        <Link to={`/product/${product.slug || product.id}`}>
-                          <button className="table-action" title="View Customer Storefront Page">
-                            <Eye size={16} />
-                          </button>
-                        </Link>
-                        <Link to={`/admin/products/${product.id}/edit`}>
-                          <button className="table-action" title="Edit Product">
-                            <Edit3 size={16} />
-                          </button>
-                        </Link>
-                        <button
-                          onClick={() => {
-                            setDeleteError(null)
-                            setPendingDelete(product)
-                          }}
-                          className="table-action text-red-600 hover:bg-red-50"
-                          title="Delete Product"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
+          <>
+            {/* Desktop & Tablet Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="data-table w-full">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>SKU</th>
+                    <th>Category</th>
+                    <th>Price</th>
+                    <th>Stock</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {products.map((product) => (
+                    <tr key={product.id}>
+                      <td>
+                        <div className="flex min-w-56 items-center gap-3">
+                          <img
+                            src={product.image || "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80"}
+                            alt=""
+                            className="h-11 w-11 rounded-lg object-cover bg-slate-100 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <b className="block font-semibold text-slate-900 truncate">{product.name}</b>
+                            <small className="text-slate-500 truncate block">
+                              {typeof product.brand === "string"
+                                ? product.brand
+                                : (product.brand as any)?.name || product.brandName || "Generic"}
+                            </small>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="font-mono text-xs">{product.id ? `HH-${product.id.slice(0, 8).toUpperCase()}` : "—"}</td>
+                      <td>
+                        {typeof product.category === "string"
+                          ? product.category
+                          : (product.category as any)?.name || "Unassigned"}
+                      </td>
+                      <td>
+                        <b className="text-slate-900">{formatPrice(product.price)}</b>
+                      </td>
+                      <td>
+                        <span
+                          className={
+                            product.stock < 10 ? "font-bold text-amber-700" : "text-slate-700"
+                          }
+                        >
+                          {product.stock ?? 0}
+                        </span>
+                      </td>
+                      <td>
+                        <Badge
+                          tone={product.active === false ? "neutral" : "success"}
+                        >
+                          {product.active === false ? "Inactive" : "Active"}
+                        </Badge>
+                      </td>
+                      <td>
+                        <div className="flex gap-1">
+                          <Link to={`/product/${product.slug || product.id}`}>
+                            <button className="table-action" title="View Customer Storefront Page">
+                              <Eye size={16} />
+                            </button>
+                          </Link>
+                          <Link to={`/admin/products/${product.id}/edit`}>
+                            <button className="table-action" title="Edit Product">
+                              <Edit3 size={16} />
+                            </button>
+                          </Link>
+                          <button
+                            onClick={() => {
+                              setDeleteError(null)
+                              setPendingDelete(product)
+                            }}
+                            className="table-action text-red-600 hover:bg-red-50"
+                            title="Delete Product"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List */}
+            <div className="block md:hidden divide-y divide-border">
+              {products.map((product) => (
+                <div key={product.id} className="p-3.5 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={product.image || "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80"}
+                      alt=""
+                      className="h-12 w-12 rounded-lg object-cover bg-slate-100 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <b className="block text-xs font-bold text-slate-900 leading-snug">{product.name}</b>
+                      <span className="block text-[11px] text-slate-500 mt-0.5">
+                        {typeof product.brand === "string"
+                          ? product.brand
+                          : (product.brand as any)?.name || product.brandName || "Generic"} · {typeof product.category === "string" ? product.category : (product.category as any)?.name || "Unassigned"}
+                      </span>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="text-xs font-black text-slate-900">{formatPrice(product.price)}</span>
+                        <Badge tone={product.active === false ? "neutral" : "success"}>
+                          {product.active === false ? "Inactive" : "Active"}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                    <span className={product.stock < 10 ? "font-bold text-amber-700" : "text-slate-600"}>
+                      Stock: {product.stock ?? 0}
+                    </span>
+                    <div className="flex gap-2">
+                      <Link to={`/product/${product.slug || product.id}`}>
+                        <button className="table-action" title="View Storefront Page">
+                          <Eye size={15} />
+                        </button>
+                      </Link>
+                      <Link to={`/admin/products/${product.id}/edit`}>
+                        <button className="table-action" title="Edit Product">
+                          <Edit3 size={15} />
+                        </button>
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setDeleteError(null)
+                          setPendingDelete(product)
+                        }}
+                        className="table-action text-red-600 hover:bg-red-50"
+                        title="Delete Product"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
-        <div className="flex items-center justify-between border-t border-border px-5 py-4 text-xs text-slate-500">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border px-4 py-3 sm:px-5 sm:py-4 text-xs text-slate-500">
           <span>
             Showing {products.length} of {pagination.total} products
           </span>

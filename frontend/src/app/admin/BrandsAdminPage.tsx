@@ -151,8 +151,8 @@ export function BrandsAdminPage() {
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
-        <div className="overflow-hidden rounded-xl border border-border bg-white shadow-xs">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_380px] gap-6 items-start">
+        <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-white shadow-xs">
           {loading ? (
             <div className="flex h-56 flex-col items-center justify-center gap-3">
               <Loader2 className="h-7 w-7 animate-spin text-brand" />
@@ -165,8 +165,10 @@ export function BrandsAdminPage() {
               <p className="text-xs text-slate-500 mt-1">Create your first brand using the panel on the right.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="data-table">
+          <>
+            {/* Desktop & Tablet Table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="data-table w-full">
                 <thead>
                   <tr>
                     <th>Brand</th>
@@ -188,15 +190,15 @@ export function BrandsAdminPage() {
                               <img
                                 src={brand.logoUrl}
                                 alt=""
-                                className="h-8 w-8 rounded object-contain bg-slate-50 p-1 border border-border"
+                                className="h-8 w-8 rounded object-contain bg-slate-50 p-1 border border-border shrink-0"
                               />
                             ) : (
-                              <div className="grid h-8 w-8 place-items-center rounded bg-slate-100 text-xs font-bold text-slate-500 uppercase">
+                              <div className="grid h-8 w-8 place-items-center rounded bg-slate-100 text-xs font-bold text-slate-500 uppercase shrink-0">
                                 {brand.name.slice(0, 2)}
                               </div>
                             )}
-                            <div>
-                              <b className="block font-semibold text-slate-900">{brand.name}</b>
+                            <div className="min-w-0">
+                              <b className="block font-semibold text-slate-900 truncate">{brand.name}</b>
                               {brand.description && (
                                 <small className="line-clamp-1 text-slate-500 max-w-xs">{brand.description}</small>
                               )}
@@ -248,8 +250,66 @@ export function BrandsAdminPage() {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+
+            {/* Mobile Card List */}
+            <div className="block sm:hidden divide-y divide-border">
+              {[...brands]
+                .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+                .map((brand) => (
+                  <div key={brand.id} className="p-3.5 space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {brand.logoUrl ? (
+                          <img
+                            src={brand.logoUrl}
+                            alt=""
+                            className="h-8 w-8 rounded object-contain bg-slate-50 p-1 border border-border shrink-0"
+                          />
+                        ) : (
+                          <div className="grid h-8 w-8 place-items-center rounded bg-slate-100 text-xs font-bold text-slate-500 uppercase shrink-0">
+                            {brand.name.slice(0, 2)}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <b className="block text-xs font-bold text-slate-900 truncate">{brand.name}</b>
+                          <span className="block font-mono text-[10px] text-slate-400 truncate">/{brand.slug}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          disabled={actionLoading}
+                          onClick={() => handleToggleVisibility(brand)}
+                          className="cursor-pointer hover:opacity-80"
+                        >
+                          <Badge tone={brand.isActive ? "success" : "neutral"}>
+                            {brand.isActive ? "Visible" : "Hidden"}
+                          </Badge>
+                        </button>
+                        <button
+                          className="table-action"
+                          onClick={() => edit(brand)}
+                          title="Edit Brand"
+                        >
+                          <Edit3 size={15} />
+                        </button>
+                        <button
+                          className="table-action text-red-600 hover:bg-red-50"
+                          onClick={() => handleDelete(brand.id, brand.name)}
+                          title="Delete Brand"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </div>
+                    {brand.description && (
+                      <p className="text-[11px] text-slate-500 line-clamp-2">{brand.description}</p>
+                    )}
+                  </div>
+                ))}
+            </div>
+          </>
+        )}
+      </div>
 
         <form
           onSubmit={submit}

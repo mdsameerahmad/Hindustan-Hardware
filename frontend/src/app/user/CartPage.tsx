@@ -99,14 +99,37 @@ export function CartPage() {
           {lines.map(({ product, quantity }) => (
             <article
               key={product.id}
-              className="grid grid-cols-[96px_1fr] gap-4 rounded-xl border border-border bg-white p-4 sm:grid-cols-[120px_1fr_auto]"
+              className="flex flex-col sm:grid sm:grid-cols-[100px_1fr_auto] gap-3 sm:gap-4 rounded-xl border border-border bg-white p-3.5 sm:p-4"
             >
-              <img
-                src={product.image}
-                alt=""
-                className="h-24 w-24 rounded-lg object-cover sm:h-28 sm:w-28"
-              />
-              <div>
+              <div className="flex gap-3 sm:block">
+                <img
+                  src={product.image}
+                  alt=""
+                  className="h-20 w-20 sm:h-24 sm:w-24 shrink-0 rounded-lg object-cover border border-slate-100"
+                />
+                <div className="sm:hidden flex-1 min-w-0">
+                  <Link
+                    to={`/product/${product.id}`}
+                    className="font-extrabold text-sm text-ink hover:text-brand line-clamp-2"
+                  >
+                    {product.name}
+                  </Link>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {product.size} · {product.unit}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-baseline gap-1.5">
+                    <span className="text-base font-black text-ink">
+                      {formatPrice(product.price)}
+                    </span>
+                    {product.mrp && product.mrp > product.price && (
+                      <span className="text-[11px] text-slate-400 line-through">
+                        {formatPrice(product.mrp)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="hidden sm:block">
                 <Link
                   to={`/product/${product.id}`}
                   className="font-extrabold text-ink hover:text-brand"
@@ -148,14 +171,32 @@ export function CartPage() {
                   </button>
                 </div>
               </div>
-              <div className="col-span-2 flex items-center justify-between border-t border-border pt-3 sm:col-span-1 sm:block sm:border-0 sm:pt-0">
-                <Quantity
-                  value={quantity}
-                  onChange={(value) => updateCart(product.id, value)}
-                />
-                <p className="font-black sm:mt-5 sm:text-right">
-                  {formatPrice(product.price * quantity)}
-                </p>
+              <div className="flex items-center justify-between border-t border-border pt-3 sm:border-0 sm:pt-0 sm:block sm:text-right">
+                <div className="sm:hidden flex gap-3 text-xs font-bold text-brand">
+                  <button
+                    onClick={() => {
+                      toggleWishlist(product.id)
+                      removeFromCart(product.id)
+                    }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    className="text-red-600"
+                    onClick={() => removeFromCart(product.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
+                <div className="flex items-center gap-3 sm:block">
+                  <Quantity
+                    value={quantity}
+                    onChange={(value) => updateCart(product.id, value)}
+                  />
+                  <p className="font-black text-sm sm:text-base sm:mt-5">
+                    {formatPrice(product.price * quantity)}
+                  </p>
+                </div>
               </div>
             </article>
           ))}
