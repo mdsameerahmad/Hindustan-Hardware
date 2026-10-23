@@ -53,7 +53,7 @@ export function createApp(): Application {
   app.use(express.urlencoded({ extended: true, limit: env.REQUEST_BODY_LIMIT }));
 
   // 6. Base /health check (process liveness probe)
-  app.get('/health', (_req: Request, res: Response) => {
+  app.get('/health-check', (_req: Request, res: Response) => {
     return sendSuccess(
       res,
       {
