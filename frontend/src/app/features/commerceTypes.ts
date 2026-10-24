@@ -17,6 +17,10 @@ export interface CustomerAddress {
   country: string
   address_type: "Home" | "Work" | "Site" | string
   is_default: boolean
+  latitude?: number | null
+  longitude?: number | null
+  formatted_address?: string | null
+  geocoding_provider?: string | null
   created_at?: string
   updated_at?: string
 }
@@ -33,6 +37,10 @@ export interface CreateAddressPayload {
   country?: string
   addressType?: "Home" | "Work" | "Site"
   isDefault?: boolean
+  latitude?: number | null
+  longitude?: number | null
+  formattedAddress?: string | null
+  geocodingProvider?: string | null
 }
 
 export interface UpdateAddressPayload extends Partial<CreateAddressPayload> {}
@@ -105,6 +113,10 @@ export interface CheckoutAddressSnapshot {
   postalCode: string
   country?: string
   addressType?: "Home" | "Work" | "Site" | string
+  latitude?: number | null
+  longitude?: number | null
+  formattedAddress?: string | null
+  geocodingProvider?: string | null
 }
 
 export interface CheckoutValidationPayload {

@@ -1,7 +1,7 @@
-import * as React from "react"
-import { useEffect, useRef } from "react"
 import * as L from "leaflet"
 import "leaflet/dist/leaflet.css"
+import * as React from "react"
+import { useEffect, useRef } from "react"
 
 export interface Coordinate {
   latitude: number
@@ -38,10 +38,10 @@ export interface LiveTrackingMapProps {
 export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
   storeLocation = {
     name: "Hindustan Hardware",
-    address: "PG Road, Opposite Eidgah",
+    address: "PG Road, Jehanabad, Bihar 804408",
     city: "Jehanabad",
-    latitude: 25.213196,
-    longitude: 84.982696,
+    latitude: 25.215474989473233,
+    longitude: 84.9867635966286,
   },
   partnerLocation,
   destinationLocation,
@@ -70,15 +70,15 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
     // Avoid duplicate initialization
     if (!mapInstanceRef.current) {
       const initialLat =
+        storeLocation?.latitude ??
         partnerLocation?.latitude ??
         destinationLocation?.latitude ??
-        storeLocation?.latitude ??
-        25.213196
+        25.215474989473233
       const initialLng =
+        storeLocation?.longitude ??
         partnerLocation?.longitude ??
         destinationLocation?.longitude ??
-        storeLocation?.longitude ??
-        84.982696
+        84.9867635966286
 
       const map = L.map(mapContainerRef.current, {
         center: [initialLat, initialLng],
@@ -120,55 +120,34 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
     return L.divIcon({
       className: "custom-truck-marker",
       html: `
-        <div style="
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 52px;
-          height: 52px;
-        ">
-          ${
-            !stale
-              ? `<div style="
-                  position: absolute;
-                  width: 52px;
-                  height: 52px;
-                  border-radius: 50%;
-                  background: rgba(212, 175, 55, 0.35);
-                  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
-                "></div>`
-              : ""
-          }
+        <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%);">
+          <div style="background: #0f172a; color: #38bdf8; padding: 3px 8px; border-radius: 9999px; font-size: 10px; font-weight: 800; border: 1.5px solid #38bdf8; box-shadow: 0 4px 12px rgba(0,0,0,0.5); white-space: nowrap; margin-bottom: 2px; display: flex; align-items: center; gap: 4px;">
+            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: ${stale ? '#94a3b8' : '#22c55e'}; animation: ${stale ? 'none' : 'ping 1.5s cubic-bezier(0,0,0.2,1) infinite'};"></span>
+            <span>Delivery Partner</span>
+          </div>
           <div style="
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            background: #ffffff;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
-            border: 2.5px solid ${stale ? "#94a3b8" : "#d4af37"};
+            position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
             z-index: 2;
           ">
             <img 
               src="/truckLogo.png" 
               alt="Delivery Partner Truck" 
               style="
-                width: 32px; 
-                height: 32px; 
+                width: 76px; 
+                height: 76px; 
                 object-fit: contain;
-                filter: ${stale ? "grayscale(80%)" : "none"};
+                filter: ${stale ? "grayscale(80%) drop-shadow(0 6px 12px rgba(0,0,0,0.4))" : "drop-shadow(0 8px 16px rgba(0,0,0,0.5))"};
               "
             />
           </div>
         </div>
       `,
-      iconSize: [52, 52],
-      iconAnchor: [26, 26],
-      popupAnchor: [0, -26],
+      iconSize: [80, 100],
+      iconAnchor: [40, 50],
+      popupAnchor: [0, -50],
     })
   }
 
@@ -177,72 +156,38 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
     return L.divIcon({
       className: "custom-store-marker",
       html: `
-        <div style="
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 40px;
-          height: 40px;
-        ">
-          <div style="
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            background: #1e293b;
-            color: #f59e0b;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.4);
-            border: 2px solid #f59e0b;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            font-weight: bold;
-          ">
-            🏬
+        <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -100%);">
+          <div style="background: #0f172a; color: #fbbf24; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 800; border: 1.5px solid #fbbf24; box-shadow: 0 4px 12px rgba(0,0,0,0.5); white-space: nowrap; margin-bottom: 2px; display: flex; align-items: center; gap: 4px;">
+            <span>🏬 Store Origin</span>
+          </div>
+          <div style="width: 28px; height: 28px; background: #0f172a; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fbbf24; box-shadow: 0 4px 14px rgba(251,191,36,0.4); display: flex; align-items: center; justify-content: center;">
+            <div style="transform: rotate(45deg); font-size: 13px;">🏬</div>
           </div>
         </div>
       `,
-      iconSize: [40, 40],
-      iconAnchor: [20, 20],
-      popupAnchor: [0, -20],
+      iconSize: [36, 52],
+      iconAnchor: [18, 52],
+      popupAnchor: [0, -52],
     })
   }
 
-  // Create Destination Pin Icon
+  // Create Destination Pin Icon (Matching Address Picker Pin)
   const createDestinationIcon = () => {
     return L.divIcon({
       className: "custom-destination-marker",
       html: `
-        <div style="
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 36px;
-          height: 36px;
-        ">
-          <div style="
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: #0b0b0b;
-            color: #d4af37;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            border: 2px solid #d4af37;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            font-weight: bold;
-          ">
-            📍
+        <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -100%);">
+          <div style="background: #111827; color: #D4AF37; padding: 5px 9px; border-radius: 9999px; font-size: 10.5px; font-weight: 800; border: 2px solid #D4AF37; box-shadow: 0 4px 12px rgba(0,0,0,0.45); white-space: nowrap; margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+            <span>📍 Delivery Address</span>
+          </div>
+          <div style="width: 28px; height: 28px; background: #D4AF37; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #ffffff; box-shadow: 0 6px 14px rgba(212,175,55,0.6); display: flex; align-items: center; justify-content: center;">
+            <div style="width: 10px; height: 10px; background: #111827; border-radius: 50%;"></div>
           </div>
         </div>
       `,
-      iconSize: [36, 36],
-      iconAnchor: [18, 18],
-      popupAnchor: [0, -18],
+      iconSize: [36, 54],
+      iconAnchor: [18, 54],
+      popupAnchor: [0, -54],
     })
   }
 
@@ -316,13 +261,18 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
       storeMarkerRef.current = null
     }
 
-    // 2. Partner Marker (Moving Delivery Partner)
-    if (
+    // 2. Partner Marker (Moving Delivery Partner - starts at store origin by default)
+    const effectivePartnerLocation =
       partnerLocation &&
       typeof partnerLocation.latitude === "number" &&
       typeof partnerLocation.longitude === "number"
-    ) {
-      const partnerLatLng: L.LatLngExpression = [partnerLocation.latitude, partnerLocation.longitude]
+        ? partnerLocation
+        : storeLocation && typeof storeLocation.latitude === "number" && typeof storeLocation.longitude === "number"
+          ? { latitude: storeLocation.latitude, longitude: storeLocation.longitude }
+          : null
+
+    if (effectivePartnerLocation) {
+      const partnerLatLng: L.LatLngExpression = [effectivePartnerLocation.latitude, effectivePartnerLocation.longitude]
       const icon = createTruckIcon(isStale)
 
       if (partnerMarkerRef.current) {
@@ -331,7 +281,13 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
       } else {
         const marker = L.marker(partnerLatLng, { icon }).addTo(map)
         marker.bindPopup(
-          `<b>Hindustan Hardware Delivery Partner</b><br/>${isStale ? "Status: Signal delayed" : "Status: Active & moving"}`
+          `<b>Hindustan Hardware Delivery Partner</b><br/>${
+            partnerLocation
+              ? isStale
+                ? "Status: Signal delayed"
+                : "Status: Active & moving"
+              : "Status: Starting from Store Warehouse"
+          }`
         )
         partnerMarkerRef.current = marker
       }
@@ -397,9 +353,9 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
         routePolylineRef.current.setLatLngs(leafletCoords)
       } else {
         const polyline = L.polyline(leafletCoords, {
-          color: "#0b0b0b",
-          weight: 5,
-          opacity: 0.85,
+          color: "#2563eb", // Vibrant navigation blue (Blinkit / Google Maps style)
+          weight: 6,
+          opacity: 0.95,
           lineJoin: "round",
           lineCap: "round",
           dashArray: isStale ? "6, 8" : undefined,
@@ -414,10 +370,9 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
       routePolylineRef.current = null
     }
 
-    // 6. Fit Viewport to Route & Markers (only on initial point setting or route updates)
-    if (hasPoints && bounds.isValid() && !initialBoundsSetRef.current) {
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 })
-      initialBoundsSetRef.current = true
+    // 6. Fit Viewport to Route & Markers (re-fit on points/route availability)
+    if (hasPoints && bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [45, 45], maxZoom: 16 })
     }
 
     // Invalidate map size to handle container dimension settling
@@ -432,6 +387,12 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
       className={`overflow-hidden rounded-lg ${className}`}
     >
       <div ref={mapContainerRef} style={{ height: "100%", width: "100%", zIndex: 1 }} />
+      
+      {/* Frosted Glass Blur Bar overlapping the bottom watermark */}
+      <div
+        className="pointer-events-none absolute bottom-0 left-0 right-0 h-6 z-[400] backdrop-blur-lg bg-white/10 dark:bg-white/5 border-t border-white/20 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]"
+      />
+
       {/* Pulse keyframe animation for truck live ring */}
       <style>
         {`
@@ -440,6 +401,9 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
               transform: scale(1.6);
               opacity: 0;
             }
+          }
+          .leaflet-control-attribution {
+            display: none !important;
           }
         `}
       </style>

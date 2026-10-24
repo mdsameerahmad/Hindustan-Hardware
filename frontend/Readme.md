@@ -233,53 +233,59 @@ Located at `/order-success/:id`:
 
 ---
 
-## 5. Live Delivery Tracking Engine (Blinkit / Zomato Experience)
+## 5. Live Delivery Tracking Engine (Real-Time Leaflet & Socket.IO Experience)
 
-The tracking engine at `/track-order/:id` provides an immersive, hyper-local visual delivery experience replicating modern quick-commerce leaders like **Blinkit, Zepto, and Zomato**:
+The tracking engine at `/track-order/:id` (and full-view at `/track-order/:id/live`) provides a real-time, production-grade tracking experience matching quick-commerce platforms like **Blinkit, Zepto, and Zomato**:
 
 ```
 +-----------------------------------------------------------------------------------+
-|  ORDER #ORD-1092                    Estimated Arrival: 35-55 mins                 |
+|  ORDER #ORD-1092                    Dynamic Road ETA: 24 mins (4.2 km)            |
 +-----------------------------------------------------------------------------------+
-|  [✓] Placed  -->  [✓] Confirmed  -->  [✓] Preparing  -->  [*] Out for Delivery    |
+|  [✓] Placed  -->  [✓] Confirmed  -->  [✓] Picked Up  -->  [*] Out for Delivery    |
 +-----------------------------------------------------------------------------------+
 |                                                                                   |
-|         [ STORE: Hindustan Hardware ]                                             |
+|         [ STORE: Hindustan Hardware (PG Road, Jehanabad) ]                        |
 |                     \                                                             |
-|                      \   (Road Network)                                           |
+|                      \   (OSRM GeoJSON Road Polyline)                             |
 |                       \                                                           |
-|                       [ 🚚 Delivery Van in Transit ]                              |
+|                       [ 🚚 Delivery Partner (Live GPS Pin) ]                      |
 |                                         \                                         |
 |                                          \                                        |
-|                                   [ 📍 Customer Site ]                            |
+|                                   [ 📍 Customer Destination ]                     |
 |                                                                                   |
 +-----------------------------------------------------------------------------------+
-|  Driver: Rajesh Kumar (Assigned)   |   Vehicle: Tata Ace (BR-25-H-4921)           |
-|  Call Driver: [+91 98765 XXXXX]    |   Live ETA: Approving delivery zone          |
+|  Partner: Rajesh Kumar (Assigned)  |  Status: Out For Delivery (Pulsing Green)    |
+|  Call Driver: [+91 98765 XXXXX]    |  Freshness: Live GPS (Signal fresh <60s)     |
 +-----------------------------------------------------------------------------------+
 ```
 
-### 5.1 Live Interactive Map Routes
-- **Cartographic Canvas:** Displays a themed schematic map panel styled with vector road networks (`road-one`, `road-two`), store headquarters marker (`map-pin store`), and customer destination pin (`map-pin customer`).
-- **Pulsing Route Indicators:** Animated path lines trace the route between the warehouse and the delivery coordinates.
+### 5.1 Real Cartographic Map & Road Geometry (`LiveTrackingMap`)
+- **OpenStreetMap & Leaflet Integration:** Full interactive tile map (`L.map`) with dynamic bounds auto-fitting (`fitBounds`) on initial load.
+- **True Road Geometry:** Renders real driving paths using OSRM GeoJSON `LineString` coordinates (`GET /api/v1/deliveries/:deliveryId/route`).
+- **Interactive Multi-Marker System:**
+  - **Store Marker:** Centered at Hindustan Hardware store coordinates.
+  - **Delivery Partner Marker:** Styled vehicle pin using `truckLogo.png` with live coordinate updates (`marker.setLatLng()`) without remounting or resetting zoom.
+  - **Destination Marker:** Customer delivery address drop-off pin.
 
-### 5.2 Real-Time Vehicle Dispatch Simulation
-- **Animated Delivery Vehicle:** A delivery van/bike marker (`delivery-bike`) is positioned along the active route line.
-- **Blinkit-style ETA Card:** Floating bottom glassmorphism card calculating dynamic arrival windows (*"Arriving in 35–55 min"*).
-- **Assigned Delivery Executive Card:** Displays driver name, assigned local vehicle details, contact button, and store helpline for live route inquiries.
+### 5.2 Real-Time Socket.IO Synchronization (`trackingSocketService`)
+- **WebSocket Gateway:** Connects to backend Socket.IO on port 5000 using Supabase JWT authentication in handshake (`auth: { token }`).
+- **Room Subscriptions:** Emits `delivery:subscribe` with `{ deliveryId }`. The backend validates customer order ownership before joining `delivery:<deliveryId>`.
+- **Live Broadcast Listeners:**
+  - `delivery:location_update`: Receives real-time latitude, longitude, speed, heading, and device timestamp, repositioning the vehicle marker instantaneously.
+  - `delivery:status_update`: Listens to live status transitions and updates order status badges in real time.
+- **Connection Freshness:** Evaluates GPS freshness threshold (60s); alerts customer if the partner's location signal is temporarily delayed.
 
-### 5.3 Stage-by-Stage Chronological Status Progression
-The journey progresses across 6 standardized fulfillment stages:
-```
-1. Order Placed ➔ 2. Order Confirmed ➔ 3. Preparing Your Order ➔ 
-4. Ready for Dispatch ➔ 5. Out for Delivery ➔ 6. Delivered
-```
-- Active stages feature a golden glowing indicator (`#D4AF37`) with a smooth 6px radial glow.
-- Completed stages turn into emerald green checkmarks (`#15803D`).
-- Pending stages display light sequence numbers.
+### 5.3 Delivery Partner GPS Dispatch Controller (`useDeviceGps`)
+- **HTML5 Geolocation Hook:** Uses `navigator.geolocation.watchPosition` with high accuracy.
+- **Network & Battery Optimization:** Employs a 5-second polling interval and 5-meter displacement threshold before submitting to `POST /api/v1/deliveries/:deliveryId/location`.
+- **Driver Controls (`DeliveryPartnerGpsController`):** Accessible via `/partner/deliveries` and admin order detail, allowing delivery drivers to broadcast live GPS and transition milestone statuses (`assigned` -> `picked_up` -> `out_for_delivery` -> `delivered`).
 
-### 5.4 Synchronized Merchant-Customer State Bridge
-- Any stage advance triggered by store operators in `/admin/orders` or via the interactive demo button instantly updates the tracking map and status dots without page refresh.
+### 5.4 Milestone Progression & State Synchronization
+- Chronological status timeline tracking:
+  ```
+  assigned ➔ picked_up ➔ out_for_delivery ➔ delivered
+  ```
+- Instant UI reaction to terminal statuses (`delivered`, `cancelled`), halting active GPS subscriptions and displaying delivery completion summaries.
 
 ---
 

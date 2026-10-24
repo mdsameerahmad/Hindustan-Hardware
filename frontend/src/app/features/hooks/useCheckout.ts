@@ -1,9 +1,9 @@
-import { useState, useCallback } from "react"
+import { useCallback, useState } from "react"
 import { checkoutApi } from "../commerceApi"
 import type {
+  CheckoutAddressSnapshot,
   CheckoutValidationResult,
   OrderResponse,
-  CheckoutAddressSnapshot,
 } from "../commerceTypes"
 
 export interface UseCheckoutState {
@@ -67,7 +67,7 @@ export function useCheckout() {
   /**
    * Run server-side validation against /api/v1/checkout/validate
    */
-  const validateCartAndInventory = useCallback(async (): Promise<boolean> => {
+  const validateCartAndInventory = useCallback(async (customAddress?: CheckoutAddressSnapshot | null): Promise<boolean> => {
     setValidating(true)
     setValidationError(null)
 
@@ -80,10 +80,13 @@ export function useCheckout() {
         paymentMethod: "cod",
       }
 
+      const activeAddress = customAddress || (manualAddress.latitude != null || manualAddress.addressLine1 ? manualAddress : undefined)
+
       if (selectedAddressId) {
         payload.addressId = selectedAddressId
+        if (activeAddress) payload.shippingAddress = activeAddress
       } else {
-        payload.shippingAddress = manualAddress
+        payload.shippingAddress = activeAddress || manualAddress
       }
 
       const res = await checkoutApi.validateCheckout(payload)
@@ -112,12 +115,14 @@ export function useCheckout() {
   /**
    * Submit Cash on Delivery Order against /api/v1/checkout
    */
-  const submitOrder = useCallback(async (): Promise<OrderResponse | null> => {
+  const submitOrder = useCallback(async (customAddress?: CheckoutAddressSnapshot | null): Promise<OrderResponse | null> => {
     if (submitting) return null
     setSubmitting(true)
     setSubmissionError(null)
 
     try {
+      const activeAddress = customAddress || (manualAddress.latitude != null || manualAddress.addressLine1 ? manualAddress : undefined)
+
       const payload: {
         addressId?: string
         shippingAddress?: CheckoutAddressSnapshot
@@ -132,8 +137,9 @@ export function useCheckout() {
 
       if (selectedAddressId) {
         payload.addressId = selectedAddressId
+        if (activeAddress) payload.shippingAddress = activeAddress
       } else {
-        payload.shippingAddress = manualAddress
+        payload.shippingAddress = activeAddress || manualAddress
       }
 
       const order = await checkoutApi.createOrder(payload)

@@ -1,7 +1,8 @@
-import { Check, Loader2, MapPin, Navigation, Plus, Trash2 } from "lucide-react"
+import { Check, Loader2, MapPin, Navigation, Plus, Trash2, Map } from "lucide-react"
 import React, { useState } from "react"
 import { Badge, Button } from "../../components"
 import type { CreateAddressPayload, CustomerAddress } from "../commerceTypes"
+import { AddressPickerModal } from "./AddressPickerModal"
 
 interface AddressManagerProps {
   addresses: CustomerAddress[]
@@ -23,6 +24,7 @@ export function AddressManager({
   onDeleteAddress,
 }: AddressManagerProps) {
   const [showAddForm, setShowAddForm] = useState(false)
+  const [isPickerOpen, setIsPickerOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [fetchingLocation, setFetchingLocation] = useState(false)
   const [locationSuccess, setLocationSuccess] = useState<string | null>(null)
@@ -168,18 +170,38 @@ export function AddressManager({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-lg font-bold text-ink">Saved Delivery Addresses</h3>
-        {!showAddForm && (
+        <div className="flex items-center gap-2">
           <Button
-            variant="outline"
-            className="text-xs"
-            onClick={() => setShowAddForm(true)}
+            type="button"
+            className="text-xs bg-amber-500 hover:bg-amber-400 text-black font-black border border-amber-400 shadow-sm"
+            onClick={() => setIsPickerOpen(true)}
           >
-            <Plus size={15} /> Add New Address
+            <Map size={14} className="mr-1.5" /> Locate on Map & Select
           </Button>
-        )}
+          {!showAddForm && (
+            <Button
+              variant="outline"
+              className="text-xs"
+              onClick={() => setShowAddForm(true)}
+            >
+              <Plus size={15} /> Quick Form
+            </Button>
+          )}
+        </div>
       </div>
+
+      <AddressPickerModal
+        isOpen={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
+        onConfirmAddress={async (payload) => {
+          const created = await onCreateAddress(payload)
+          if (onSelectAddress && created) {
+            onSelectAddress(created)
+          }
+        }}
+      />
 
       {showAddForm && (
         <form
@@ -425,6 +447,13 @@ export function AddressManager({
                   <br />
                   {addr.city}, {addr.state} - {addr.postal_code}
                 </p>
+
+                {addr.latitude != null && addr.longitude != null && (
+                  <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md w-fit border border-emerald-200">
+                    <MapPin size={11} className="text-emerald-600" />
+                    <span>GPS Confirmed: {Number(addr.latitude).toFixed(4)}, {Number(addr.longitude).toFixed(4)}</span>
+                  </div>
+                )}
 
                 <p className="mt-2 text-xs font-semibold text-slate-500">
                   Phone: {addr.phone}

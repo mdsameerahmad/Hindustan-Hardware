@@ -124,14 +124,51 @@ export function CheckoutPage() {
     )
   }
 
+  // Selected address snapshot summary for review
+  const selectedSavedObj = addresses.find((a) => a.id === selectedAddressId)
+
   const handleContinueToReview = async () => {
-    await validateCartAndInventory()
+    const selectedSnapshot = selectedSavedObj ? {
+      recipientName: selectedSavedObj.recipient_name,
+      phone: selectedSavedObj.phone,
+      addressLine1: selectedSavedObj.address_line1,
+      addressLine2: selectedSavedObj.address_line2,
+      landmark: selectedSavedObj.landmark,
+      city: selectedSavedObj.city,
+      state: selectedSavedObj.state,
+      postalCode: selectedSavedObj.postal_code,
+      country: selectedSavedObj.country,
+      addressType: selectedSavedObj.address_type,
+      latitude: selectedSavedObj.latitude,
+      longitude: selectedSavedObj.longitude,
+      formattedAddress: selectedSavedObj.formatted_address,
+      geocodingProvider: selectedSavedObj.geocoding_provider,
+    } : null
+
+    await validateCartAndInventory(selectedSnapshot)
     // Always advance to Step 2 so the customer can review their items, see live prices and specific stock status
     setStep(2)
   }
 
   const handlePlaceCodOrder = async () => {
-    const order = await submitOrder()
+    const selectedSnapshot = selectedSavedObj ? {
+      recipientName: selectedSavedObj.recipient_name,
+      phone: selectedSavedObj.phone,
+      addressLine1: selectedSavedObj.address_line1,
+      addressLine2: selectedSavedObj.address_line2,
+      landmark: selectedSavedObj.landmark,
+      city: selectedSavedObj.city,
+      state: selectedSavedObj.state,
+      postalCode: selectedSavedObj.postal_code,
+      country: selectedSavedObj.country,
+      addressType: selectedSavedObj.address_type,
+      latitude: selectedSavedObj.latitude,
+      longitude: selectedSavedObj.longitude,
+      formattedAddress: selectedSavedObj.formatted_address,
+      geocodingProvider: selectedSavedObj.geocoding_provider,
+    } : null
+
+    const order = await submitOrder(selectedSnapshot)
     if (order) {
       notify("Order placed successfully via Cash on Delivery")
       // Clear or refresh the authenticated cart from backend (which backend wiped)
@@ -141,9 +178,6 @@ export function CheckoutPage() {
       })
     }
   }
-
-  // Selected address snapshot summary for review
-  const selectedSavedObj = addresses.find((a) => a.id === selectedAddressId)
   const displayAddress = selectedSavedObj
     ? {
         name: selectedSavedObj.recipient_name,
@@ -192,21 +226,27 @@ export function CheckoutPage() {
               </p>
 
               <div className="mt-6 space-y-6">
-                {addresses.length > 0 && (
-                  <AddressManager
-                    addresses={addresses}
-                    loading={loadingAddresses}
-                    selectedAddressId={selectedAddressId}
-                    onSelectAddress={(addr) => setSelectedAddressId(addr.id)}
-                    onCreateAddress={createAddress}
-                    onSetDefaultAddress={setDefaultAddress}
-                    onDeleteAddress={deleteAddress}
-                  />
-                )}
+                <AddressManager
+                  addresses={addresses}
+                  loading={loadingAddresses}
+                  selectedAddressId={selectedAddressId}
+                  onSelectAddress={(addr) => setSelectedAddressId(addr.id)}
+                  onCreateAddress={async (payload) => {
+                    const created = await createAddress(payload)
+                    if (created?.id) setSelectedAddressId(created.id)
+                    return created
+                  }}
+                  onSetDefaultAddress={setDefaultAddress}
+                  onDeleteAddress={deleteAddress}
+                />
 
-                {/* If no saved addresses or user prefers manual input */}
-                {addresses.length === 0 && (
-                  <div className="grid gap-4 sm:grid-cols-2">
+                {/* If no saved addresses and user hasn't opened map picker, show fallback manual form */}
+                {addresses.length === 0 && !selectedAddressId && (
+                  <div className="mt-4 rounded-xl border border-dashed border-border p-4 bg-slate-50/50">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                      Or Enter Manual Address
+                    </p>
+                    <div className="grid gap-4 sm:grid-cols-2">
                     <Field
                       label="Full name"
                       value={manualAddress.recipientName}
@@ -245,7 +285,8 @@ export function CheckoutPage() {
                       onChange={(val) => updateManualAddress("state", val)}
                     />
                   </div>
-                )}
+                </div>
+              )}
 
                 {validationError && (
                   <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">

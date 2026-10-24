@@ -260,6 +260,8 @@ export interface AssignedDeliveryItem {
     city: string
     state: string
     postalCode: string
+    latitude?: number | null
+    longitude?: number | null
   }
   codAmount: number | null
   paymentMethod: string

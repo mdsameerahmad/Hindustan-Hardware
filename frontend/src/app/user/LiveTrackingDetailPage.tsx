@@ -181,6 +181,15 @@ export function LiveTrackingDetailPage() {
             },
           }
         })
+
+        // When partner location updates during active delivery, refresh remaining route
+        if (assignmentId && (data?.orderTracking?.assignment?.status === "picked_up" || data?.orderTracking?.assignment?.status === "out_for_delivery")) {
+          deliveryTrackingApi.getDeliveryRoute(assignmentId).then((newRoute) => {
+            if (newRoute) {
+              setData((current) => current ? { ...current, route: newRoute } : current)
+            }
+          }).catch(() => {})
+        }
       },
       (statusUpdate: DeliveryStatusBroadcastPayload) => {
         setData((prev) => {
@@ -196,6 +205,15 @@ export function LiveTrackingDetailPage() {
             },
           }
         })
+
+        // When delivery partner marks picked_up or out_for_delivery, immediately recalculate active route from current position to customer destination
+        if (assignmentId && (statusUpdate.status === "picked_up" || statusUpdate.status === "out_for_delivery")) {
+          deliveryTrackingApi.getDeliveryRoute(assignmentId).then((newRoute) => {
+            if (newRoute) {
+              setData((current) => current ? { ...current, route: newRoute } : current)
+            }
+          }).catch(() => {})
+        }
       },
       (_err) => {
         // Safe non-crashing socket error notification
@@ -341,6 +359,60 @@ export function LiveTrackingDetailPage() {
                     Your order is currently being prepared at the store warehouse. The map and delivery partner will appear here once dispatched.
                   </p>
                 </div>
+              ) : isDelivered ? (
+                /* Animated Order Delivered Celebration Display (Replaces Map) */
+                <div className="relative flex h-full min-h-[380px] w-full flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-emerald-950/20 via-slate-900 to-slate-950 p-6 sm:p-10 text-center animate-in fade-in zoom-in-95 duration-500">
+                  {/* Glowing Animated Radial Aura */}
+                  <div className="pointer-events-none absolute h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl animate-pulse" />
+
+                  {/* Animated Success Ring & Icon */}
+                  <div className="relative mb-5 flex items-center justify-center">
+                    <span className="absolute h-24 w-24 rounded-full bg-emerald-500/20 animate-ping opacity-75" />
+                    <span className="absolute h-20 w-20 rounded-full border border-emerald-500/40 bg-emerald-500/10" />
+                    <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-tr from-emerald-600 to-emerald-400 text-white shadow-xl shadow-emerald-500/30">
+                      <CheckCircle2 size={36} className="stroke-[2.5]" />
+                    </div>
+                  </div>
+
+                  {/* Order Delivered Animated Headline */}
+                  <div className="relative space-y-2 max-w-md">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-3.5 py-1 text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                      Order Delivered
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                      Package Successfully Delivered!
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                      Your items have been safely handed over by{" "}
+                      <b className="text-emerald-300 font-bold">
+                        {assignment.deliveryPartner?.fullName || "Hindustan Store Driver"}
+                      </b>
+                      . Thank you for shopping with Hindustan Hardware!
+                    </p>
+                  </div>
+
+                  {/* Delivery Info Chips */}
+                  <div className="relative mt-6 flex flex-wrap items-center justify-center gap-3 text-xs">
+                    <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-2.5 text-slate-200">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Recipient</span>
+                      <span className="font-semibold">{data?.orderTracking?.destination ? "Confirmed Delivery" : "Customer"}</span>
+                    </div>
+                    <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-2.5 text-slate-200">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Completed Time</span>
+                      <span className="font-semibold font-mono">{formatDateTime(assignment.completedAt || new Date().toISOString())}</span>
+                    </div>
+                  </div>
+
+                  {/* View Order Summary Button */}
+                  <div className="relative mt-6">
+                    <Link to={`/my-orders/${id}`}>
+                      <Button className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2.5 text-xs shadow-lg shadow-emerald-950/50">
+                        View Order Details &amp; Invoice
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
               ) : (
                 <>
                   <LiveTrackingMap
@@ -355,54 +427,14 @@ export function LiveTrackingDetailPage() {
                     }
                     destinationLocation={
                       data?.route?.destination ||
-                      data?.orderTracking?.destination || {
-                        latitude: 25.2185,
-                        longitude: 84.9912,
-                      }
+                      data?.orderTracking?.destination ||
+                      undefined
                     }
                     customerLocation={customerCoords}
                     routeCoordinates={data?.route?.geometry?.coordinates}
                     isStale={isStale}
                     height="100%"
                   />
-
-                  {/* Driver Standby / Waiting Notice Overlay (Non-blocking) */}
-                  {!latestLocation && !isDelivered && (
-                    <div className="absolute top-4 left-4 right-4 z-[1000] flex items-center justify-between rounded-xl border border-amber-300 bg-amber-50/95 px-4 py-3 shadow-md backdrop-blur-sm">
-                      <div className="flex items-center gap-2.5">
-                        <Navigation className="h-4 w-4 text-amber-600 animate-pulse shrink-0" />
-                        <div>
-                          <b className="text-xs font-bold text-amber-900 block">
-                            Assigned to {assignment.deliveryPartner?.fullName || "Store Driver"}
-                          </b>
-                          <span className="text-[11px] text-amber-800">
-                            Awaiting driver departure / GPS broadcast. Showing route preview from store to your address.
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={fetchFullTracking}
-                        className="text-xs font-bold text-amber-900 underline hover:no-underline ml-2"
-                      >
-                        Refresh
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Delivery Complete Overlay */}
-                  {isDelivered && (
-                    <div className="absolute top-4 left-4 right-4 z-[1000] flex items-center justify-between rounded-xl border border-emerald-300 bg-emerald-50/95 px-4 py-3 shadow-md backdrop-blur-sm">
-                      <div className="flex items-center gap-2.5">
-                        <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
-                        <div>
-                          <b className="text-xs font-bold text-emerald-950 block">Package Delivered</b>
-                          <span className="text-[11px] text-emerald-800">
-                            Safely delivered to your address by {assignment.deliveryPartner?.fullName || "driver"}.
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
 
                   {/* Stale Warning Banner Overlay */}
                   {isStale && latestLocation && !isDelivered && (
@@ -425,47 +457,49 @@ export function LiveTrackingDetailPage() {
               )}
             </div>
 
-            {/* Map Legend & Tech Specs */}
-            <div className="flex flex-wrap items-center justify-between border-t border-border bg-slate-50 px-5 py-3 text-xs text-slate-600 gap-3">
-              <div className="flex flex-wrap items-center gap-4">
-                <span className="flex items-center gap-1.5">
-                  <span className="text-base">🏬</span>
-                  <span className="font-semibold text-slate-800">Hindustan Hardware (Store)</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-3 w-3 rounded-full border border-amber-600 bg-white"></span>
-                  <span className="font-medium">Driver Vehicle</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-3 w-3 rounded-full bg-slate-900"></span>
-                  <span className="font-medium">Road Route</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="text-sm">📍</span>
-                  <span className="font-medium">Delivery Address</span>
-                </span>
-                {customerCoords && (
-                  <span className="flex items-center gap-1.5 text-blue-700">
-                    <span className="h-2.5 w-2.5 rounded-full bg-blue-600 animate-pulse"></span>
-                    <span className="font-bold">Your Location</span>
+            {/* Map Legend & Tech Specs (Only shown when not delivered) */}
+            {!isDelivered && (
+              <div className="flex flex-wrap items-center justify-between border-t border-border bg-slate-50 px-5 py-3 text-xs text-slate-600 gap-3">
+                <div className="flex flex-wrap items-center gap-4">
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-base">🏬</span>
+                    <span className="font-semibold text-slate-800">Hindustan Hardware (Store)</span>
                   </span>
-                )}
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded-full border border-amber-600 bg-white"></span>
+                    <span className="font-medium">Driver Vehicle</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded-full bg-slate-900"></span>
+                    <span className="font-medium">Road Route</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-sm">📍</span>
+                    <span className="font-medium">Delivery Address</span>
+                  </span>
+                  {customerCoords && (
+                    <span className="flex items-center gap-1.5 text-blue-700">
+                      <span className="h-2.5 w-2.5 rounded-full bg-blue-600 animate-pulse"></span>
+                      <span className="font-bold">Your Location</span>
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={customerGpsLoading}
+                    onClick={handleUseCustomerLocation}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 transition shadow-xs"
+                  >
+                    <MapPin size={13} className="text-blue-600" />
+                    <span>{customerGpsLoading ? "Locating..." : customerCoords ? "Update My Location" : "Show My Current Location"}</span>
+                  </button>
+                  <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
+                    OSRM • OpenStreetMap
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  disabled={customerGpsLoading}
-                  onClick={handleUseCustomerLocation}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 transition shadow-xs"
-                >
-                  <MapPin size={13} className="text-blue-600" />
-                  <span>{customerGpsLoading ? "Locating..." : customerCoords ? "Update My Location" : "Show My Current Location"}</span>
-                </button>
-                <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
-                  OSRM • OpenStreetMap
-                </span>
-              </div>
-            </div>
+            )}
             {customerGpsError && (
               <div className="bg-amber-50 border-t border-amber-200 px-5 py-2 text-[11px] text-amber-800">
                 {customerGpsError}
@@ -475,35 +509,104 @@ export function LiveTrackingDetailPage() {
 
           {/* Right Tracking Info Sidebar */}
           <div className="space-y-5">
-            {/* ETA & Distance Card */}
+            {/* Live Order Milestone Stepper */}
             <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-accent" />
-                <h3 className="font-bold text-ink">Estimated Arrival</h3>
+              <div className="flex items-center justify-between pb-3 border-b border-border">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Order Status</span>
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-black uppercase tracking-wider ${
+                    isDelivered
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300 animate-pulse"
+                      : "bg-blue-100 text-blue-800"
+                  }`}
+                >
+                  <span className={`h-2 w-2 rounded-full ${isDelivered ? "bg-emerald-600 animate-ping" : "bg-blue-600"}`} />
+                  {isDelivered ? "Delivered" : assignment?.status ? assignment.status.replace(/_/g, " ") : "Processing"}
+                </span>
               </div>
 
-              {data?.eta?.isAvailable && data.eta.eta ? (
-                <div className="mt-4 border-t border-border pt-4">
-                  <div className="text-3xl font-black text-ink">
-                    {formatEtaMinutes(data.eta.eta.estimatedDurationSeconds)}
-                  </div>
-                  <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
-                    <span>
-                      Est. Arrival: {formatDateTime(data.eta.eta.estimatedArrivalTimestamp)}
-                    </span>
-                    {data.eta.eta.distanceMeters && (
-                      <span className="font-semibold text-slate-700">
-                        {(data.eta.eta.distanceMeters / 1000).toFixed(1)} km away
+              {/* Progress Milestones */}
+              <div className="mt-4 space-y-3">
+                {[
+                  { key: "confirmed", label: "Order Confirmed", done: true },
+                  {
+                    key: "dispatched",
+                    label: "Dispatched from Store",
+                    done: Boolean(assignment?.pickedUpAt || assignment?.status === "picked_up" || assignment?.status === "out_for_delivery" || isDelivered),
+                  },
+                  {
+                    key: "out_for_delivery",
+                    label: "Out for Delivery",
+                    done: Boolean(assignment?.status === "out_for_delivery" || isDelivered),
+                  },
+                  {
+                    key: "delivered",
+                    label: "Order Delivered",
+                    done: isDelivered,
+                    isDeliveredStep: true,
+                  },
+                ].map((step, idx) => (
+                  <div key={step.key} className="flex items-center gap-3">
+                    <div
+                      className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all ${
+                        step.done
+                          ? step.isDeliveredStep
+                            ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/40 ring-4 ring-emerald-100 animate-bounce"
+                            : "bg-emerald-600 text-white"
+                          : "border-2 border-slate-300 bg-white text-slate-400"
+                      }`}
+                    >
+                      {step.done ? <CheckCircle2 size={15} /> : idx + 1}
+                    </div>
+                    <div className="flex-1">
+                      <span
+                        className={`text-xs block font-bold ${
+                          step.done
+                            ? step.isDeliveredStep
+                              ? "text-emerald-700 font-black text-sm"
+                              : "text-slate-800"
+                            : "text-slate-400"
+                        }`}
+                      >
+                        {step.label}
                       </span>
-                    )}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="mt-4 border-t border-border pt-4 text-xs text-slate-500">
-                  <p>{data?.eta?.statusMessage || "Dynamic road ETA calculated once vehicle is in transit."}</p>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
+
+            {/* ETA & Distance Card (Only if not delivered) */}
+            {!isDelivered && (
+              <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-accent" />
+                  <h3 className="font-bold text-ink">Estimated Arrival</h3>
+                </div>
+
+                {data?.eta?.isAvailable && data.eta.eta ? (
+                  <div className="mt-4 border-t border-border pt-4">
+                    <div className="text-3xl font-black text-ink">
+                      {formatEtaMinutes(data.eta.eta.estimatedDurationSeconds)}
+                    </div>
+                    <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
+                      <span>
+                        Est. Arrival: {formatDateTime(data.eta.eta.estimatedArrivalTimestamp)}
+                      </span>
+                      {data.eta.eta.distanceMeters && (
+                        <span className="font-semibold text-slate-700">
+                          {(data.eta.eta.distanceMeters / 1000).toFixed(1)} km away
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 border-t border-border pt-4 text-xs text-slate-500">
+                    <p>{data?.eta?.statusMessage || "Dynamic road ETA calculated once vehicle is in transit."}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Delivery Partner Details Card */}
             <div className="rounded-xl border border-border bg-white p-5 shadow-sm">

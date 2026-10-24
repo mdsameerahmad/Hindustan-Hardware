@@ -160,6 +160,15 @@ export const LiveTrackingCard: React.FC<LiveTrackingCardProps> = ({
             },
           }
         })
+
+        // When delivery partner marks picked_up or out_for_delivery, recalculate active road route
+        if (assignmentId && (statusUpdate.status === "picked_up" || statusUpdate.status === "out_for_delivery")) {
+          deliveryTrackingApi.getDeliveryRoute(assignmentId).then((newRoute) => {
+            if (newRoute) {
+              setData((current) => current ? { ...current, route: newRoute } : current)
+            }
+          }).catch(() => {})
+        }
       },
       (_err) => {
         // Safe non-crashing socket error notification
@@ -295,10 +304,8 @@ export const LiveTrackingCard: React.FC<LiveTrackingCardProps> = ({
               }
               destinationLocation={
                 data?.route?.destination ||
-                data?.orderTracking?.destination || {
-                  latitude: 25.2185,
-                  longitude: 84.9912,
-                }
+                data?.orderTracking?.destination ||
+                undefined
               }
               routeCoordinates={data?.route?.geometry?.coordinates}
               isStale={isStale}

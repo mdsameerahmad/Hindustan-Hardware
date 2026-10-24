@@ -70,36 +70,37 @@ export function DeliveryPartnerPortalPage() {
 
   const currentDelivery = deliveries.find((d) => d.id === selectedDeliveryId) || activeDeliveries[0]
 
+  const [partnerCoords, setPartnerCoords] = useState<{ latitude: number; longitude: number } | null>(null)
+
+  const fetchRouteForDelivery = useCallback(async (deliveryId: string) => {
+    setRouteLoading(true)
+    try {
+      const res = await deliveryTrackingApi.getDeliveryRoute(deliveryId)
+      setRouteData(res)
+    } catch {
+      setRouteData(null)
+    } finally {
+      setRouteLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (!currentDelivery?.id) {
       setRouteData(null)
       return
     }
 
-    let isMounted = true
-    setRouteLoading(true)
-
-    deliveryTrackingApi
-      .getDeliveryRoute(currentDelivery.id)
-      .then((res) => {
-        if (isMounted) setRouteData(res)
-      })
-      .catch(() => {
-        if (isMounted) setRouteData(null)
-      })
-      .finally(() => {
-        if (isMounted) setRouteLoading(false)
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [currentDelivery?.id])
+    fetchRouteForDelivery(currentDelivery.id)
+  }, [currentDelivery?.id, currentDelivery?.status, fetchRouteForDelivery])
 
   const handleStatusChange = (newStatus: string) => {
     setDeliveries((prev) =>
       prev.map((d) => (d.id === selectedDeliveryId ? { ...d, status: newStatus as any } : d))
     )
+    if (currentDelivery?.id) {
+      // Immediately refresh route and ETA on status change
+      fetchRouteForDelivery(currentDelivery.id)
+    }
   }
 
   const formatDateTime = (iso?: string | null) => {
@@ -404,11 +405,12 @@ export function DeliveryPartnerPortalPage() {
                         <div className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden shadow-lg h-[280px] w-full">
                           <LiveTrackingMap
                             storeLocation={routeData?.store}
+                            partnerLocation={partnerCoords}
                             destinationLocation={
-                              routeData?.destination || {
-                                latitude: 25.2185,
-                                longitude: 84.9912,
-                              }
+                              routeData?.destination ||
+                              (currentDelivery.destination.latitude && currentDelivery.destination.longitude
+                                ? { latitude: currentDelivery.destination.latitude, longitude: currentDelivery.destination.longitude }
+                                : undefined)
                             }
                             routeCoordinates={routeData?.geometry?.coordinates}
                             height="100%"
@@ -433,6 +435,7 @@ export function DeliveryPartnerPortalPage() {
                         customerAddress={`${currentDelivery.destination.addressLine1}, ${currentDelivery.destination.city}`}
                         initialStatus={currentDelivery.status}
                         onStatusChange={handleStatusChange}
+                        onLocationChange={(coords) => setPartnerCoords(coords)}
                       />
                     </div>
                   </div>
