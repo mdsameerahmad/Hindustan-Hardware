@@ -3,7 +3,7 @@
  * Communicates with backend product, category, and brand endpoints.
  */
 
-import { apiRequest } from './client'
+import { apiRequest, getApiBaseUrl } from './client'
 
 export interface BackendCategory {
   id: string
@@ -132,8 +132,7 @@ export const catalogueApi = {
     const queryStr = searchParams.toString()
     const endpoint = `/products${queryStr ? `?${queryStr}` : ''}`
 
-    // Backend sendSuccess returns { success: true, data: items, meta: { pagination } }
-    const url = `${(import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:5000/api/v1'}${endpoint}`
+    const url = `${getApiBaseUrl()}${endpoint}`
     const res = await fetch(url, {
       headers: {
         Accept: 'application/json',

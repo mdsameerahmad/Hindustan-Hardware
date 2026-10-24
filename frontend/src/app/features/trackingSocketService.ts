@@ -46,11 +46,31 @@ export interface SocketSubscriptionResponse {
 
 const getSocketBaseUrl = (): string => {
   const configuredSocketUrl = import.meta.env.VITE_SOCKET_URL as string | undefined
-  if (configuredSocketUrl?.trim()) return configuredSocketUrl.trim().replace(/\/$/, "")
+  if (configuredSocketUrl?.trim()) {
+    const trimmed = configuredSocketUrl.trim().replace(/\/$/, "")
+    if (typeof window !== "undefined" && window.location?.hostname) {
+      const hostname = window.location.hostname
+      if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+        return trimmed.replace(/\/\/(localhost|127\.0\.0\.1)(:\d+)?/, `//${hostname}:5000`)
+      }
+    }
+    return trimmed
+  }
 
   const configuredApiUrl = import.meta.env.VITE_API_BASE_URL as string | undefined
   if (configuredApiUrl?.trim()) {
-    return configuredApiUrl.trim().replace(/\/api\/v1\/?$/, "").replace(/\/$/, "")
+    const trimmed = configuredApiUrl.trim().replace(/\/api\/v1\/?$/, "").replace(/\/$/, "")
+    if (typeof window !== "undefined" && window.location?.hostname) {
+      const hostname = window.location.hostname
+      if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+        return trimmed.replace(/\/\/(localhost|127\.0\.0\.1)(:\d+)?/, `//${hostname}:5000`)
+      }
+    }
+    return trimmed
+  }
+
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    return `http://${window.location.hostname}:5000`
   }
 
   return "http://localhost:5000"

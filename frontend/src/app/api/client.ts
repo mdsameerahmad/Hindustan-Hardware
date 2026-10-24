@@ -3,9 +3,24 @@
  * Communicates with the Express + TypeScript backend.
  */
 
-const getApiBaseUrl = (): string => {
+export const getApiBaseUrl = (): string => {
   const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined
-  if (configuredBaseUrl?.trim()) return configuredBaseUrl.trim().replace(/\/$/, "")
+  if (configuredBaseUrl?.trim()) {
+    const trimmed = configuredBaseUrl.trim().replace(/\/$/, "")
+    // If running in browser and configured URL points to localhost/127.0.0.1 while accessing from a LAN IP (e.g. mobile)
+    if (typeof window !== "undefined" && window.location?.hostname) {
+      const hostname = window.location.hostname
+      if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+        return trimmed.replace(/\/\/(localhost|127\.0\.0\.1)(:\d+)?/, `//${hostname}:5000`)
+      }
+    }
+    return trimmed
+  }
+
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    return `http://${window.location.hostname}:5000/api/v1`
+  }
+
   return "http://localhost:5000/api/v1"
 }
 

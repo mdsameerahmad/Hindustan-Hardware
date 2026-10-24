@@ -5,6 +5,8 @@ import {
   Building2,
   CheckCircle2,
   Clock3,
+  Eye,
+  EyeOff,
   FileText,
   Heart,
   HelpCircle,
@@ -40,6 +42,7 @@ export function AuthPage() {
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successInfo, setSuccessInfo] = useState<{ title: string; text: string } | null>(null)
@@ -229,16 +232,26 @@ export function AuthPage() {
                   </Label>
                 )}
                 <Label text="Password">
-                  <input
-                    required
-                    minLength={signup ? 8 : 1}
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder={signup ? "Minimum 8 characters" : "Enter your password"}
-                    className="field mt-2"
-                    disabled={loading}
-                  />
+                  <div className="relative mt-2">
+                    <input
+                      required
+                      minLength={signup ? 8 : 1}
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={signup ? "Minimum 8 characters" : "Enter your password"}
+                      className="field w-full pr-10"
+                      disabled={loading}
+                    />
+                    <button
+                      type="button"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition p-1"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </Label>
 
                 <div className="flex justify-end">
