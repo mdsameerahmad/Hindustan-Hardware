@@ -156,6 +156,10 @@ export interface CustomerAddress {
   country: string;
   address_type: string;
   is_default: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+  formatted_address?: string | null;
+  geocoding_provider?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -504,6 +508,8 @@ export interface AssignedDeliveryItem {
     city: string;
     state: string;
     postalCode: string;
+    latitude?: number | null;
+    longitude?: number | null;
   };
   codAmount: number | null;
   paymentMethod: string;

@@ -93,6 +93,10 @@ export async function verifyUserAccessToken(token: string) {
   if (!isSupabaseConfigured()) {
     return { data: { user: null }, error: new Error('Supabase is not configured.') };
   }
+  const client = getSupabaseClient();
+  if (client && client.auth && typeof client.auth.getUser === 'function') {
+    return client.auth.getUser(token);
+  }
   const activeKey = env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
   if (!activeKey) {
     return { data: { user: null }, error: new Error('Supabase API key is missing.') };

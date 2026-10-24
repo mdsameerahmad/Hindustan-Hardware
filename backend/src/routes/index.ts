@@ -9,6 +9,7 @@ import { publicProductRouter } from './product';
 import { cartRouter } from './cart';
 import { checkoutRouter } from './checkout';
 import { deliveryRouter } from './delivery';
+import { locationRouter } from './location';
 
 export const apiV1Router = Router();
 
@@ -20,6 +21,9 @@ apiV1Router.use('/auth', authRouter);
 
 // Mount customer profile routes under /api/v1/customers
 apiV1Router.use('/customers', customerRouter);
+
+// Mount location and geocoding routes under /api/v1/location
+apiV1Router.use('/location', locationRouter);
 
 // Mount public catalogue routes
 apiV1Router.use('/categories', publicCategoryRouter);

@@ -31,17 +31,36 @@ export class CheckoutService {
       if (!savedAddress) {
         throw new NotFoundError('Saved delivery address not found or does not belong to you.');
       }
+
+      // Check if coordinates were supplied in snapshot or savedAddress
+      let lat = snapshot?.latitude ?? snapshot?.lat ?? savedAddress.latitude ?? null;
+      let lon = snapshot?.longitude ?? snapshot?.lng ?? snapshot?.lon ?? savedAddress.longitude ?? null;
+      let landmark = savedAddress.landmark || (snapshot?.landmark as string) || null;
+
+      if ((lat == null || lon == null) && landmark && typeof landmark === 'string') {
+        const match = landmark.match(/^LOC:([0-9.-]+),([0-9.-]+)(\|(.*))?$/);
+        if (match) {
+          lat = Number(match[1]);
+          lon = Number(match[2]);
+          landmark = match[4] || null;
+        }
+      }
+
       return {
         recipient_name: savedAddress.recipient_name,
         phone: savedAddress.phone,
         address_line1: savedAddress.address_line1,
         address_line2: savedAddress.address_line2,
-        landmark: savedAddress.landmark,
+        landmark: landmark,
         city: savedAddress.city,
         state: savedAddress.state,
         postal_code: savedAddress.postal_code,
         country: savedAddress.country || 'India',
         address_type: savedAddress.address_type || 'Home',
+        latitude: lat != null && !isNaN(Number(lat)) ? Number(lat) : null,
+        longitude: lon != null && !isNaN(Number(lon)) ? Number(lon) : null,
+        formatted_address: (snapshot?.formattedAddress as string) || (snapshot?.formatted_address as string) || savedAddress.formatted_address || null,
+        geocoding_provider: (snapshot?.geocodingProvider as string) || (snapshot?.geocoding_provider as string) || savedAddress.geocoding_provider || null,
       };
     }
 
@@ -57,6 +76,10 @@ export class CheckoutService {
         postal_code: snapshot.postalCode || snapshot.postal_code,
         country: snapshot.country || 'India',
         address_type: snapshot.addressType || snapshot.address_type || 'Home',
+        latitude: snapshot.latitude ?? snapshot.lat ?? null,
+        longitude: snapshot.longitude ?? snapshot.lng ?? snapshot.lon ?? null,
+        formatted_address: snapshot.formattedAddress || snapshot.formatted_address || null,
+        geocoding_provider: snapshot.geocodingProvider || snapshot.geocoding_provider || null,
       };
     }
 

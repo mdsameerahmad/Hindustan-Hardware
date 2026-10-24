@@ -12,6 +12,10 @@ export const createAddressSchema = z.object({
   country: z.string().trim().default('India'),
   addressType: z.enum(['Home', 'Work', 'Site']).default('Home'),
   isDefault: z.boolean().default(false),
+  latitude: z.number().min(-90).max(90).optional().nullable(),
+  longitude: z.number().min(-180).max(180).optional().nullable(),
+  formattedAddress: z.string().trim().max(500).optional().nullable(),
+  geocodingProvider: z.string().trim().max(100).optional().nullable(),
 });
 
 export const updateAddressSchema = createAddressSchema.partial();

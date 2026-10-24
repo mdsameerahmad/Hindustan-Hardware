@@ -2,8 +2,8 @@
  * Authoritative Store Location Configuration for Hindustan Hardware
  * 
  * Geographic convention:
- * - Coordinates: [longitude, latitude] = [84.982696, 25.213196]
- * - Leaflet order: [latitude, longitude] = [25.213196, 84.982696]
+ * - Coordinates: [longitude, latitude] = [84.9867635966286, 25.215474989473233]
+ * - Leaflet order: [latitude, longitude] = [25.215474989473233, 84.9867635966286]
  */
 
 export interface StoreLocationConfig {
@@ -26,18 +26,18 @@ export interface StoreLocationConfig {
 
 export const HINDUSTAN_HARDWARE_STORE: StoreLocationConfig = {
   name: 'Hindustan Hardware',
-  address: 'PG Road, Opposite Eidgah',
+  address: 'PG Road, Jehanabad, Bihar 804408',
   city: 'Jehanabad',
   district: 'Jehanabad',
   state: 'Bihar',
   country: 'India',
   postalCode: '804408',
   phone: '+91 94310 00000',
-  latitude: 25.213196,
-  longitude: 84.982696,
+  latitude: 25.215474989473233,
+  longitude: 84.9867635966286,
   location: {
     type: 'Point',
-    coordinates: [84.982696, 25.213196],
+    coordinates: [84.9867635966286, 25.215474989473233],
   },
   coordinateStatus: 'approximate_locality',
 };

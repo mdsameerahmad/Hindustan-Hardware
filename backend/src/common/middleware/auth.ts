@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import { getSupabaseAdminClient, isSupabaseConfigured, verifyUserAccessToken } from '../../config/supabase';
+import { getSupabaseAdminClient, getSupabaseClient, isSupabaseConfigured, verifyUserAccessToken } from '../../config/supabase';
 import { AuthenticatedUser, UserProfile, UserRole } from '../../types';
 import { InternalServerError, UnauthorizedError } from '../errors';
 import { logger } from '../utils/logger';

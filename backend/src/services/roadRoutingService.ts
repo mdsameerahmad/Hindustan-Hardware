@@ -16,6 +16,7 @@ import {
 } from '../types';
 import { OsrmRoutingProvider } from './osrmRoutingProvider';
 import { isLocationStale } from './deliveryTrackingService';
+import { ServiceabilityService } from './serviceabilityService';
 
 interface CachedRouteEntry {
   route: RouteCalculationResult;
@@ -175,20 +176,12 @@ export class RoadRoutingService {
 
     const snapshot = (order.shipping_address_snapshot || {}) as Record<string, any>;
     
-    // Check if coordinates exist on the address snapshot
-    let destLat: number | undefined = snapshot?.latitude ?? snapshot?.lat;
-    let destLon: number | undefined = snapshot?.longitude ?? snapshot?.lng ?? snapshot?.lon;
-
-    // Fallback if address has no direct GPS: Default to service area relative to store
-    if (destLat == null || destLon == null) {
-      // Jehanabad town delivery area: slightly offset from store
-      destLat = 25.2185;
-      destLon = 84.9912;
-    }
+    // Resolve destination coordinates dynamically based on confirmed map pin, postal PIN code, or city
+    const resolvedDestination = ServiceabilityService.resolveAddressCoordinates(snapshot);
 
     const destination: RouteCoordinate = {
-      latitude: Number(destLat),
-      longitude: Number(destLon),
+      latitude: resolvedDestination.latitude,
+      longitude: resolvedDestination.longitude,
     };
 
     return {
@@ -234,8 +227,37 @@ export class RoadRoutingService {
       }
     }
 
-    // Call routing provider
-    const calculated = await OsrmRoutingProvider.getDrivingRoute(origin, destination);
+    // Call routing provider with short-distance fallback if OSRM fails
+    let calculated;
+    try {
+      calculated = await OsrmRoutingProvider.getDrivingRoute(origin, destination);
+    } catch (routeErr: unknown) {
+      // Fallback for close-proximity or internal road segments
+      const straightDistMeters = Math.max(50, Math.round(this.calculateHaversineDistanceMeters(origin, destination)));
+      logger.info('Using direct street-line fallback for close destination', {
+        deliveryId,
+        straightDistMeters,
+        reason: routeErr instanceof Error ? routeErr.message : String(routeErr),
+      });
+
+      calculated = {
+        distanceMeters: straightDistMeters,
+        durationSeconds: Math.max(60, Math.round((straightDistMeters / 25) * 60)), // ~25 km/h local speed
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: [
+            [origin.longitude, origin.latitude],
+            [
+              (origin.longitude + destination.longitude) / 2,
+              (origin.latitude + destination.latitude) / 2,
+            ],
+            [destination.longitude, destination.latitude],
+          ] as [number, number][],
+        },
+        provider: 'Local-Direct-Fallback',
+        calculatedAt: new Date().toISOString(),
+      };
+    }
 
     const result: RouteCalculationResult = {
       deliveryId,

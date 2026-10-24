@@ -70,7 +70,7 @@ export class OsrmRoutingProvider {
     // Note: OSRM expects coordinates in {longitude},{latitude} order!
     const baseUrl = env.OSRM_ROUTER_URL.replace(/\/+$/, '');
     const coordinatesPath = `${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}`;
-    const url = `${baseUrl}/route/v1/driving/${coordinatesPath}?overview=full&geometries=geojson&steps=false`;
+    const url = `${baseUrl}/route/v1/driving/${coordinatesPath}?overview=full&geometries=geojson&steps=false&alternatives=true`;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.TIMEOUT_MS);
@@ -108,24 +108,37 @@ export class OsrmRoutingProvider {
         throw new BadRequestError(`No driving route found: ${errorMsg}`);
       }
 
-      const primaryRoute = body.routes[0];
+      // Blinkit-style Best Route selection:
+      // Filter valid candidates with coordinates and select the one with shortest distance
+      const validRoutes = body.routes.filter(
+        (r) =>
+          r.geometry &&
+          r.geometry.type === 'LineString' &&
+          Array.isArray(r.geometry.coordinates) &&
+          r.geometry.coordinates.length > 0
+      );
 
-      if (
-        !primaryRoute.geometry ||
-        primaryRoute.geometry.type !== 'LineString' ||
-        !Array.isArray(primaryRoute.geometry.coordinates) ||
-        primaryRoute.geometry.coordinates.length === 0
-      ) {
+      if (validRoutes.length === 0) {
         throw new InternalServerError('Routing provider returned invalid or empty route geometry.');
       }
+
+      // Sort by shortest distance first, then duration
+      validRoutes.sort((a, b) => {
+        if (Math.abs(a.distance - b.distance) > 50) {
+          return a.distance - b.distance;
+        }
+        return a.duration - b.duration;
+      });
+
+      const bestRoute = validRoutes[0];
 
       return {
         geometry: {
           type: 'LineString',
-          coordinates: primaryRoute.geometry.coordinates,
+          coordinates: bestRoute.geometry.coordinates,
         },
-        distanceMeters: Math.round(primaryRoute.distance),
-        durationSeconds: Math.round(primaryRoute.duration),
+        distanceMeters: Math.round(bestRoute.distance),
+        durationSeconds: Math.round(bestRoute.duration),
         provider: this.PROVIDER_ID,
         calculatedAt: new Date().toISOString(),
       };

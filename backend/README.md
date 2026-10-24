@@ -868,7 +868,7 @@ Phase 5 completes the backend delivery tracking module. It unifies order lifecyc
          │
          ▼
 6. Customer Tracking Interface:
-   - Joins Socket room via event 'join:delivery_tracking' (BOLA verified against user_id)
+   - Joins Socket room via event 'delivery:subscribe' (BOLA verified against user_id)
    - Fetches road-following route: GET /api/v1/deliveries/:id/route
    - Fetches dynamic ETA & freshness: GET /api/v1/deliveries/:id/eta
          │
@@ -900,23 +900,37 @@ When developing the frontend client, consume the backend services using the foll
 #### B. Socket.IO Events Contract
 | Event Name | Direction | Payload | Description |
 | :--- | :--- | :--- | :--- |
-| `join:delivery_tracking` | Client -> Server | `{ "deliveryId": "uuid" }` | Client requests subscription to live tracking room. Backend verifies user owns order or is assigned partner/admin. |
-| `leave:delivery_tracking` | Client -> Server | `{ "deliveryId": "uuid" }` | Client leaves tracking room. |
-| `delivery:location_update` | Server -> Client | Location Payload (below) | Emitted in real-time when delivery partner submits GPS update. |
-| `error` | Server -> Client | `{ "code": "STRING", "message": "STRING" }` | Emitted when room join is unauthorized (e.g. `UNAUTHORIZED_ACCESS`). |
+| `delivery:subscribe` | Client -> Server | `{ "deliveryId": "uuid" }` | Client requests subscription to live tracking room. Backend verifies caller owns order, or is assigned partner/admin. |
+| `delivery:unsubscribe` | Client -> Server | `{ "deliveryId": "uuid" }` | Client leaves tracking room. |
+| `delivery:location_update` | Server -> Client | Location Broadcast Payload (below) | Emitted in real-time immediately after valid GPS update is committed to database. |
+| `delivery:status_update` | Server -> Client | Status Broadcast Payload (below) | Emitted when assignment transitions (`picked_up`, `out_for_delivery`, `delivered`, etc.). |
+| `delivery:access_revoked` | Server -> Client | `{ "deliveryId": "uuid", "reason": "STRING" }` | Emitted if permissions to tracking are revoked. |
+| `error` | Server -> Client | `{ "code": "STRING", "message": "STRING" }` | Standard error notification for invalid operations. |
 
 ##### `delivery:location_update` Payload Shape:
 ```typescript
-interface DeliveryLocationUpdate {
-  assignmentId: string;
+interface DeliveryLocationBroadcastPayload {
+  deliveryId: string;
+  orderId: string;
   latitude: number;
   longitude: number;
-  heading?: number | null;
-  speed?: number | null;
-  accuracy?: number | null;
-  batteryLevel?: number | null;
-  timestamp: string; // ISO-8601
-  status: string;    // 'assigned' | 'picked_up' | 'in_transit'
+  accuracy: number | null;
+  speed: number | null;
+  heading: number | null;
+  deviceTimestamp: string;
+  serverReceivedAt: string;
+  isStale: boolean;
+}
+```
+
+##### `delivery:status_update` Payload Shape:
+```typescript
+interface DeliveryStatusBroadcastPayload {
+  deliveryId: string;
+  orderId: string;
+  status: 'assigned' | 'picked_up' | 'out_for_delivery' | 'delivered' | 'failed' | 'cancelled';
+  timestamp: string;
+  notes?: string | null;
 }
 ```
 

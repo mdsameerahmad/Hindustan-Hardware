@@ -1,12 +1,17 @@
-import { getSupabaseAdminClient, getSupabaseClient } from '../config/supabase';
 import {
   BadRequestError,
   ForbiddenError,
   InternalServerError,
   NotFoundError,
 } from '../common/errors';
-import { env } from '../config/env';
+import {
+  broadcastDeliveryLocation,
+  broadcastDeliveryStatus,
+} from '../common/socket/trackingSocket';
 import { logger } from '../common/utils/logger';
+import { LocationUpdateInput } from '../common/validation/trackingSchemas';
+import { env } from '../config/env';
+import { getSupabaseAdminClient, getSupabaseClient } from '../config/supabase';
 import {
   DeliveryAssignmentRecord,
   DeliveryAssignmentStatus,
@@ -15,12 +20,8 @@ import {
   OrderLiveTrackingResponse,
   OrderStatus,
 } from '../types';
-import { LocationUpdateInput } from '../common/validation/trackingSchemas';
-import {
-  broadcastDeliveryLocation,
-  broadcastDeliveryStatus,
-} from '../common/socket/trackingSocket';
 import { RoadRoutingService } from './roadRoutingService';
+import { ServiceabilityService } from './serviceabilityService';
 
 export function isLocationStale(
   serverReceivedAtOrDeviceTimestamp: string,
@@ -250,16 +251,21 @@ export class DeliveryTrackingService {
         pickedUpAt: row.picked_up_at,
         completedAt: row.completed_at,
         notes: row.notes,
-        destination: {
-          recipientName: shippingAddress.recipient_name || 'Customer',
-          phone: shippingAddress.phone || null,
-          addressLine1: shippingAddress.address_line1 || '',
-          addressLine2: shippingAddress.address_line2 || null,
-          landmark: shippingAddress.landmark || null,
-          city: shippingAddress.city || '',
-          state: shippingAddress.state || '',
-          postalCode: shippingAddress.postal_code || '',
-        },
+        destination: (() => {
+          const resolved = ServiceabilityService.resolveAddressCoordinates(shippingAddress);
+          return {
+            recipientName: shippingAddress.recipient_name || 'Customer',
+            phone: shippingAddress.phone || null,
+            addressLine1: shippingAddress.address_line1 || '',
+            addressLine2: shippingAddress.address_line2 || null,
+            landmark: shippingAddress.landmark || null,
+            city: shippingAddress.city || '',
+            state: shippingAddress.state || '',
+            postalCode: shippingAddress.postal_code || '',
+            latitude: resolved.latitude,
+            longitude: resolved.longitude,
+          };
+        })(),
         codAmount,
         paymentMethod: order.payment_method || 'cod',
         paymentStatus: order.payment_status || 'pending',
@@ -445,16 +451,13 @@ export class DeliveryTrackingService {
       throw new BadRequestError(`Cannot record location for assignment with status '${assignment.status}'.`);
     }
 
-    // 2. Accuracy check against configured threshold
+    // 2. Accuracy check: log diagnostic warning if poor accuracy, but do not drop location fix
     if (input.accuracy && input.accuracy > env.TRACKING_MAX_ACCURACY_METERS) {
-      logger.warn('GPS reading rejected due to poor accuracy', {
+      logger.info('GPS reading has low accuracy, accepting fix with warning', {
         assignmentId,
         accuracy: input.accuracy,
         threshold: env.TRACKING_MAX_ACCURACY_METERS,
       });
-      throw new BadRequestError(
-        `GPS accuracy (${input.accuracy}m) exceeds the permitted threshold (${env.TRACKING_MAX_ACCURACY_METERS}m).`
-      );
     }
 
     // 3. Atomically record in database using RPC function
@@ -560,8 +563,8 @@ export class DeliveryTrackingService {
     let destLat: number | undefined = snapshot?.latitude ?? snapshot?.lat;
     let destLon: number | undefined = snapshot?.longitude ?? snapshot?.lng ?? snapshot?.lon;
     if (destLat == null || destLon == null) {
-      destLat = 25.2185;
-      destLon = 84.9912;
+      destLat = 25.2162;
+      destLon = 84.9905;
     }
     const destinationCoord = {
       latitude: Number(destLat),
