@@ -1,15 +1,28 @@
 import {
+  AlertCircle,
+  Calendar,
   CheckCircle2,
+  Clock,
+  Compass,
+  Crosshair,
+  ExternalLink,
   Eye,
   FileCheck,
+  FileText,
   IndianRupee,
   Loader2,
+  MapPin,
+  Navigation,
+  Package,
+  Phone,
   RefreshCcw,
+  ShieldCheck,
   Trash2,
   Truck,
-  Upload
+  Upload,
+  User,
 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useParams } from "react-router"
 import {
   Badge,
@@ -19,8 +32,17 @@ import {
   formatPrice,
   statusTone,
 } from "../components"
-import { DeliveryPartnerGpsController } from "../components/DeliveryPartnerGpsController"
-import { deliveryTrackingApi, type OrderLiveTrackingResponse } from "../features/deliveryTrackingApi"
+import { LiveTrackingMap } from "../components/LiveTrackingMap"
+import {
+  deliveryTrackingApi,
+  type DeliveryRouteResponse,
+  type OrderLiveTrackingResponse,
+} from "../features/deliveryTrackingApi"
+import {
+  trackingSocketService,
+  type DeliveryLocationBroadcastPayload,
+  type DeliveryStatusBroadcastPayload,
+} from "../features/trackingSocketService"
 import { useAdminOrderDetail } from "../features/hooks/useAdminOrderDetail"
 
 export function AdminOrderDetailPage() {
@@ -49,14 +71,150 @@ export function AdminOrderDetailPage() {
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>("")
   const [assigningPartner, setAssigningPartner] = useState<boolean>(false)
 
-  const fetchTracking = () => {
+  // Real-Time Delivery Partner Tracking & Route state
+  const [routeData, setRouteData] = useState<DeliveryRouteResponse | null>(null)
+  const [partnerLocation, setPartnerLocation] = useState<{
+    latitude: number
+    longitude: number
+    heading?: number | null
+    speed?: number | null
+    accuracy?: number | null
+  } | null>(null)
+  const [isLocationStale, setIsLocationStale] = useState<boolean>(false)
+  const [lastLocationTimestamp, setLastLocationTimestamp] = useState<string | null>(null)
+  const [socketStatus, setSocketStatus] = useState<"connected" | "connecting" | "reconnecting" | "disconnected">("disconnected")
+  const [autoFollow, setAutoFollow] = useState<boolean>(true)
+  const lastRouteFetchTimeRef = useRef<number>(0)
+
+  const fetchRouteForDelivery = useCallback((deliveryId: string) => {
+    lastRouteFetchTimeRef.current = Date.now()
+    deliveryTrackingApi
+      .getDeliveryRoute(deliveryId)
+      .then((res) => {
+        if (res) {
+          setRouteData(res)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const fetchTracking = useCallback(() => {
     if (id) {
       deliveryTrackingApi
         .getOrderTracking(id)
-        .then((res) => setTrackingInfo(res))
+        .then((res) => {
+          setTrackingInfo(res)
+          if (res?.latestLocation) {
+            setPartnerLocation({
+              latitude: Number(res.latestLocation.latitude),
+              longitude: Number(res.latestLocation.longitude),
+              heading: res.latestLocation.heading,
+              speed: res.latestLocation.speed,
+              accuracy: res.latestLocation.accuracy,
+            })
+            setLastLocationTimestamp(res.latestLocation.deviceTimestamp || res.latestLocation.serverReceivedAt || null)
+            setIsLocationStale(Boolean(res.latestLocation.isStale))
+          }
+          if (res?.assignment?.id) {
+            fetchRouteForDelivery(res.assignment.id)
+          }
+        })
         .catch(() => {})
     }
-  }
+  }, [id, fetchRouteForDelivery])
+
+  // Real-time socket subscription to partner dispatch room
+  useEffect(() => {
+    const deliveryId = trackingInfo?.assignment?.id
+    if (!deliveryId) return
+
+    // Fetch initial route and latest location
+    fetchRouteForDelivery(deliveryId)
+
+    deliveryTrackingApi
+      .getLatestLocation(deliveryId)
+      .then((res) => {
+        if (res?.latestLocation) {
+          setPartnerLocation({
+            latitude: Number(res.latestLocation.latitude),
+            longitude: Number(res.latestLocation.longitude),
+            heading: res.latestLocation.heading,
+            speed: res.latestLocation.speed,
+            accuracy: res.latestLocation.accuracy,
+          })
+          setLastLocationTimestamp(res.latestLocation.deviceTimestamp || res.latestLocation.serverReceivedAt || null)
+          setIsLocationStale(Boolean(res.latestLocation.isStale))
+        }
+      })
+      .catch(() => {})
+
+    const unsubStatus = trackingSocketService.onConnectionStatusChange((status) => {
+      setSocketStatus(status)
+      if (status === "connected") {
+        deliveryTrackingApi
+          .getLatestLocation(deliveryId)
+          .then((res) => {
+            if (res?.latestLocation) {
+              setPartnerLocation({
+                latitude: Number(res.latestLocation.latitude),
+                longitude: Number(res.latestLocation.longitude),
+                heading: res.latestLocation.heading,
+                speed: res.latestLocation.speed,
+                accuracy: res.latestLocation.accuracy,
+              })
+              setLastLocationTimestamp(res.latestLocation.deviceTimestamp || res.latestLocation.serverReceivedAt || null)
+              setIsLocationStale(Boolean(res.latestLocation.isStale))
+            }
+          })
+          .catch(() => {})
+      }
+    })
+
+    const unsubDelivery = trackingSocketService.subscribeToDelivery(
+      deliveryId,
+      (payload: DeliveryLocationBroadcastPayload) => {
+        setLastLocationTimestamp((prevTime) => {
+          if (prevTime && payload.deviceTimestamp && new Date(payload.deviceTimestamp).getTime() < new Date(prevTime).getTime()) {
+            return prevTime
+          }
+          return payload.deviceTimestamp
+        })
+        setPartnerLocation({
+          latitude: payload.latitude,
+          longitude: payload.longitude,
+          heading: payload.heading,
+          speed: payload.speed,
+          accuracy: payload.accuracy,
+        })
+        setIsLocationStale(Boolean(payload.isStale))
+
+        // Recalculate route if 25s elapsed
+        if (Date.now() - lastRouteFetchTimeRef.current > 25000) {
+          fetchRouteForDelivery(deliveryId)
+        }
+      },
+      (statusPayload: DeliveryStatusBroadcastPayload) => {
+        if (statusPayload.deliveryId === deliveryId) {
+          setTrackingInfo((prev) => {
+            if (!prev || !prev.assignment) return prev
+            return {
+              ...prev,
+              assignment: {
+                ...prev.assignment,
+                status: statusPayload.status,
+              },
+            }
+          })
+          fetchRouteForDelivery(deliveryId)
+        }
+      }
+    )
+
+    return () => {
+      unsubStatus()
+      unsubDelivery()
+    }
+  }, [trackingInfo?.assignment?.id, fetchRouteForDelivery])
 
   useEffect(() => {
     fetchTracking()
@@ -198,6 +356,36 @@ export function AdminOrderDetailPage() {
 
   const shippingAddr = (order.shippingAddress || {}) as any
 
+  // Detect whether delivery partner is at destination
+  const isTerminal = ["delivered", "failed", "cancelled"].includes(
+    trackingInfo?.assignment?.status || ""
+  )
+  const destCoords = routeData?.destination || (
+    trackingInfo?.destination?.latitude && trackingInfo?.destination?.longitude
+      ? { latitude: trackingInfo.destination.latitude, longitude: trackingInfo.destination.longitude }
+      : null
+  )
+  const isAtDestination = Boolean(
+    !isTerminal &&
+    (trackingInfo?.assignment?.status === "out_for_delivery" || trackingInfo?.assignment?.status === "picked_up") &&
+    partnerLocation &&
+    destCoords?.latitude &&
+    destCoords?.longitude &&
+    (() => {
+      const R = 6371e3
+      const lat1 = (partnerLocation.latitude * Math.PI) / 180
+      const lat2 = (destCoords.latitude * Math.PI) / 180
+      const dLat = ((destCoords.latitude - partnerLocation.latitude) * Math.PI) / 180
+      const dLon = ((destCoords.longitude - partnerLocation.longitude) * Math.PI) / 180
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+      const distanceMeters = R * c
+      return distanceMeters <= 85 || (routeData?.distanceMeters != null && routeData.distanceMeters <= 85)
+    })()
+  )
+
   return (
     <>
       <PageHeader
@@ -266,65 +454,263 @@ export function AdminOrderDetailPage() {
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
-        <div className="space-y-6">
-          <section className="rounded-xl border border-border bg-white p-4 sm:p-6 shadow-xs">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base sm:text-lg font-black text-slate-900">Ordered items</h2>
-              <Badge tone={statusTone(order.status as any)}>{order.status}</Badge>
+      {/* Top Highlights Banner */}
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-xl border border-border bg-white p-4 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Status</span>
+          <div className="mt-1 flex items-center gap-2">
+            <Badge tone={statusTone(order.status as any)}>{order.status}</Badge>
+          </div>
+        </div>
+        <div className="rounded-xl border border-border bg-white p-4 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Amount</span>
+          <p className="mt-1 text-base font-black text-slate-900">{formatPrice(order.totalAmount)}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-white p-4 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Payment</span>
+          <div className="mt-1 flex items-center gap-2">
+            <Badge tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "cancelled" ? "danger" : "warning"}>
+              {order.paymentStatus}
+            </Badge>
+          </div>
+        </div>
+        <div className="rounded-xl border border-border bg-white p-4 shadow-2xs">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Assigned Driver</span>
+          <p className="mt-1 truncate text-xs font-bold text-slate-800">
+            {trackingInfo?.assignment?.deliveryPartner?.fullName || (
+              <span className="font-normal text-slate-400">Not assigned</span>
+            )}
+          </p>
+        </div>
+      </div>
+
+      {/* Main 2-Column Responsive Workspace */}
+      <div className="grid gap-6 lg:grid-cols-12 items-start">
+        {/* Left Column: 7 Cols on desktop (Live Tracking & Items) */}
+        <div className="space-y-6 lg:col-span-7">
+          {/* 1. Live Fleet Dispatch & Real-Time Partner Navigation Map */}
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
+            {/* Header matching Delivery Partner View */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-900 px-4 py-3 text-white">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-100 flex items-center gap-1.5">
+                  <Truck size={15} className="text-accent" /> Live Fleet Dispatch & Navigation
+                </span>
+
+                {/* Real-time Socket Connection Badge */}
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                    socketStatus === "connected"
+                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                      : socketStatus === "reconnecting"
+                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse"
+                      : "bg-red-500/20 text-red-300 border border-red-500/30"
+                  }`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      socketStatus === "connected"
+                        ? "bg-emerald-400 animate-ping"
+                        : socketStatus === "reconnecting"
+                        ? "bg-amber-400"
+                        : "bg-red-400"
+                    }`}
+                  />
+                  <span>
+                    {socketStatus === "connected"
+                      ? "Live Connected"
+                      : socketStatus === "reconnecting"
+                      ? "Reconnecting..."
+                      : "Disconnected"}
+                  </span>
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {routeData && (
+                  <span className="text-[11px] font-mono text-[#D4AF37] font-bold bg-slate-800 border border-slate-700 px-2.5 py-0.5 rounded-full">
+                    {(routeData.distanceMeters / 1000).toFixed(1)} km • ~{Math.ceil(routeData.durationSeconds / 60)} mins
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setAutoFollow((prev) => !prev)}
+                  title={autoFollow ? "Auto-following location updates" : "Manual map panning"}
+                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition border ${
+                    autoFollow
+                      ? "bg-blue-500/20 text-blue-300 border-blue-400/40 shadow-xs"
+                      : "bg-slate-800 text-slate-400 border-slate-700"
+                  }`}
+                >
+                  <Crosshair size={12} className={autoFollow ? "text-blue-400 animate-pulse" : ""} />
+                  <span>{autoFollow ? "Auto-Follow ON" : "Auto-Follow OFF"}</span>
+                </button>
+              </div>
             </div>
-            <div className="mt-4 divide-y divide-border">
+
+            {/* Stale Location Alert */}
+            {isLocationStale && partnerLocation && (
+              <div className="flex items-center justify-between border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+                <div className="flex items-center gap-2">
+                  <AlertCircle size={15} className="text-amber-600 shrink-0" />
+                  <span className="font-semibold text-amber-800">
+                    Location signal delayed. Showing last verified GPS broadcast.
+                  </span>
+                </div>
+                {lastLocationTimestamp && (
+                  <span className="text-[11px] font-mono text-amber-700 shrink-0">
+                    {new Date(lastLocationTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Partner Speed & Heading Telemetry Strip */}
+            {partnerLocation && (
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-2 text-xs text-white border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      isTerminal
+                        ? "bg-slate-400"
+                        : isAtDestination
+                        ? "bg-amber-400 animate-ping"
+                        : isLocationStale
+                        ? "bg-amber-400"
+                        : "bg-emerald-400 animate-ping"
+                    }`}
+                  />
+                  <span className="font-bold text-accent">
+                    {isAtDestination
+                      ? "Driver At Destination"
+                      : `Driver Active: ${trackingInfo?.assignment?.deliveryPartner?.fullName || "Assigned Driver"}`}
+                  </span>
+                  {isAtDestination && (
+                    <span className="bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-500/30 text-[10px] uppercase">
+                      At Customer Location
+                    </span>
+                  )}
+                  <span className="text-slate-400 hidden xs:inline">• Syncing via Socket.IO</span>
+                </div>
+                <div className="flex items-center gap-2.5 font-mono text-[11px]">
+                  {partnerLocation.speed != null && (
+                    <span className="bg-slate-800 text-slate-200 px-2 py-0.5 rounded font-bold border border-slate-700">
+                      {Math.round(partnerLocation.speed * 3.6)} km/h
+                    </span>
+                  )}
+                  {partnerLocation.heading != null && (
+                    <span className="text-slate-300 flex items-center gap-1">
+                      <Compass size={12} className="text-accent" />
+                      {Math.round(partnerLocation.heading)}°
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Interactive Leaflet Map View */}
+            <div className="relative h-[340px] w-full bg-slate-100">
+              <LiveTrackingMap
+                storeLocation={routeData?.store}
+                partnerLocation={
+                  partnerLocation
+                    ? { latitude: partnerLocation.latitude, longitude: partnerLocation.longitude }
+                    : null
+                }
+                markerMode="truck"
+                partnerHeading={partnerLocation?.heading ?? null}
+                autoFollow={autoFollow}
+                isStale={isLocationStale}
+                destinationLocation={
+                  routeData?.destination ||
+                  (trackingInfo?.destination?.latitude && trackingInfo?.destination?.longitude
+                    ? { latitude: trackingInfo.destination.latitude, longitude: trackingInfo.destination.longitude }
+                    : undefined)
+                }
+                routeCoordinates={routeData?.geometry?.coordinates}
+                height="100%"
+              />
+
+              {!trackingInfo?.assignment && (
+                <div className="absolute inset-0 z-[1000] flex flex-col items-center justify-center gap-2 bg-slate-900/60 p-4 text-center backdrop-blur-xs text-white">
+                  <Truck size={32} className="text-accent opacity-80" />
+                  <p className="text-sm font-bold">No Delivery Partner Assigned</p>
+                  <p className="text-xs text-slate-300 max-w-xs">
+                    Assign a driver using the "Partner Assignment" section on the right to start live tracking.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 2. Ordered Items & Financial Summary */}
+          <section className="rounded-xl border border-border bg-white p-5 shadow-xs">
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <div className="flex items-center gap-2">
+                <Package size={18} className="text-slate-600" />
+                <h2 className="text-base font-black text-slate-900">Ordered Items ({order.items.length})</h2>
+              </div>
+              <span className="text-xs font-medium text-slate-500">ID: {order.orderNumber}</span>
+            </div>
+
+            <div className="divide-y divide-border">
               {order.items.map((item) => (
                 <div
-                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 py-3 sm:py-4"
+                  className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                   key={item.id}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-xs uppercase shrink-0">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold uppercase text-slate-400">
                       HH
                     </div>
                     <div className="min-w-0">
-                      <b className="block text-slate-900 text-sm leading-snug">{item.productName}</b>
-                      <small className="block text-slate-500 text-xs">
+                      <b className="block text-sm leading-snug text-slate-900">{item.productName}</b>
+                      <small className="block text-xs text-slate-500">
                         {item.sku ? `SKU: ${item.sku} · ` : ""}Qty: {item.quantity} × {formatPrice(item.unitPrice)}
                       </small>
                     </div>
                   </div>
-                  <b className="text-slate-900 text-sm sm:text-base self-end sm:self-center">{formatPrice(item.lineSubtotal)}</b>
+                  <b className="self-end text-sm text-slate-900 sm:self-center sm:text-base">
+                    {formatPrice(item.lineSubtotal)}
+                  </b>
                 </div>
               ))}
             </div>
 
-            <div className="border-t border-border pt-4 space-y-2 text-sm text-slate-600">
+            {/* Price Calculations */}
+            <div className="mt-4 border-t border-border pt-4 space-y-2 text-sm text-slate-600">
               <div className="flex justify-between">
-                <span>Subtotal</span>
+                <span>Items Subtotal</span>
                 <span>{formatPrice(order.subtotal)}</span>
               </div>
               {order.shippingAmount > 0 && (
                 <div className="flex justify-between">
-                  <span>Shipping Fee</span>
+                  <span>Delivery / Shipping Fee</span>
                   <span>{formatPrice(order.shippingAmount)}</span>
                 </div>
               )}
-              <div className="flex justify-between border-t border-border pt-3 text-lg font-black text-slate-900">
-                <span>Total Amount</span>
-                <span>{formatPrice(order.totalAmount)}</span>
+              <div className="flex justify-between border-t border-border pt-3 text-base font-black text-slate-900">
+                <span>Total Order Amount</span>
+                <span className="text-lg text-brand">{formatPrice(order.totalAmount)}</span>
               </div>
             </div>
           </section>
 
-          <section className="rounded-xl border border-border bg-white p-6 shadow-xs">
-            <h2 className="text-lg font-black text-slate-900">Status timeline</h2>
-            <p className="text-xs text-slate-500 mt-1 mb-4">
-              Real-time milestone tracking directly synchronized with the customer storefront.
-            </p>
+          {/* 3. Status Timeline & Audit History */}
+          <section className="rounded-xl border border-border bg-white p-5 shadow-xs">
+            <div className="flex items-center gap-2 border-b border-border pb-3 mb-4">
+              <Clock size={17} className="text-slate-600" />
+              <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                Order Lifecycle Timeline
+              </h2>
+            </div>
 
-            {/* Horizontal Timeline Bar matching user TrackingPage */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
+            {/* Horizontal Timeline Bar */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 mb-5">
               {[
                 { status: "pending", label: "Order Placed" },
-                { status: "confirmed", label: "Order Confirmed" },
-                { status: "processing", label: "Preparing Your Order" },
+                { status: "confirmed", label: "Confirmed" },
+                { status: "processing", label: "Preparing" },
                 { status: "shipped", label: "Out for Delivery" },
               ].map((step, idx) => {
                 const stageOrder = ["pending", "confirmed", "processing", "shipped", "delivered"]
@@ -336,18 +722,18 @@ export function AdminOrderDetailPage() {
                 return (
                   <div
                     key={step.status}
-                    className={`rounded-xl border p-3 text-center transition ${
+                    className={`rounded-xl border p-2.5 text-center transition ${
                       isCurrent
-                        ? "border-[#0b2447] bg-[#0b2447] text-white shadow-sm font-bold"
+                        ? "border-[#0b2447] bg-[#0b2447] text-white shadow-xs font-bold"
                         : isPassedOrActive
                         ? "border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold"
-                        : "border-slate-200 bg-white text-slate-500 font-medium"
+                        : "border-slate-200 bg-white text-slate-400 font-medium"
                     }`}
                   >
-                    <span className="block text-[11px] uppercase tracking-wider opacity-75">
+                    <span className="block text-[10px] uppercase tracking-wider opacity-75">
                       Step {idx + 1}
                     </span>
-                    <span className="text-xs font-bold block mt-0.5">
+                    <span className="mt-0.5 block text-xs font-bold leading-tight">
                       {step.label}
                     </span>
                   </div>
@@ -355,70 +741,92 @@ export function AdminOrderDetailPage() {
               })}
             </div>
 
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Audit trail & history</h3>
-            <div className="space-y-3">
-              {order.statusHistory.length === 0 ? (
-                <p className="text-xs text-slate-400">No status transitions recorded yet.</p>
-              ) : (
-                order.statusHistory.map((h) => (
-                  <div key={h.id} className="flex items-start gap-3 border-l-2 border-brand pl-3 py-1 text-sm">
-                    <div className="flex-1">
-                      <span className="font-bold text-slate-900 uppercase text-xs">
-                        {h.previousStatus ? `${h.previousStatus} → ` : ""}{h.newStatus}
+            {/* Audit Log list */}
+            <div className="rounded-lg bg-slate-50 p-3.5 border border-slate-100">
+              <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                Status Transitions
+              </span>
+              <div className="space-y-2.5">
+                {order.statusHistory.length === 0 ? (
+                  <p className="text-xs text-slate-400">No transitions logged yet.</p>
+                ) : (
+                  order.statusHistory.map((h) => (
+                    <div key={h.id} className="flex items-start justify-between gap-3 text-xs">
+                      <div>
+                        <span className="font-bold text-slate-800 uppercase">
+                          {h.previousStatus ? `${h.previousStatus} → ` : ""}{h.newStatus}
+                        </span>
+                        {h.reason && <p className="text-[11px] text-slate-500 mt-0.5">{h.reason}</p>}
+                      </div>
+                      <span className="shrink-0 font-mono text-[10px] text-slate-400">
+                        {new Date(h.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </span>
-                      {h.reason && <p className="text-xs text-slate-600 mt-0.5">{h.reason}</p>}
                     </div>
-                    <span className="text-xs text-slate-400">
-                      {new Date(h.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
           </section>
         </div>
 
-        <aside className="space-y-5">
-          {/* Delivery Partner Assignment & Telemetry */}
-          <section className="rounded-xl border border-border bg-white p-5 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-black text-slate-900 flex items-center gap-1.5">
-                <Truck size={17} className="text-amber-500" /> Delivery Assignment
+        {/* Right Column: 5 Cols on desktop (Dispatch, Customer, Payment, Actions) */}
+        <div className="space-y-5 lg:col-span-5">
+          {/* Card 1: Dispatch & Delivery Partner Assignment */}
+          <section className="rounded-xl border border-border bg-white p-5 shadow-xs space-y-3.5">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-black text-slate-900 flex items-center gap-2 text-sm">
+                <Truck size={17} className="text-amber-500" /> Partner Assignment
               </h3>
-              <Badge tone={trackingInfo?.assignment ? "blue" : "neutral"}>
-                {trackingInfo?.assignment ? trackingInfo.assignment.status.replace(/_/g, " ") : "Unassigned"}
+              <Badge tone={isAtDestination ? "warning" : trackingInfo?.assignment ? "blue" : "neutral"}>
+                {isAtDestination
+                  ? "At Destination"
+                  : trackingInfo?.assignment
+                  ? trackingInfo.assignment.status.replace(/_/g, " ")
+                  : "Unassigned"}
               </Badge>
             </div>
 
             {trackingInfo?.assignment ? (
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs space-y-1.5">
-                <div className="flex justify-between">
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3.5 text-xs space-y-2">
+                <div className="flex justify-between items-center">
                   <span className="text-slate-500">Assigned Driver:</span>
-                  <b className="text-slate-900 font-bold">
+                  <b className="text-slate-900 font-bold text-sm">
                     {trackingInfo.assignment.deliveryPartner?.fullName || "Assigned Partner"}
                   </b>
                 </div>
                 {trackingInfo.assignment.deliveryPartner?.phone && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Phone:</span>
-                    <span className="text-slate-700 font-mono">{trackingInfo.assignment.deliveryPartner.phone}</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Driver Phone:</span>
+                    <a
+                      href={`tel:${trackingInfo.assignment.deliveryPartner.phone}`}
+                      className="text-brand font-mono font-semibold hover:underline flex items-center gap-1"
+                    >
+                      <Phone size={11} />
+                      {trackingInfo.assignment.deliveryPartner.phone}
+                    </a>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Status:</span>
-                  <span className="font-semibold capitalize text-amber-700">
-                    {trackingInfo.assignment.status.replace(/_/g, " ")}
+                <div className="flex justify-between items-center pt-1 border-t border-slate-200">
+                  <span className="text-slate-500">Dispatch Status:</span>
+                  <span
+                    className={`font-semibold capitalize px-2 py-0.5 rounded ${
+                      isAtDestination
+                        ? "text-amber-900 bg-amber-100 font-black animate-pulse"
+                        : "text-amber-700 bg-amber-50"
+                    }`}
+                  >
+                    {isAtDestination ? "At Destination" : trackingInfo.assignment.status.replace(/_/g, " ")}
                   </span>
                 </div>
               </div>
             ) : (
               <div className="space-y-3">
-                <p className="text-xs text-slate-500">
-                  Assign this order to a verified delivery partner so it appears on their driver dashboard.
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Assign this order to a verified delivery partner so it appears on their partner portal.
                 </p>
                 <div className="space-y-2">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    Select Driver
+                    Select Verified Driver
                   </label>
                   <select
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -440,90 +848,173 @@ export function AdminOrderDetailPage() {
                     className="w-full text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 mt-1"
                   >
                     {assigningPartner ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} />}
-                    {assigningPartner ? "Assigning..." : "Assign to Driver"}
+                    {assigningPartner ? "Assigning Driver..." : "Assign to Driver"}
                   </Button>
                 </div>
               </div>
             )}
           </section>
 
-          {/* Active Delivery Partner GPS Controller & Dispatch Telemetry */}
-          {trackingInfo?.assignment && (
-            <DeliveryPartnerGpsController
-              deliveryId={trackingInfo.assignment.id}
-              orderNumber={order.orderNumber}
-              customerName={shippingAddr.recipientName || "Customer"}
-              customerAddress={`${shippingAddr.addressLine1 || ""}, ${shippingAddr.city || ""}`}
-              initialStatus={trackingInfo.assignment.status}
-              onStatusChange={() => {
-                refetch()
-              }}
-            />
-          )}
-
+          {/* Card 2: Customer & Delivery Address Snapshot */}
           <section className="rounded-xl border border-border bg-white p-5 shadow-xs">
-            <h3 className="font-black text-slate-900">Customer & delivery snapshot</h3>
-            <div className="mt-3 text-sm leading-6 text-slate-600">
-              <b className="text-slate-900 block">{shippingAddr.recipientName || "Valued Customer"}</b>
-              <span className="block">{shippingAddr.phone || "No phone provided"}</span>
-              <p className="mt-1 text-xs text-slate-500">
-                {shippingAddr.addressLine1}
-                {shippingAddr.addressLine2 ? `, ${shippingAddr.addressLine2}` : ""}
-                <br />
-                {shippingAddr.city}, {shippingAddr.state} {shippingAddr.postalCode}
-              </p>
+            <div className="flex items-center gap-2 border-b border-border pb-3">
+              <User size={16} className="text-slate-600" />
+              <h3 className="font-black text-slate-900 text-sm">Customer & Shipping Address</h3>
+            </div>
+            <div className="mt-3 text-xs leading-relaxed text-slate-600 space-y-1">
+              <b className="text-slate-900 text-sm block">{shippingAddr.recipientName || "Valued Customer"}</b>
+              {shippingAddr.phone && (
+                <div className="flex items-center gap-1.5 text-slate-700">
+                  <Phone size={12} className="text-slate-400" />
+                  <span>{shippingAddr.phone}</span>
+                </div>
+              )}
+              <div className="flex items-start gap-1.5 pt-1 text-slate-600">
+                <MapPin size={13} className="text-slate-400 shrink-0 mt-0.5" />
+                <span>
+                  {shippingAddr.addressLine1}
+                  {shippingAddr.addressLine2 ? `, ${shippingAddr.addressLine2}` : ""}
+                  <br />
+                  {shippingAddr.city}, {shippingAddr.state} {shippingAddr.postalCode}
+                </span>
+              </div>
             </div>
           </section>
 
-          {/* Dedicated Order Invoice Card */}
+          {/* Card 3: Payment & COD Details */}
           <section className="rounded-xl border border-border bg-white p-5 shadow-xs">
-            <div className="flex items-center justify-between">
-              <h3 className="font-black text-slate-900">Order Invoice PDF</h3>
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                <IndianRupee size={15} className="text-emerald-600" /> Payment Status
+              </h3>
+              <Badge tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "cancelled" ? "danger" : "warning"}>
+                {order.paymentStatus}
+              </Badge>
+            </div>
+            <div className="mt-3 space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Payment Method:</span>
+                <span className="font-semibold text-slate-800 uppercase">
+                  {order.paymentMethod || "COD (Cash on Delivery)"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Amount Due / Collected:</span>
+                <b className="text-slate-900 text-sm font-black">{formatPrice(order.totalAmount)}</b>
+              </div>
+            </div>
+
+            {order.paymentStatus === "pending" && order.status !== "cancelled" && (
+              <Button
+                className="mt-4 w-full text-xs font-bold"
+                variant="primary"
+                disabled={actionLoading}
+                onClick={() => setCodModalOpen(true)}
+              >
+                <CheckCircle2 size={15} /> Record Cash Collected
+              </Button>
+            )}
+          </section>
+
+          {/* Card 4: Order Milestone Status Controller */}
+          <section className="rounded-xl border border-border bg-white p-5 shadow-xs">
+            <h3 className="font-black text-slate-900 text-sm">Update Order Milestone</h3>
+            <p className="text-[11px] text-slate-500 mt-1 mb-3">
+              Advances order status; synced in real time to the customer tracking page.
+            </p>
+
+            <div className="space-y-1.5">
+              {[
+                { status: "confirmed", label: "1. Confirm Order" },
+                { status: "processing", label: "2. Mark Preparing / Packing" },
+                { status: "shipped", label: "3. Dispatched / Out for Delivery" },
+                { status: "delivered", label: "4. Mark Delivered" },
+              ].map((step) => {
+                const isCurrent = order.status === step.status
+                return (
+                  <button
+                    key={step.status}
+                    type="button"
+                    disabled={actionLoading || isCurrent}
+                    onClick={() => handleStatusTransition(step.status)}
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer border ${
+                      isCurrent
+                        ? "bg-[#0b2447] text-white border-[#0b2447] shadow-xs cursor-default"
+                        : "bg-white text-slate-800 border-slate-200 hover:border-[#0b2447] hover:bg-slate-50"
+                    } ${actionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+                  >
+                    <span>{step.label}</span>
+                    {isCurrent ? (
+                      <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+                    ) : (
+                      <span className="h-3.5 w-3.5 rounded-full border border-slate-300 shrink-0" />
+                    )}
+                  </button>
+                )
+              })}
+
+              {order.status !== "cancelled" && order.status !== "delivered" && (
+                <Button
+                  className="w-full mt-3 text-xs"
+                  variant="danger"
+                  disabled={actionLoading}
+                  onClick={() => setCancelModalOpen(true)}
+                >
+                  <Trash2 size={13} /> Cancel Order
+                </Button>
+              )}
+            </div>
+          </section>
+
+          {/* Card 5: Invoice Document Card */}
+          <section className="rounded-xl border border-border bg-white p-5 shadow-xs">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                <FileText size={15} className="text-slate-600" /> Invoice Document
+              </h3>
               <Badge tone={order.invoiceUrl ? "success" : "neutral"}>
                 {order.invoiceUrl ? "Attached" : "Not uploaded"}
               </Badge>
             </div>
 
-            <p className="mt-2 text-xs text-slate-500">
-              {order.invoiceUrl
-                ? "An invoice document is linked to this order and accessible to the customer."
-                : "No invoice document uploaded yet. Upload a PDF or invoice image for the customer."}
-            </p>
-
-            {order.invoiceUrl && (
+            {order.invoiceUrl ? (
               <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs space-y-1.5">
                 <div className="font-medium text-slate-800 truncate" title={order.invoiceFileName || "invoice.pdf"}>
                   📄 {order.invoiceFileName || "invoice.pdf"}
                 </div>
                 {order.invoiceUploadedAt && (
-                  <div className="text-[11px] text-slate-400">
+                  <div className="text-[10px] text-slate-400">
                     Uploaded: {new Date(order.invoiceUploadedAt).toLocaleString()}
                   </div>
                 )}
-                <div className="pt-1 flex gap-2">
+                <div className="pt-1">
                   <a
                     href={order.invoiceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 font-semibold text-brand hover:underline"
                   >
-                    <Eye size={13} /> View / Download
+                    <Eye size={12} /> View Invoice
                   </a>
                 </div>
               </div>
+            ) : (
+              <p className="mt-2 text-xs text-slate-500">
+                Upload an official PDF or invoice image for the customer.
+              </p>
             )}
 
-            <div className="mt-4 flex gap-2">
+            <div className="mt-3">
               <Button
                 variant={order.invoiceUrl ? "outline" : "primary"}
-                className="w-full flex items-center justify-center gap-1.5"
+                className="w-full text-xs flex items-center justify-center gap-1.5"
                 disabled={uploadingInvoice || actionLoading}
                 onClick={() => fileInputRef.current?.click()}
               >
                 {uploadingInvoice ? (
-                  <Loader2 size={15} className="animate-spin" />
+                  <Loader2 size={13} className="animate-spin" />
                 ) : (
-                  <Upload size={15} />
+                  <Upload size={13} />
                 )}
                 {uploadingInvoice
                   ? "Uploading..."
@@ -533,83 +1024,7 @@ export function AdminOrderDetailPage() {
               </Button>
             </div>
           </section>
-
-          <section className="rounded-xl border border-border bg-white p-5 shadow-xs">
-            <h3 className="font-black text-slate-900">Cash on Delivery (COD)</h3>
-            <div className="mt-3 space-y-2 text-sm">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500">Payment Status:</span>
-                <Badge tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "cancelled" ? "danger" : "warning"}>
-                  {order.paymentStatus}
-                </Badge>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500">Total to Collect:</span>
-                <b className="text-slate-900">{formatPrice(order.totalAmount)}</b>
-              </div>
-            </div>
-
-            {order.paymentStatus === "pending" && order.status !== "cancelled" && (
-              <Button
-                className="mt-4 w-full"
-                variant="primary"
-                disabled={actionLoading}
-                onClick={() => setCodModalOpen(true)}
-              >
-                <CheckCircle2 size={16} /> Record Cash Collected
-              </Button>
-            )}
-          </section>
-
-          <section className="rounded-xl border border-border bg-white p-5 shadow-xs">
-            <h3 className="font-black text-slate-900">Update order</h3>
-            <p className="text-xs text-slate-500 mt-1 mb-3">
-              Click a milestone to update order progress. The customer's tracking page updates live.
-            </p>
-
-            <div className="space-y-2">
-              {[
-                { status: "confirmed", label: "Confirm order" },
-                { status: "processing", label: "Mark preparing" },
-                { status: "shipped", label: "Ready for dispatch / Out for delivery" },
-                { status: "delivered", label: "Mark delivered" },
-              ].map((step) => {
-                const isCurrent = order.status === step.status
-                return (
-                  <button
-                    key={step.status}
-                    type="button"
-                    disabled={actionLoading || isCurrent}
-                    onClick={() => handleStatusTransition(step.status)}
-                    className={`w-full flex items-center justify-start gap-2.5 px-4 py-3 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                      isCurrent
-                        ? "bg-[#0b2447] text-white border-[#0b2447] shadow-sm cursor-default"
-                        : "bg-white text-slate-800 border-slate-200 hover:border-[#0b2447] hover:bg-slate-50"
-                    } ${actionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
-                  >
-                    {isCurrent ? (
-                      <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                    ) : (
-                      <span className="h-4 w-4 rounded-full border border-slate-300 shrink-0" />
-                    )}
-                    <span>{step.label}</span>
-                  </button>
-                )
-              })}
-
-              {order.status !== "cancelled" && order.status !== "delivered" && (
-                <Button
-                  className="w-full mt-2"
-                  variant="danger"
-                  disabled={actionLoading}
-                  onClick={() => setCancelModalOpen(true)}
-                >
-                  <Trash2 size={14} /> Cancel order
-                </Button>
-              )}
-            </div>
-          </section>
-        </aside>
+        </div>
       </div>
 
       {cancelModalOpen && (

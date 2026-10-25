@@ -214,6 +214,40 @@ export function useDeviceGps({
     setError(msg)
   }, [])
 
+  const [wakeLockActive, setWakeLockActive] = useState<boolean>(false)
+  const wakeLockSentinelRef = useRef<any>(null)
+  const backgroundIntervalRef = useRef<any>(null)
+
+  // Request Screen Wake Lock so screen doesn't dim/sleep prematurely during ride
+  const requestWakeLock = useCallback(async () => {
+    if (typeof navigator !== "undefined" && "wakeLock" in navigator && (navigator as any).wakeLock?.request) {
+      try {
+        const sentinel = await (navigator as any).wakeLock.request("screen")
+        wakeLockSentinelRef.current = sentinel
+        setWakeLockActive(true)
+        sentinel.addEventListener("release", () => {
+          wakeLockSentinelRef.current = null
+          setWakeLockActive(false)
+        })
+      } catch {
+        // Wake lock can fail if low battery or tab hidden, gracefully proceed
+        setWakeLockActive(false)
+      }
+    }
+  }, [])
+
+  const releaseWakeLock = useCallback(async () => {
+    if (wakeLockSentinelRef.current) {
+      try {
+        await wakeLockSentinelRef.current.release()
+      } catch {
+        // ignore
+      }
+      wakeLockSentinelRef.current = null
+      setWakeLockActive(false)
+    }
+  }, [])
+
   // Start continuous GPS tracking
   const startTracking = useCallback(() => {
     if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
@@ -230,22 +264,42 @@ export function useDeviceGps({
     setIsTracking(true)
     setError(null)
 
+    // Acquire WakeLock to keep screen awake
+    requestWakeLock()
+
     try {
       watchIdRef.current = navigator.geolocation.watchPosition(
         handlePositionUpdate,
         handlePositionError,
         {
           enableHighAccuracy: true,
-          maximumAge: 5000,
+          maximumAge: 3000,
           timeout: 15000,
         },
       )
+
+      // Fallback periodic polling for background / screen-off environments
+      if (!backgroundIntervalRef.current) {
+        backgroundIntervalRef.current = setInterval(() => {
+          if (navigator.geolocation && isActiveDelivery && deliveryId) {
+            navigator.geolocation.getCurrentPosition(
+              handlePositionUpdate,
+              () => {},
+              {
+                enableHighAccuracy: true,
+                maximumAge: 4000,
+                timeout: 10000,
+              }
+            )
+          }
+        }, Math.max(minUpdateIntervalMs, 6000))
+      }
     } catch (e: any) {
       setIsRequesting(false)
       setIsTracking(false)
       setError(e?.message || "Failed to initialize geolocation watcher.")
     }
-  }, [handlePositionUpdate, handlePositionError])
+  }, [handlePositionUpdate, handlePositionError, requestWakeLock, isActiveDelivery, deliveryId, minUpdateIntervalMs])
 
   // Stop GPS tracking and clean up watcher
   const stopTracking = useCallback(() => {
@@ -253,9 +307,41 @@ export function useDeviceGps({
       navigator.geolocation.clearWatch(watchIdRef.current)
       watchIdRef.current = null
     }
+    if (backgroundIntervalRef.current) {
+      clearInterval(backgroundIntervalRef.current)
+      backgroundIntervalRef.current = null
+    }
+    releaseWakeLock()
     setIsTracking(false)
     setIsRequesting(false)
-  }, [])
+  }, [releaseWakeLock])
+
+  // Auto-recover wake lock and watcher on visibility change (when screen is turned back on or tab focused)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        if (isTracking) {
+          // Re-acquire WakeLock if released
+          requestWakeLock()
+          // Trigger immediate GPS fix
+          if (typeof navigator !== "undefined" && navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              handlePositionUpdate,
+              () => {},
+              { enableHighAccuracy: true, maximumAge: 2000, timeout: 8000 }
+            )
+          }
+        }
+      }
+    }
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange)
+      return () => {
+        document.removeEventListener("visibilitychange", handleVisibilityChange)
+      }
+    }
+  }, [isTracking, requestWakeLock, handlePositionUpdate])
 
   // Auto-clean on component unmount
   useEffect(() => {
@@ -264,8 +350,13 @@ export function useDeviceGps({
         navigator.geolocation.clearWatch(watchIdRef.current)
         watchIdRef.current = null
       }
+      if (backgroundIntervalRef.current) {
+        clearInterval(backgroundIntervalRef.current)
+        backgroundIntervalRef.current = null
+      }
+      releaseWakeLock()
     }
-  }, [])
+  }, [releaseWakeLock])
 
   return {
     isTracking,
@@ -275,6 +366,7 @@ export function useDeviceGps({
     lastSubmittedAt,
     error,
     submissionCount,
+    wakeLockActive,
     startTracking,
     stopTracking,
   }

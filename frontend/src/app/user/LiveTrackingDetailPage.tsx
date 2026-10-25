@@ -257,10 +257,35 @@ export function LiveTrackingDetailPage() {
   const isDelivered = assignment?.status === "delivered" || data?.orderTracking?.orderStatus === "delivered"
   const isCancelled = data?.orderTracking?.orderStatus === "cancelled" || assignment?.status === "cancelled"
 
+  // Detect whether partner is at destination (within 85 meters or route distance remaining <= 80m)
+  const destCoords = data?.route?.destination || data?.orderTracking?.destination
+  const isAtDestination = Boolean(
+    !isDelivered &&
+    !isCancelled &&
+    (assignment?.status === "out_for_delivery" || assignment?.status === "picked_up") &&
+    latestLocation &&
+    destCoords?.latitude &&
+    destCoords?.longitude &&
+    (() => {
+      // Haversine distance formula in meters
+      const R = 6371e3
+      const lat1 = (latestLocation.latitude * Math.PI) / 180
+      const lat2 = (destCoords.latitude * Math.PI) / 180
+      const dLat = ((destCoords.latitude - latestLocation.latitude) * Math.PI) / 180
+      const dLon = ((destCoords.longitude - latestLocation.longitude) * Math.PI) / 180
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+      const distanceMeters = R * c
+      return distanceMeters <= 85 || (data?.eta?.eta?.distanceMeters != null && data.eta.eta.distanceMeters <= 85)
+    })()
+  )
+
   return (
-    <div className="container-wide py-8">
+    <div className="container-wide py-4 sm:py-8">
       {/* Top Navigation & Header */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+      <div className="mb-4 sm:mb-6 flex flex-wrap items-center justify-between gap-3">
         <Link
           to={`/track-order/${id}`}
           className="inline-flex items-center gap-2 rounded-lg border border-border bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:text-black"
@@ -316,7 +341,14 @@ export function LiveTrackingDetailPage() {
             <div className="flex flex-wrap items-center justify-between border-b border-border bg-slate-900 px-5 py-3 text-white">
               <div className="flex items-center gap-3">
                 <span className="relative flex h-3 w-3">
-                  {isLive && !isDelivered ? (
+                  {isDelivered ? (
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500"></span>
+                  ) : isAtDestination ? (
+                    <>
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"></span>
+                      <span className="relative inline-flex h-3 w-3 rounded-full bg-blue-600"></span>
+                    </>
+                  ) : isLive ? (
                     <>
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500"></span>
@@ -332,11 +364,13 @@ export function LiveTrackingDetailPage() {
                     ? "Order Delivered"
                     : isCancelled
                       ? "Delivery Cancelled"
-                      : isLive
-                        ? "Active Live Tracking"
-                        : isStale
-                          ? "GPS Signal Delayed"
-                          : "Awaiting Vehicle GPS Signal"}
+                      : isAtDestination
+                        ? "Driver At Destination"
+                        : isLive
+                          ? "Active Live Tracking"
+                          : isStale
+                            ? "GPS Signal Delayed"
+                            : "Awaiting Vehicle GPS Signal"}
                 </span>
               </div>
 
@@ -517,11 +551,27 @@ export function LiveTrackingDetailPage() {
                   className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-black uppercase tracking-wider ${
                     isDelivered
                       ? "bg-emerald-100 text-emerald-800 border border-emerald-300 animate-pulse"
-                      : "bg-blue-100 text-blue-800"
+                      : isAtDestination
+                        ? "bg-amber-100 text-amber-900 border border-amber-300 animate-pulse"
+                        : "bg-blue-100 text-blue-800"
                   }`}
                 >
-                  <span className={`h-2 w-2 rounded-full ${isDelivered ? "bg-emerald-600 animate-ping" : "bg-blue-600"}`} />
-                  {isDelivered ? "Delivered" : assignment?.status ? assignment.status.replace(/_/g, " ") : "Processing"}
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      isDelivered
+                        ? "bg-emerald-600 animate-ping"
+                        : isAtDestination
+                          ? "bg-amber-600 animate-ping"
+                          : "bg-blue-600"
+                    }`}
+                  />
+                  {isDelivered
+                    ? "Delivered"
+                    : isAtDestination
+                      ? "At Destination"
+                      : assignment?.status
+                        ? assignment.status.replace(/_/g, " ")
+                        : "Processing"}
                 </span>
               </div>
 
@@ -540,6 +590,12 @@ export function LiveTrackingDetailPage() {
                     done: Boolean(assignment?.status === "out_for_delivery" || isDelivered),
                   },
                   {
+                    key: "at_destination",
+                    label: "At Destination",
+                    done: Boolean(isAtDestination || isDelivered),
+                    isAtDestStep: true,
+                  },
+                  {
                     key: "delivered",
                     label: "Order Delivered",
                     done: isDelivered,
@@ -552,7 +608,9 @@ export function LiveTrackingDetailPage() {
                         step.done
                           ? step.isDeliveredStep
                             ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/40 ring-4 ring-emerald-100 animate-bounce"
-                            : "bg-emerald-600 text-white"
+                            : step.isAtDestStep && !isDelivered
+                              ? "bg-amber-500 text-white shadow-md shadow-amber-400/40 ring-4 ring-amber-100 animate-pulse"
+                              : "bg-emerald-600 text-white"
                           : "border-2 border-slate-300 bg-white text-slate-400"
                       }`}
                     >
@@ -564,7 +622,9 @@ export function LiveTrackingDetailPage() {
                           step.done
                             ? step.isDeliveredStep
                               ? "text-emerald-700 font-black text-sm"
-                              : "text-slate-800"
+                              : step.isAtDestStep && !isDelivered
+                                ? "text-amber-800 font-black"
+                                : "text-slate-800"
                             : "text-slate-400"
                         }`}
                       >

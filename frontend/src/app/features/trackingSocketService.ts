@@ -114,6 +114,7 @@ class TrackingSocketService {
     })
 
     this.socket.on("connect", () => {
+      this.notifyConnectionState("connected")
       // On reconnect, re-subscribe to all active deliveries
       if (this.activeSubscriptions.size > 0 && this.socket) {
         this.activeSubscriptions.forEach((deliveryId) => {
@@ -122,11 +123,48 @@ class TrackingSocketService {
       }
     })
 
+    this.socket.on("disconnect", () => {
+      this.notifyConnectionState("disconnected")
+    })
+
+    this.socket.io.on("reconnect_attempt", () => {
+      this.notifyConnectionState("reconnecting")
+    })
+
+    this.socket.io.on("reconnect", () => {
+      this.notifyConnectionState("connected")
+    })
+
     this.socket.on("connect_error", (_err) => {
+      this.notifyConnectionState("disconnected")
       // If token expired, tokenStorage will be checked on next connect attempt
     })
 
     return this.socket
+  }
+
+  private connectionListeners = new Set<(status: "connected" | "reconnecting" | "disconnected") => void>()
+
+  private notifyConnectionState(status: "connected" | "reconnecting" | "disconnected"): void {
+    this.connectionListeners.forEach((listener) => {
+      try {
+        listener(status)
+      } catch {}
+    })
+  }
+
+  /**
+   * Listen to Socket.IO connection status lifecycle (connected, reconnecting, disconnected).
+   */
+  public onConnectionStatusChange(
+    callback: (status: "connected" | "reconnecting" | "disconnected") => void
+  ): () => void {
+    this.connectionListeners.add(callback)
+    // Initial emit
+    callback(this.isConnected() ? "connected" : "disconnected")
+    return () => {
+      this.connectionListeners.delete(callback)
+    }
   }
 
   /**
@@ -223,6 +261,7 @@ class TrackingSocketService {
       this.socket = null
       this.activeSubscriptions.clear()
       this.listenersCount = 0
+      this.notifyConnectionState("disconnected")
     }
   }
 

@@ -16,12 +16,16 @@ interface LiveTrackingCardProps {
   orderId: string
   orderNumber?: string
   className?: string
+  height?: string
+  hideHeader?: boolean
 }
 
 export const LiveTrackingCard: React.FC<LiveTrackingCardProps> = ({
   orderId,
   orderNumber,
   className = "",
+  height = "h-64",
+  hideHeader = false,
 }) => {
   const navigate = useNavigate()
   const [data, setData] = useState<FullDeliveryTrackingData | null>(null)
@@ -191,6 +195,29 @@ export const LiveTrackingCard: React.FC<LiveTrackingCardProps> = ({
   const isStale = latestLocation?.isStale ?? false
   const isDelivered = assignment?.status === "delivered" || data?.orderTracking?.orderStatus === "delivered"
 
+  // Detect whether partner is at destination
+  const destCoords = data?.route?.destination || data?.orderTracking?.destination
+  const isAtDestination = Boolean(
+    !isDelivered &&
+    (assignment?.status === "out_for_delivery" || assignment?.status === "picked_up") &&
+    latestLocation &&
+    destCoords?.latitude &&
+    destCoords?.longitude &&
+    (() => {
+      const R = 6371e3
+      const lat1 = (latestLocation.latitude * Math.PI) / 180
+      const lat2 = (destCoords.latitude * Math.PI) / 180
+      const dLat = ((destCoords.latitude - latestLocation.latitude) * Math.PI) / 180
+      const dLon = ((destCoords.longitude - latestLocation.longitude) * Math.PI) / 180
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+      const distanceMeters = R * c
+      return distanceMeters <= 85 || (data?.eta?.eta?.distanceMeters != null && data.eta.eta.distanceMeters <= 85)
+    })()
+  )
+
   const formatEtaMinutes = (seconds?: number) => {
     if (!seconds) return null
     const mins = Math.ceil(seconds / 60)
@@ -204,56 +231,70 @@ export const LiveTrackingCard: React.FC<LiveTrackingCardProps> = ({
     <div
       className={`group relative flex flex-col overflow-hidden rounded-xl border border-border bg-white shadow-sm transition-all hover:border-accent hover:shadow-md ${className}`}
     >
-      {/* Card Header */}
-      <div className="flex items-center justify-between border-b border-border bg-slate-900 px-5 py-3.5 text-white">
-        <div className="flex items-center gap-2">
-          <span className="relative flex h-3 w-3">
-            {isLive && !isDelivered ? (
-              <>
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+      {/* Card Header (hidden if parent provides its own integrated header) */}
+      {!hideHeader && (
+        <div className="flex items-center justify-between border-b border-border bg-slate-900 px-5 py-3.5 text-white">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-3 w-3">
+              {isDelivered ? (
                 <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500"></span>
-              </>
-            ) : isStale ? (
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-500"></span>
-            ) : (
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-slate-500"></span>
-            )}
-          </span>
-          <h3 className="text-xs font-black tracking-wider text-slate-100 uppercase">
-            Live Delivery Tracking
-          </h3>
-        </div>
+              ) : isAtDestination ? (
+                <>
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-500"></span>
+                </>
+              ) : isLive ? (
+                <>
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500"></span>
+                </>
+              ) : isStale ? (
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-500"></span>
+              ) : (
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-slate-500"></span>
+              )}
+            </span>
+            <h3 className="text-xs font-black tracking-wider text-slate-100 uppercase">
+              {isAtDestination ? "Driver At Destination" : "Live Delivery Tracking"}
+            </h3>
+          </div>
 
-        {/* Live Badge / Refresh */}
-        <div className="flex items-center gap-2">
-          {isLive && !isDelivered && (
-            <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
-              Live GPS
-            </span>
-          )}
-          {isStale && (
-            <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400 uppercase tracking-wider">
-              Signal Delayed
-            </span>
-          )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              fetchTrackingData()
-            }}
-            disabled={loading}
-            title="Refresh Tracking"
-            className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-white"
-          >
-            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
-          </button>
+          {/* Live Badge / Refresh */}
+          <div className="flex items-center gap-2">
+            {isAtDestination && (
+              <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300 uppercase tracking-wider animate-pulse">
+                At Destination
+              </span>
+            )}
+            {isLive && !isDelivered && !isAtDestination && (
+              <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                Live GPS
+              </span>
+            )}
+            {isStale && !isAtDestination && (
+              <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                Signal Delayed
+              </span>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                fetchTrackingData()
+              }}
+              disabled={loading}
+              title="Refresh Tracking"
+              className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-white"
+            >
+              <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Map Area */}
       <div
         onClick={handleOpenDedicatedTracking}
-        className="relative h-64 w-full cursor-pointer bg-slate-100"
+        className={`relative ${height} w-full cursor-pointer bg-slate-100`}
       >
         {loading ? (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-slate-50 text-slate-400">
