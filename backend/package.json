@@ -9,7 +9,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "simulate:delivery": "tsx scripts/simulate-delivery.ts"
   },
   "keywords": [
     "ecommerce",
