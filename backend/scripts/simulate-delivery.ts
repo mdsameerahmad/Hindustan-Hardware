@@ -28,6 +28,10 @@
  *   --markDeliveredOnFinish   Mark delivery as delivered when reaching destination (default: false)
  */
 
+
+// Script to Test Live Tracking on Webpage
+//  npx tsx scripts/simulate-delivery.ts   --deliveryId=efebcfd1-36ac-47d9-bb31-452a1ccd49a6   --email="driver@hindustanhardware.com"   --password="PartnerPass123!"   --interval=1
+
 import dotenv from 'dotenv';
 dotenv.config();
 

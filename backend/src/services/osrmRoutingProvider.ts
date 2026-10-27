@@ -66,51 +66,58 @@ export class OsrmRoutingProvider {
       throw new BadRequestError('Invalid destination coordinates for routing calculation.');
     }
 
-    // 2. Build standard OSRM URL
+    // 2. Build standard OSRM URLs with multiple alternative route requests
     // Note: OSRM expects coordinates in {longitude},{latitude} order!
-    const baseUrl = env.OSRM_ROUTER_URL.replace(/\/+$/, '');
     const coordinatesPath = `${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}`;
-    const url = `${baseUrl}/route/v1/driving/${coordinatesPath}?overview=full&geometries=geojson&steps=false&alternatives=true`;
+    
+    // Query endpoints: Primary OSRM and secondary OpenStreetMap FOSS routing router
+    const primaryBaseUrl = env.OSRM_ROUTER_URL.replace(/\/+$/, '');
+    const secondaryBaseUrl = 'https://routing.openstreetmap.de/routed-car';
+
+    const url1 = `${primaryBaseUrl}/route/v1/driving/${coordinatesPath}?overview=full&geometries=geojson&steps=true&alternatives=3&continue_straight=false`;
+    const url2 = `${secondaryBaseUrl}/route/v1/driving/${coordinatesPath}?overview=full&geometries=geojson&steps=true&alternatives=3&continue_straight=false`;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.TIMEOUT_MS);
 
-    try {
-      const response = await fetch(url, {
-        signal: controller.signal,
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'Hindustan-Hardware-Backend/1.0',
-        },
-      });
+    const fetchRoute = async (endpoint: string): Promise<OsrmRouteResponse | null> => {
+      try {
+        const res = await fetch(endpoint, {
+          signal: controller.signal,
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'Hindustan-Hardware-Backend/1.0',
+          },
+        });
+        if (!res.ok) return null;
+        return (await res.json()) as OsrmRouteResponse;
+      } catch {
+        return null;
+      }
+    };
 
+    try {
+      // Query routers in parallel to capture alternative road choices (e.g. NH bypass vs city road)
+      const [res1, res2] = await Promise.all([fetchRoute(url1), fetchRoute(url2)]);
       clearTimeout(timeout);
 
-      if (response.status === 429) {
-        logger.warn('OSRM provider rate limit exceeded (HTTP 429)');
-        throw new InternalServerError('Routing service rate limit exceeded. Please try again shortly.');
+      const allFoundRoutes: NonNullable<OsrmRouteResponse['routes']> = [];
+
+      if (res1?.code === 'Ok' && Array.isArray(res1.routes)) {
+        allFoundRoutes.push(...res1.routes);
+      }
+      if (res2?.code === 'Ok' && Array.isArray(res2.routes)) {
+        allFoundRoutes.push(...res2.routes);
       }
 
-      if (!response.ok) {
-        logger.error('OSRM HTTP error response', { status: response.status, statusText: response.statusText });
-        throw new InternalServerError(`Routing service returned error: ${response.status}`);
-      }
-
-      const body = (await response.json()) as OsrmRouteResponse;
-
-      if (!body || typeof body !== 'object') {
-        throw new InternalServerError('Malformed routing provider response.');
-      }
-
-      if (body.code !== 'Ok' || !body.routes || body.routes.length === 0) {
-        const errorMsg = body.message || body.code || 'No route found between given coordinates';
-        logger.warn('OSRM could not find route', { code: body.code, message: body.message });
+      if (allFoundRoutes.length === 0) {
+        const errorMsg = res1?.message || res2?.message || 'No road route found between coordinates';
+        logger.warn('No road route found from routing providers', { origin, destination });
         throw new BadRequestError(`No driving route found: ${errorMsg}`);
       }
 
-      // Blinkit-style Best Route selection:
-      // Filter valid candidates with coordinates and select the one with shortest distance
-      const validRoutes = body.routes.filter(
+      // Filter valid candidates with coordinates
+      const validRoutes = allFoundRoutes.filter(
         (r) =>
           r.geometry &&
           r.geometry.type === 'LineString' &&
@@ -122,11 +129,16 @@ export class OsrmRoutingProvider {
         throw new InternalServerError('Routing provider returned invalid or empty route geometry.');
       }
 
-      // Sort by shortest distance first, then duration
+      // Shortest & Best Route Search Algorithm:
+      // When multiple paths exist between Location 1 and Location 2:
+      // 1. Sort strictly by shortest physical road distance (meters)
+      // 2. Tie-break with duration (seconds) so the fastest shortest path is selected
       validRoutes.sort((a, b) => {
-        if (Math.abs(a.distance - b.distance) > 50) {
+        // If distance differs by more than 15 meters, select the strictly shorter route
+        if (Math.abs(a.distance - b.distance) > 15) {
           return a.distance - b.distance;
         }
+        // If distances are virtually identical, choose the faster duration route
         return a.duration - b.duration;
       });
 

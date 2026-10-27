@@ -920,6 +920,9 @@ interface DeliveryLocationBroadcastPayload {
   deviceTimestamp: string;
   serverReceivedAt: string;
   isStale: boolean;
+  estimatedArrivalTimestamp?: string | null;  // Dynamic calculated arrival timestamp (ISO 8601)
+  etaSeconds?: number | null;                 // Live remaining ETA in seconds
+  distanceRemainingMeters?: number | null;    // Live remaining road distance in meters
 }
 ```
 
@@ -934,7 +937,23 @@ interface DeliveryStatusBroadcastPayload {
 }
 ```
 
-#### C. REST API Endpoints Contract
+#### C. Shortest & Fastest Route Search Algorithm
+The backend implements multi-alternative route querying and path optimization through `osrmRoutingProvider.ts` and `roadRoutingService.ts`:
+- **Dual Router Pipeline**: Queries primary OSRM and OSM routed-car providers with `alternatives=3`.
+- **Shortest Distance Selection**: Automatically compares all retrieved candidate paths and selects the route that minimizes physical distance (`distanceMeters`), using duration as a tie-breaker.
+- **Zero-Refresh Live ETA Calculation**: In `recordLocationUpdate()`, dynamic road ETA and remaining distance are calculated in real time (using rider speed and urban tortuosity factors) and bundled directly into every `delivery:location_update` socket broadcast. Connected customer, admin, and driver portal panels update their Estimated Arrival displays in real time with zero page refreshes.
+
+#### D. Live Simulation Script
+To test live tracking and real-time movement without a physical vehicle:
+```bash
+npx tsx scripts/simulate-delivery.ts \
+  --deliveryId=<DELIVERY_UUID> \
+  --email="driver@hindustanhardware.com" \
+  --password="PartnerPass123!" \
+  --interval=1
+```
+
+#### E. REST API Endpoints Contract
 | Endpoint | Method | Role | Description |
 | :--- | :--- | :--- | :--- |
 | `/api/v1/deliveries/assigned` | `GET` | `delivery_partner`, `admin`, `staff` | Retrieves assignments strictly filtered for the authenticated partner. |
@@ -944,7 +963,7 @@ interface DeliveryStatusBroadcastPayload {
 | `/api/v1/deliveries/:deliveryId/route` | `GET` | `customer`, `delivery_partner`, `admin` | Returns GeoJSON `LineString` road route from OSRM. |
 | `/api/v1/deliveries/:deliveryId/eta` | `GET` | `customer`, `delivery_partner`, `admin` | Returns best-effort duration, ETA timestamp, and freshness flag. |
 
-#### D. Leaflet Map Consumption
+#### F. Leaflet Map Consumption
 - Render the route geometry using Leaflet GeoJSON layer:
   ```typescript
   const routeData = await fetch(`/api/v1/deliveries/${deliveryId}/route`, { headers });

@@ -19,6 +19,7 @@ import {
 } from '../types';
 import { logger } from '../common/utils/logger';
 import { AuditLogService } from './auditLogService';
+import { broadcastOrderStatus } from '../common/socket/trackingSocket';
 
 export class AdminService {
   /**
@@ -563,6 +564,23 @@ export class AdminService {
         reason: reason || null,
       },
     });
+
+    // Real-time broadcast to connected order room subscribers (instant user tracking update without refresh)
+    try {
+      broadcastOrderStatus({
+        orderId,
+        orderNumber: order.order_number,
+        status: newStatus,
+        previousStatus: currentStatus,
+        reason: reason || null,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (broadcastErr) {
+      logger.warn('Failed to broadcast order status update to socket room', {
+        error: broadcastErr instanceof Error ? broadcastErr.message : String(broadcastErr),
+        orderId,
+      });
+    }
 
     return this.getAdminOrderById(orderId);
   }

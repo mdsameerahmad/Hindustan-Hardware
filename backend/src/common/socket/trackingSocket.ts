@@ -8,7 +8,9 @@ import {
   DeliveryLocationBroadcastPayload,
   DeliveryStatusBroadcastPayload,
   getDeliveryRoomName,
+  getOrderRoomName,
   InterServerEvents,
+  OrderStatusBroadcastPayload,
   ServerToClientEvents,
   SocketData,
   SocketSubscriptionResponse,
@@ -23,7 +25,7 @@ let ioInstance: SocketIOServer<
   SocketData
 > | null = null;
 
-export { getDeliveryRoomName };
+export { getDeliveryRoomName, getOrderRoomName };
 
 /**
  * Close existing Socket.IO instance (useful for clean test isolation and server shutdown).
@@ -199,6 +201,111 @@ export function initSocketIO(
     });
 
     /**
+     * Subscribe to order status room (for instantaneous customer updates without page refresh)
+     */
+    socket.on(
+      'order:subscribe',
+      async (
+        payload: { orderId: string },
+        callback?: (response: { success: boolean; orderId: string; message: string }) => void
+      ) => {
+        try {
+          const orderId = payload?.orderId;
+          if (!orderId || typeof orderId !== 'string') {
+            if (callback) {
+              callback({ success: false, orderId: '', message: 'Invalid order ID.' });
+            }
+            return;
+          }
+
+          const adminClient = getSupabaseAdminClient();
+          if (!adminClient) {
+            if (callback) {
+              callback({ success: false, orderId, message: 'Database service unavailable.' });
+            }
+            return;
+          }
+
+          // Verify customer owns the order or user is staff/admin/assigned partner
+          const { data: order, error: orderErr } = await adminClient
+            .from('orders')
+            .select('id, user_id')
+            .eq('id', orderId)
+            .single();
+
+          if (orderErr || !order) {
+            if (callback) {
+              callback({ success: false, orderId, message: 'Order not found.' });
+            }
+            return;
+          }
+
+          const isAuthorized =
+            user.role === 'admin' ||
+            user.role === 'staff' ||
+            user.role === 'delivery_partner' ||
+            order.user_id === user.id;
+
+          if (!isAuthorized) {
+            if (callback) {
+              callback({ success: false, orderId, message: 'Access denied.' });
+            }
+            return;
+          }
+
+          const roomName = getOrderRoomName(orderId);
+          await socket.join(roomName);
+
+          logger.info('Socket joined order room', {
+            socketId: socket.id,
+            userId: user.id,
+            room: roomName,
+          });
+
+          if (callback) {
+            callback({
+              success: true,
+              orderId,
+              message: 'Successfully subscribed to real-time order status updates.',
+            });
+          }
+        } catch (err: unknown) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          logger.error('Error in order:subscribe handler', { error: errorMsg, socketId: socket.id });
+          if (callback) {
+            callback({ success: false, orderId: payload?.orderId || '', message: 'Internal subscription error.' });
+          }
+        }
+      }
+    );
+
+    /**
+     * Unsubscribe from order status room
+     */
+    socket.on(
+      'order:unsubscribe',
+      async (
+        payload: { orderId: string },
+        callback?: (response: { success: boolean; message: string }) => void
+      ) => {
+        try {
+          const orderId = payload?.orderId;
+          if (orderId) {
+            const roomName = getOrderRoomName(orderId);
+            await socket.leave(roomName);
+          }
+          if (callback) {
+            callback({ success: true, message: 'Unsubscribed from order updates.' });
+          }
+        } catch {
+          if (callback) {
+            callback({ success: false, message: 'Failed to unsubscribe.' });
+          }
+        }
+      }
+    );
+
+    /**
      * Unsubscribe from delivery tracking room
      */
     socket.on(
@@ -290,6 +397,27 @@ export function broadcastDeliveryStatus(payload: DeliveryStatusBroadcastPayload)
   logger.info('Broadcasted delivery:status_update to room', {
     room: roomName,
     deliveryId: payload.deliveryId,
+    status: payload.status,
+  });
+
+  return true;
+}
+
+/**
+ * Broadcast order status transition to authorized room subscribers (instant updates for user tracking page).
+ */
+export function broadcastOrderStatus(payload: OrderStatusBroadcastPayload): boolean {
+  if (!ioInstance) {
+    logger.debug('Socket.IO instance not initialized. Skipping order broadcast.');
+    return false;
+  }
+
+  const roomName = getOrderRoomName(payload.orderId);
+  ioInstance.to(roomName).emit('order:status_update', payload);
+
+  logger.info('Broadcasted order:status_update to room', {
+    room: roomName,
+    orderId: payload.orderId,
     status: payload.status,
   });
 

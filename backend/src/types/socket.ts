@@ -4,9 +4,14 @@ import { DeliveryAssignmentStatus, DeliveryLocationRecord } from './index';
  * Socket.IO Room Naming Convention
  */
 export const TRACKING_ROOM_PREFIX = 'delivery:';
+export const ORDER_ROOM_PREFIX = 'order:';
 
 export function getDeliveryRoomName(deliveryId: string): string {
   return `${TRACKING_ROOM_PREFIX}${deliveryId}`;
+}
+
+export function getOrderRoomName(orderId: string): string {
+  return `${ORDER_ROOM_PREFIX}${orderId}`;
 }
 
 /**
@@ -28,6 +33,22 @@ export interface ClientToServerEvents {
     payload: { deliveryId: string },
     callback?: (response: { success: boolean; message: string }) => void
   ) => void;
+
+  /**
+   * Request subscription to real-time status updates for a specific order UUID
+   */
+  'order:subscribe': (
+    payload: { orderId: string },
+    callback?: (response: { success: boolean; orderId: string; message: string }) => void
+  ) => void;
+
+  /**
+   * Request unsubscription from real-time order status updates
+   */
+  'order:unsubscribe': (
+    payload: { orderId: string },
+    callback?: (response: { success: boolean; message: string }) => void
+  ) => void;
 }
 
 /**
@@ -43,6 +64,11 @@ export interface ServerToClientEvents {
    * Broadcasted when delivery assignment lifecycle status transitions (e.g. picked_up, out_for_delivery, delivered)
    */
   'delivery:status_update': (payload: DeliveryStatusBroadcastPayload) => void;
+
+  /**
+   * Broadcasted when an order status transitions (e.g. confirmed, processing, shipped, delivered, cancelled)
+   */
+  'order:status_update': (payload: OrderStatusBroadcastPayload) => void;
 
   /**
    * Emitted if access to tracking for this delivery is revoked
@@ -88,6 +114,9 @@ export interface DeliveryLocationBroadcastPayload {
   deviceTimestamp: string;
   serverReceivedAt: string;
   isStale: boolean;
+  estimatedArrivalTimestamp?: string | null;
+  etaSeconds?: number | null;
+  distanceRemainingMeters?: number | null;
 }
 
 /**
@@ -99,6 +128,18 @@ export interface DeliveryStatusBroadcastPayload {
   status: DeliveryAssignmentStatus;
   timestamp: string;
   notes?: string | null;
+}
+
+/**
+ * Payload broadcasted on 'order:status_update'
+ */
+export interface OrderStatusBroadcastPayload {
+  orderId: string;
+  orderNumber?: string;
+  status: string;
+  previousStatus?: string | null;
+  reason?: string | null;
+  timestamp: string;
 }
 
 /**

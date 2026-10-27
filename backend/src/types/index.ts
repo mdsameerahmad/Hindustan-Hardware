@@ -385,6 +385,10 @@ export interface OrderStatusTrackingResponse {
   paymentStatus: PaymentStatus;
   canCancel: boolean;
   history: OrderStatusHistoryItem[];
+  shippingAddress?: any;
+  invoiceUrl?: string | null;
+  invoiceFileName?: string | null;
+  invoiceUploadedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

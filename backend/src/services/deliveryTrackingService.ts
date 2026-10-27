@@ -7,6 +7,7 @@ import {
 import {
   broadcastDeliveryLocation,
   broadcastDeliveryStatus,
+  broadcastOrderStatus,
 } from '../common/socket/trackingSocket';
 import { logger } from '../common/utils/logger';
 import { LocationUpdateInput } from '../common/validation/trackingSchemas';
@@ -401,7 +402,7 @@ export class DeliveryTrackingService {
       updatedAt: updated.updated_at,
     };
 
-    // Broadcast status transition to tracking room
+    // Broadcast status transition to tracking room and order room
     try {
       broadcastDeliveryStatus({
         deliveryId: resultRecord.id,
@@ -409,6 +410,13 @@ export class DeliveryTrackingService {
         status: resultRecord.status,
         timestamp: resultRecord.updatedAt,
         notes: resultRecord.notes,
+      });
+
+      broadcastOrderStatus({
+        orderId: resultRecord.orderId,
+        status: resultRecord.status === 'delivered' ? 'delivered' : resultRecord.status === 'out_for_delivery' ? 'shipped' : resultRecord.status,
+        reason: `Delivery status changed to ${resultRecord.status}`,
+        timestamp: resultRecord.updatedAt,
       });
     } catch (broadcastErr) {
       logger.warn('Failed to broadcast status update to socket room', {
@@ -505,7 +513,41 @@ export class DeliveryTrackingService {
       isStale,
     };
 
-    // 5. Broadcast to authorized Socket.IO tracking room subscribers only after successful database commit
+    // 5. Compute dynamic live ETA and remaining distance to destination
+    let estimatedArrivalTimestamp: string | null = null;
+    let etaSeconds: number | null = null;
+    let distanceRemainingMeters: number | null = null;
+
+    try {
+      const { data: orderRow } = await client
+        .from('orders')
+        .select('shipping_address_snapshot')
+        .eq('id', record.orderId)
+        .single();
+
+      if (orderRow?.shipping_address_snapshot) {
+        const destCoord = ServiceabilityService.resolveAddressCoordinates(orderRow.shipping_address_snapshot);
+        const distM = RoadRoutingService.calculateHaversineDistanceMeters(
+          { latitude: record.latitude, longitude: record.longitude },
+          { latitude: destCoord.latitude, longitude: destCoord.longitude }
+        );
+        distanceRemainingMeters = Math.round(distM);
+
+        // Dynamic speed based on rider current speed or urban average (25 km/h)
+        const currentSpeedKmh = record.speed && record.speed > 5 ? Math.min(record.speed, 60) : 25;
+        const speedMps = (currentSpeedKmh * 1000) / 3600;
+        // Apply urban tortuosity factor (~1.3x straight-line distance for roads)
+        const roadDistanceEstM = distM * 1.3;
+        etaSeconds = Math.max(60, Math.round(roadDistanceEstM / speedMps));
+
+        const arrivalMs = Date.now() + etaSeconds * 1000;
+        estimatedArrivalTimestamp = new Date(arrivalMs).toISOString();
+      }
+    } catch (etaErr) {
+      // Non-fatal fallback
+    }
+
+    // 6. Broadcast to authorized Socket.IO tracking room subscribers only after successful database commit
     try {
       broadcastDeliveryLocation({
         deliveryId: assignmentId,
@@ -518,6 +560,9 @@ export class DeliveryTrackingService {
         deviceTimestamp: record.deviceTimestamp,
         serverReceivedAt: record.serverReceivedAt,
         isStale: Boolean(record.isStale),
+        estimatedArrivalTimestamp,
+        etaSeconds,
+        distanceRemainingMeters,
       });
     } catch (broadcastErr) {
       logger.warn('Failed to broadcast delivery location to socket room', {

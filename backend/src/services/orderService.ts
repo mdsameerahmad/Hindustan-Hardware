@@ -261,6 +261,10 @@ export class OrderService {
       paymentStatus: details.paymentStatus,
       canCancel: details.canCancel,
       history: details.statusHistory,
+      shippingAddress: details.shippingAddress,
+      invoiceUrl: details.invoiceUrl,
+      invoiceFileName: details.invoiceFileName,
+      invoiceUploadedAt: details.invoiceUploadedAt,
       createdAt: details.createdAt,
       updatedAt: details.updatedAt,
     };
