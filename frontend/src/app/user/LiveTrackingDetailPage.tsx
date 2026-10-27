@@ -165,6 +165,29 @@ export function LiveTrackingDetailPage() {
 
           return {
             ...prev,
+            eta: loc.estimatedArrivalTimestamp
+              ? {
+                  deliveryId: loc.deliveryId,
+                  orderId: loc.orderId,
+                  isAvailable: true,
+                  statusMessage: "Delivery is en route",
+                  eta: {
+                    estimatedArrivalTimestamp: loc.estimatedArrivalTimestamp,
+                    estimatedDurationSeconds: loc.etaSeconds || 300,
+                    remainingDurationSeconds: loc.etaSeconds || 300,
+                    distanceMeters: loc.distanceRemainingMeters || 1000,
+                    remainingDistanceMeters: loc.distanceRemainingMeters || 1000,
+                    calculatedAt: new Date().toISOString(),
+                    isStale: loc.isStale,
+                  } as any,
+                  locationFreshness: {
+                    lastGpsTimestamp: loc.deviceTimestamp,
+                    serverReceivedAt: loc.serverReceivedAt,
+                    isStale: loc.isStale,
+                    accuracyMeters: loc.accuracy,
+                  },
+                }
+              : prev.eta,
             orderTracking: {
               ...prev.orderTracking,
               isLiveTrackingAvailable: !loc.isStale,
@@ -225,6 +248,34 @@ export function LiveTrackingDetailPage() {
       setSocketConnected(false)
     }
   }, [data?.orderTracking?.assignment?.id, data?.orderTracking?.assignment?.status])
+
+  // Real-Time Socket.IO Subscription to Order Room for direct Admin status changes
+  useEffect(() => {
+    if (!id) return
+
+    const unsubscribe = trackingSocketService.subscribeToOrder(
+      id,
+      (statusPayload) => {
+        setData((prev) => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            orderTracking: {
+              ...prev.orderTracking,
+              orderStatus: statusPayload.currentStatus,
+            },
+          }
+        })
+      },
+      (err) => {
+        console.warn("[LiveTrackingDetailPage] Order socket error:", err)
+      }
+    )
+
+    return () => {
+      unsubscribe()
+    }
+  }, [id])
 
   const formatDateTime = (isoStr?: string) => {
     if (!isoStr) return ""
@@ -566,12 +617,14 @@ export function LiveTrackingDetailPage() {
                     }`}
                   />
                   {isDelivered
-                    ? "Delivered"
+                    ? "Order Delivered"
                     : isAtDestination
                       ? "At Destination"
-                      : assignment?.status
-                        ? assignment.status.replace(/_/g, " ")
-                        : "Processing"}
+                      : assignment?.status === "out_for_delivery"
+                        ? "Out for Delivery"
+                        : assignment?.status === "picked_up"
+                          ? "Dispatched from Store"
+                          : "Order Confirmed"}
                 </span>
               </div>
 
@@ -644,18 +697,28 @@ export function LiveTrackingDetailPage() {
                   <h3 className="font-bold text-ink">Estimated Arrival</h3>
                 </div>
 
-                {data?.eta?.isAvailable && data.eta.eta ? (
+                {Boolean(data?.eta?.eta || data?.route || latestLocation) ? (
                   <div className="mt-4 border-t border-border pt-4">
                     <div className="text-3xl font-black text-ink">
-                      {formatEtaMinutes(data.eta.eta.estimatedDurationSeconds)}
+                      {formatEtaMinutes(
+                        (data?.eta?.eta as any)?.estimatedDurationSeconds ||
+                        (data?.eta?.eta as any)?.remainingDurationSeconds ||
+                        data?.route?.durationSeconds ||
+                        1200
+                      )}
                     </div>
                     <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
                       <span>
-                        Est. Arrival: {formatDateTime(data.eta.eta.estimatedArrivalTimestamp)}
+                        Est. Arrival: {formatDateTime(
+                          data?.eta?.eta?.estimatedArrivalTimestamp ||
+                          (data?.route?.durationSeconds
+                            ? new Date(Date.now() + data.route.durationSeconds * 1000).toISOString()
+                            : undefined)
+                        )}
                       </span>
-                      {data.eta.eta.distanceMeters && (
+                      {Boolean((data?.eta?.eta as any)?.distanceMeters || (data?.eta?.eta as any)?.remainingDistanceMeters || data?.route?.distanceMeters) && (
                         <span className="font-semibold text-slate-700">
-                          {(data.eta.eta.distanceMeters / 1000).toFixed(1)} km away
+                          {((((data?.eta?.eta as any)?.distanceMeters || (data?.eta?.eta as any)?.remainingDistanceMeters || data?.route?.distanceMeters || 0)) / 1000).toFixed(1)} km away
                         </span>
                       )}
                     </div>

@@ -82,16 +82,29 @@ export function OrderDetailPage() {
               <RefreshCcw size={15} /> Refresh
             </Button>
             {order.invoiceUrl ? (
-              <a
-                href={order.invoiceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                download
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] text-black font-extrabold px-3 py-2 text-xs shadow-md hover:brightness-105 active:scale-[0.98] transition border border-[#B89124]/40 flex-1 sm:flex-initial"
-                title="Download / View the official invoice receipt uploaded by the store"
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const res = await fetch(order.invoiceUrl!)
+                    const blob = await res.blob()
+                    const blobUrl = window.URL.createObjectURL(blob)
+                    const a = document.createElement("a")
+                    a.href = blobUrl
+                    a.download = order.invoiceFileName || `Invoice-${order.orderNumber}.pdf`
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    window.URL.revokeObjectURL(blobUrl)
+                  } catch {
+                    window.open(order.invoiceUrl!, "_blank")
+                  }
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] text-black font-extrabold px-3 py-2 text-xs shadow-md hover:brightness-105 active:scale-[0.98] transition border border-[#B89124]/40 flex-1 sm:flex-initial cursor-pointer"
+                title="Download invoice document to your device"
               >
-                <Printer size={15} className="text-black" /> Print invoice
-              </a>
+                <Download size={15} className="text-black" /> Download invoice
+              </button>
             ) : (
               <Button
                 variant="outline"
@@ -99,7 +112,7 @@ export function OrderDetailPage() {
                 className="flex items-center gap-1.5 flex-1 sm:flex-initial text-xs"
                 title="Print order receipt"
               >
-                <Printer size={15} /> Print invoice
+                <Download size={15} /> Download invoice
               </Button>
             )}
             {!["delivered", "cancelled"].includes(order.status) && (
@@ -268,23 +281,36 @@ export function OrderDetailPage() {
 
             <div className="mt-4 flex gap-2">
               {order.invoiceUrl ? (
-                <a
-                  href={order.invoiceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download
-                  className="flex items-center justify-center gap-2 w-full rounded-xl bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] py-2.5 px-4 text-xs font-black text-black shadow-md hover:brightness-105 active:scale-[0.98] transition border border-[#B89124]/40 uppercase tracking-wider"
-                  title="Print / Download the uploaded official invoice"
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(order.invoiceUrl!)
+                      const blob = await res.blob()
+                      const blobUrl = window.URL.createObjectURL(blob)
+                      const a = document.createElement("a")
+                      a.href = blobUrl
+                      a.download = order.invoiceFileName || `Invoice-${order.orderNumber}.pdf`
+                      document.body.appendChild(a)
+                      a.click()
+                      document.body.removeChild(a)
+                      window.URL.revokeObjectURL(blobUrl)
+                    } catch {
+                      window.open(order.invoiceUrl!, "_blank")
+                    }
+                  }}
+                  className="flex items-center justify-center gap-2 w-full rounded-xl bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] py-2.5 px-4 text-xs font-black text-black shadow-md hover:brightness-105 active:scale-[0.98] transition border border-[#B89124]/40 uppercase tracking-wider cursor-pointer"
+                  title="Download invoice document to your device"
                 >
-                  <Printer size={15} className="text-black" /> Print invoice
-                </a>
+                  <Download size={15} className="text-black" /> Download invoice
+                </button>
               ) : (
                 <button
                   type="button"
                   onClick={() => window.print()}
                   className="flex items-center justify-center gap-2 w-full rounded-xl bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37] py-2.5 px-4 text-xs font-black text-black shadow-md hover:brightness-105 active:scale-[0.98] transition border border-[#B89124]/40 uppercase tracking-wider cursor-pointer"
                 >
-                  <Printer size={15} className="text-black" /> Print invoice
+                  <Download size={15} className="text-black" /> Download invoice
                 </button>
               )}
             </div>

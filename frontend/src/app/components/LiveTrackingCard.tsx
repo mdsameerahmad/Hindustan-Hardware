@@ -133,6 +133,29 @@ export const LiveTrackingCard: React.FC<LiveTrackingCardProps> = ({
 
           return {
             ...prev,
+            eta: loc.estimatedArrivalTimestamp
+              ? {
+                  deliveryId: loc.deliveryId,
+                  orderId: loc.orderId,
+                  isAvailable: true,
+                  statusMessage: "Delivery is on the way",
+                  eta: {
+                    estimatedArrivalTimestamp: loc.estimatedArrivalTimestamp,
+                    estimatedDurationSeconds: loc.etaSeconds || 300,
+                    remainingDurationSeconds: loc.etaSeconds || 300,
+                    distanceMeters: loc.distanceRemainingMeters || 1000,
+                    remainingDistanceMeters: loc.distanceRemainingMeters || 1000,
+                    calculatedAt: new Date().toISOString(),
+                    isStale: loc.isStale,
+                  } as any,
+                  locationFreshness: {
+                    lastGpsTimestamp: loc.deviceTimestamp,
+                    serverReceivedAt: loc.serverReceivedAt,
+                    isStale: loc.isStale,
+                    accuracyMeters: loc.accuracy,
+                  },
+                }
+              : prev.eta,
             orderTracking: {
               ...prev.orderTracking,
               isLiveTrackingAvailable: !loc.isStale,
@@ -374,10 +397,17 @@ export const LiveTrackingCard: React.FC<LiveTrackingCardProps> = ({
             </div>
 
             {/* Quick ETA Badge if Available */}
-            {data?.eta?.isAvailable && data.eta.eta && (
+            {(Boolean(data?.eta?.eta) || Boolean(data?.route?.durationSeconds)) && (
               <div className="pointer-events-none absolute top-3 left-3 z-[1000] flex items-center gap-1.5 rounded-lg bg-white/95 px-2.5 py-1 text-xs font-bold text-slate-900 shadow-md backdrop-blur-sm border border-slate-200">
                 <Clock size={13} className="text-accent" />
-                <span>ETA: {formatEtaMinutes(data.eta.eta.estimatedDurationSeconds)}</span>
+                <span>
+                  ETA: {formatEtaMinutes(
+                    (data?.eta?.eta as any)?.estimatedDurationSeconds ||
+                    (data?.eta?.eta as any)?.remainingDurationSeconds ||
+                    data?.route?.durationSeconds ||
+                    0
+                  )}
+                </span>
               </div>
             )}
           </>

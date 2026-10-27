@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { customerOrdersApi } from "../commerceApi"
 import type { OrderDetailsResponse } from "../commerceTypes"
+import { trackingSocketService } from "../trackingSocketService"
 
 export function useOrderDetails(orderId: string | undefined, isAuthenticated: boolean) {
   const [order, setOrder] = useState<OrderDetailsResponse | null>(null)
@@ -30,6 +31,33 @@ export function useOrderDetails(orderId: string | undefined, isAuthenticated: bo
   useEffect(() => {
     fetchOrder()
   }, [fetchOrder])
+
+  // Real-time WebSocket Subscription via Socket.IO
+  // Zero-polling LLD Pattern: Listens to order status updates from Admin or Delivery Partner
+  useEffect(() => {
+    if (!orderId || !isAuthenticated) return
+
+    const unsubscribe = trackingSocketService.subscribeToOrder(
+      orderId,
+      (statusPayload) => {
+        setOrder((prev) => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            status: statusPayload.currentStatus as any,
+            updatedAt: statusPayload.updatedAt || new Date().toISOString(),
+          }
+        })
+      },
+      (socketErr) => {
+        console.warn("[useOrderDetails] Socket error for order:", orderId, socketErr)
+      }
+    )
+
+    return () => {
+      unsubscribe()
+    }
+  }, [orderId, isAuthenticated])
 
   const cancelCurrentOrder = useCallback(
     async (reason: string = "Cancelled by customer"): Promise<boolean> => {

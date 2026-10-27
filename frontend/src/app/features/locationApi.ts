@@ -55,18 +55,21 @@ export const locationApi = {
   },
 
   /**
-   * Search for addresses and localities with autocomplete.
+   * Search for addresses, streets, roads, stations, and localities with autocomplete.
    */
   searchAddresses: async (
     query: string,
     cityBias?: string,
-    limit: number = 7
+    limit: number = 10,
+    coords?: { lat?: number; lon?: number }
   ): Promise<GeocodingSuggestion[]> => {
     const params = new URLSearchParams({
       q: query,
       limit: String(limit),
     })
     if (cityBias) params.set("city", cityBias)
+    if (coords?.lat) params.set("lat", String(coords.lat))
+    if (coords?.lon) params.set("lon", String(coords.lon))
 
     return apiRequest<GeocodingSuggestion[]>(`/location/search?${params.toString()}`, {
       method: "GET",

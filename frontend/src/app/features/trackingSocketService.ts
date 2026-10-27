@@ -27,6 +27,9 @@ export interface DeliveryLocationBroadcastPayload {
   deviceTimestamp: string
   serverReceivedAt: string
   isStale: boolean
+  estimatedArrivalTimestamp?: string | null
+  etaSeconds?: number | null
+  distanceRemainingMeters?: number | null
 }
 
 export interface DeliveryStatusBroadcastPayload {
@@ -35,6 +38,15 @@ export interface DeliveryStatusBroadcastPayload {
   status: "assigned" | "picked_up" | "out_for_delivery" | "delivered" | "failed" | "cancelled"
   timestamp: string
   notes?: string | null
+}
+
+export interface OrderStatusBroadcastPayload {
+  orderId: string
+  orderNumber?: string
+  status: string
+  previousStatus?: string | null
+  reason?: string | null
+  timestamp: string
 }
 
 export interface SocketSubscriptionResponse {
@@ -245,6 +257,54 @@ class TrackingSocketService {
       }
 
       // If no components are listening anywhere in the application, disconnect cleanly
+      if (this.listenersCount === 0) {
+        this.disconnect()
+      }
+    }
+  }
+
+  /**
+   * Subscribe to real-time status transitions for an order (Admin updates or driver actions).
+   * Automatically joins room, executes onStatusUpdate callback, and cleans up on unmount.
+   */
+  public subscribeToOrder(
+    orderId: string,
+    onStatusUpdate: (payload: OrderStatusBroadcastPayload) => void,
+    onError?: (err: { message: string }) => void,
+  ): () => void {
+    const s = this.connect()
+    this.listenersCount++
+
+    const handleOrderStatusUpdate = (payload: OrderStatusBroadcastPayload) => {
+      if (payload && payload.orderId === orderId) {
+        onStatusUpdate(payload)
+      }
+    }
+
+    if (s) {
+      s.on("order:status_update", handleOrderStatusUpdate)
+      s.emit(
+        "order:subscribe",
+        { orderId },
+        (res?: { success: boolean; message: string }) => {
+          if (res && !res.success && onError) {
+            onError({ message: res.message })
+          }
+        },
+      )
+    }
+
+    return () => {
+      this.listenersCount = Math.max(0, this.listenersCount - 1)
+
+      if (this.socket) {
+        this.socket.off("order:status_update", handleOrderStatusUpdate)
+
+        if (this.socket.connected) {
+          this.socket.emit("order:unsubscribe", { orderId })
+        }
+      }
+
       if (this.listenersCount === 0) {
         this.disconnect()
       }

@@ -1,9 +1,29 @@
-import { AlertCircle, Check, Loader2, RefreshCcw, ShieldCheck, Store, Truck } from "lucide-react"
-import React, { useState } from "react"
+import {
+  AlertCircle,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Download,
+  FileText,
+  Home,
+  Loader2,
+  MapPin,
+  Package,
+  RefreshCcw,
+  ShieldCheck,
+  ShoppingBag,
+  Sparkles,
+  Store,
+  Truck,
+} from "lucide-react"
+import React, { useState, useEffect } from "react"
 import { Link, useParams } from "react-router"
 import { useAuth } from "../authContext"
 import { Badge, Button, EmptyState, PageHeader } from "../components"
 import { useOrderStatus } from "../features/hooks/useOrderStatus"
+import { deliveryTrackingApi, type OrderLiveTrackingResponse } from "../features/deliveryTrackingApi"
+import { trackingSocketService } from "../features/trackingSocketService"
 
 import { LiveTrackingCard } from "../components/LiveTrackingCard"
 
@@ -31,6 +51,78 @@ export function TrackingPage() {
 
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [reasonInput, setReasonInput] = useState("Customer requested cancellation")
+  const [liveTracking, setLiveTracking] = useState<OrderLiveTrackingResponse | null>(null)
+  const [liveEta, setLiveEta] = useState<{
+    estimatedArrivalTimestamp?: string | null
+    etaSeconds?: number | null
+    distanceRemainingMeters?: number | null
+  } | null>(null)
+
+  useEffect(() => {
+    if (!id) return
+    deliveryTrackingApi.getOrderTracking(id).then((res) => {
+      setLiveTracking(res)
+    }).catch(() => {})
+  }, [id, tracking?.currentStatus])
+
+  // Real-time delivery updates (location, ETA & status) from rider via WebSockets
+  useEffect(() => {
+    const deliveryId = liveTracking?.assignment?.id
+    if (!deliveryId) return
+
+    // Fetch initial route / ETA if available
+    deliveryTrackingApi.getDeliveryRoute(deliveryId).then((r) => {
+      if (r) {
+        setLiveEta({
+          etaSeconds: r.durationSeconds,
+          distanceRemainingMeters: r.distanceMeters,
+          estimatedArrivalTimestamp: new Date(Date.now() + r.durationSeconds * 1000).toISOString(),
+        })
+      }
+    }).catch(() => {})
+
+    const unsubscribe = trackingSocketService.subscribeToDelivery(
+      deliveryId,
+      (location) => {
+        setLiveTracking((prev) => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            latestLocation: location,
+          }
+        })
+
+        if (location.etaSeconds != null || location.estimatedArrivalTimestamp) {
+          setLiveEta({
+            estimatedArrivalTimestamp: location.estimatedArrivalTimestamp,
+            etaSeconds: location.etaSeconds,
+            distanceRemainingMeters: location.distanceRemainingMeters,
+          })
+        }
+      },
+      (deliveryStatus) => {
+        setLiveTracking((prev) => {
+          if (!prev || !prev.assignment) return prev
+          return {
+            ...prev,
+            assignment: {
+              ...prev.assignment,
+              status: deliveryStatus.currentStatus as any,
+              pickedUpAt: deliveryStatus.pickedUpAt || prev.assignment.pickedUpAt,
+              deliveredAt: deliveryStatus.deliveredAt || prev.assignment.deliveredAt,
+            },
+          }
+        })
+      },
+      (err) => {
+        console.warn("[TrackingPage] Delivery socket error:", err)
+      }
+    )
+
+    return () => {
+      unsubscribe()
+    }
+  }, [liveTracking?.assignment?.id])
 
   const formatDateTime = (isoStr?: string) => {
     if (!isoStr) return ""
@@ -80,11 +172,177 @@ export function TrackingPage() {
     )
   }
 
-  // Authoritative status order stages defined in backend
-  const stages = ["pending", "confirmed", "processing", "shipped", "delivered"]
-  const currentStatusLower = tracking.currentStatus?.toLowerCase()
+  // 5 Canonical Order Status Stages across Hindustan Hardware:
+  // 1. Order Confirmed
+  // 2. Dispatched from Store
+  // 3. Out for Delivery
+  // 4. At Destination
+  // 5. Order Delivered
+  const canonicalStages = [
+    { key: "confirmed", label: "Order Confirmed" },
+    { key: "dispatched", label: "Dispatched from Store" },
+    { key: "out_for_delivery", label: "Out for Delivery" },
+    { key: "at_destination", label: "At Destination" },
+    { key: "delivered", label: "Order Delivered" },
+  ]
+
+  const currentStatusLower = tracking.currentStatus?.toLowerCase() || ""
   const isCancelled = currentStatusLower === "cancelled"
-  const activeIndex = isCancelled ? -1 : stages.indexOf(currentStatusLower)
+  const assignmentStatus = liveTracking?.assignment?.status
+
+  // Check if delivery partner is at destination (within 85 meters or flagged)
+  const latestLocation = liveTracking?.latestLocation
+  const destCoords = liveTracking?.destination
+  const isAtDestination = Boolean(
+    !isCancelled &&
+    (currentStatusLower === "delivered" ||
+      ((assignmentStatus === "out_for_delivery" || assignmentStatus === "picked_up") &&
+        latestLocation &&
+        destCoords?.latitude &&
+        destCoords?.longitude &&
+        (() => {
+          const R = 6371e3
+          const lat1 = (latestLocation.latitude * Math.PI) / 180
+          const lat2 = (destCoords.latitude * Math.PI) / 180
+          const dLat = ((destCoords.latitude - latestLocation.latitude) * Math.PI) / 180
+          const dLon = ((destCoords.longitude - latestLocation.longitude) * Math.PI) / 180
+          const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+          return R * c <= 85
+        })()))
+  )
+
+  const isDelivered = currentStatusLower === "delivered" || assignmentStatus === "delivered"
+  const isOutForDelivery = isDelivered || isAtDestination || assignmentStatus === "out_for_delivery"
+  const isDispatched =
+    isOutForDelivery ||
+    Boolean(
+      liveTracking?.assignment?.pickedUpAt ||
+        assignmentStatus === "picked_up" ||
+        currentStatusLower === "shipped" ||
+        currentStatusLower === "dispatched from store"
+    )
+
+  // Determine current active milestone index (0 to 4)
+  let activeIndex = 0
+  if (isDelivered) {
+    activeIndex = 4
+  } else if (isAtDestination) {
+    activeIndex = 3
+  } else if (isOutForDelivery) {
+    activeIndex = 2
+  } else if (isDispatched) {
+    activeIndex = 1
+  } else {
+    activeIndex = 0
+  }
+
+  // Helper to extract timestamp for each canonical stage from status history and assignment
+  const getStageTimestamp = (key: string, idx: number): string | null => {
+    if (idx > activeIndex) return null
+
+    const history = tracking?.history || []
+
+    if (key === "confirmed") {
+      const match = history.find((h) => h.newStatus?.toLowerCase() === "confirmed")
+      return match?.createdAt || tracking.createdAt
+    }
+
+    if (key === "dispatched") {
+      const match = history.find(
+        (h) =>
+          h.newStatus?.toLowerCase() === "shipped" ||
+          h.newStatus?.toLowerCase() === "picked_up" ||
+          h.newStatus?.toLowerCase().includes("dispatch")
+      )
+      return match?.createdAt || liveTracking?.assignment?.pickedUpAt || null
+    }
+
+    if (key === "out_for_delivery") {
+      const match = history.find((h) => h.newStatus?.toLowerCase() === "out_for_delivery")
+      return match?.createdAt || (liveTracking?.assignment?.pickedUpAt ? liveTracking.assignment.pickedUpAt : null)
+    }
+
+    if (key === "at_destination") {
+      const match = history.find(
+        (h) => h.newStatus?.toLowerCase() === "at_destination" || h.newStatus?.toLowerCase().includes("destination")
+      )
+      return match?.createdAt || (liveTracking?.latestLocation?.deviceTimestamp || null)
+    }
+
+    if (key === "delivered") {
+      const match = history.find((h) => h.newStatus?.toLowerCase() === "delivered")
+      return match?.createdAt || liveTracking?.assignment?.completedAt || null
+    }
+
+    return null
+  }
+
+  // Format date and time for stepper: e.g. "14 Oct 2026" and "04:32 PM"
+  const formatStepDateParts = (isoStr: string | null) => {
+    if (!isoStr) return null
+    try {
+      const date = new Date(isoStr)
+      const datePart = new Intl.DateTimeFormat("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }).format(date)
+      const timePart = new Intl.DateTimeFormat("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      }).format(date)
+      return { datePart, timePart }
+    } catch {
+      return null
+    }
+  }
+
+  // Stage configuration with icons matching the modern UI
+  const stageIcons = [
+    ShoppingBag, // Order Confirmed
+    Package,     // Dispatched from Store
+    Truck,       // Out for Delivery
+    MapPin,      // At Destination
+    Home,        // Order Delivered
+  ]
+
+  // Delivery destination snapshot formatted address
+  const destinationAddress =
+    (tracking as any).shippingAddress?.streetAddress ||
+    (tracking as any).shippingAddress?.addressLine1 ||
+    (tracking as any).shippingAddress?.fullAddress ||
+    "Home Address"
+
+  // Direct device download for invoice
+  const handleDownloadInvoice = async () => {
+    if (!tracking.invoiceUrl) {
+      window.print()
+      return
+    }
+    try {
+      const res = await fetch(tracking.invoiceUrl)
+      const blob = await res.blob()
+      const blobUrl = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = blobUrl
+      a.download = tracking.invoiceFileName || `Invoice-${tracking.orderNumber}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(blobUrl)
+    } catch {
+      window.open(tracking.invoiceUrl, "_blank")
+    }
+  }
+
+  // Display label for current order status
+  const displayStatusLabel = isCancelled
+    ? "Order Cancelled"
+    : canonicalStages[activeIndex].label
 
   return (
     <div className="container-wide py-8">
@@ -94,7 +352,16 @@ export function TrackingPage() {
         description="Authentic order milestones recorded in the Hindustan Hardware database."
         action={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => refetch()} className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              onClick={() => {
+                refetch()
+                if (id) {
+                  deliveryTrackingApi.getOrderTracking(id).then(setLiveTracking).catch(() => {})
+                }
+              }}
+              className="flex items-center gap-1.5"
+            >
               <RefreshCcw size={15} /> Refresh Status
             </Button>
             <Link to={`/my-orders/${tracking.orderId}`}>
@@ -104,15 +371,39 @@ export function TrackingPage() {
         }
       />
 
-      <div className="mb-6 grid gap-4 rounded-xl border border-border bg-white p-5 sm:grid-cols-4 shadow-sm">
+      <div className="mb-6 grid gap-4 rounded-xl border border-border bg-white p-5 sm:grid-cols-5 shadow-sm">
         <Info label="Order Reference" value={tracking.orderNumber} />
         <Info label="Placed Date" value={formatDateTime(tracking.createdAt)} />
         <Info
           label="Current Status"
           value={
-            <span className="capitalize font-bold text-ink">
-              {tracking.currentStatus}
+            <span className="font-bold text-ink">
+              {displayStatusLabel}
             </span>
+          }
+        />
+        <Info
+          label="Estimated Arrival"
+          value={
+            liveEta?.etaSeconds != null || liveEta?.estimatedArrivalTimestamp ? (
+              <span className="font-bold text-emerald-700 flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping inline-block" />
+                <span>
+                  {liveEta.etaSeconds != null
+                    ? `~${Math.max(1, Math.ceil(liveEta.etaSeconds / 60))} mins`
+                    : "In transit"}
+                </span>
+                {liveEta.distanceRemainingMeters != null && (
+                  <span className="text-[11px] font-normal text-slate-500">
+                    ({(liveEta.distanceRemainingMeters / 1000).toFixed(1)} km)
+                  </span>
+                )}
+              </span>
+            ) : isDelivered ? (
+              <span className="text-emerald-700 font-bold">Delivered</span>
+            ) : (
+              <span className="text-slate-500 font-medium">Standard delivery (24-48h)</span>
+            )
           }
         />
         <Info
@@ -126,54 +417,167 @@ export function TrackingPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <section className="rounded-xl border border-border bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <Badge tone={isCancelled ? "danger" : currentStatusLower === "delivered" ? "success" : "blue"}>
-                <span className="capitalize">{tracking.currentStatus}</span>
-              </Badge>
-              <h2 className="mt-3 text-2xl font-black text-ink">
-                {isCancelled
-                  ? "Order Cancelled"
-                  : currentStatusLower === "delivered"
-                    ? "Order Delivered"
-                    : "Your order is progressing"}
-              </h2>
+        <section className="rounded-2xl border border-border bg-white p-6 sm:p-8 shadow-sm">
+          {/* Header row with status and Delivered to badge */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-slate-100">
+            <div className="flex items-start gap-3.5">
+              <span className={`grid h-12 w-12 place-items-center rounded-full shrink-0 ${
+                isDelivered ? "bg-emerald-100 text-emerald-600" : isCancelled ? "bg-red-100 text-red-600" : "bg-emerald-50 text-emerald-600"
+              }`}>
+                {isDelivered ? (
+                  <CheckCircle2 size={28} className="stroke-[2.5]" />
+                ) : isCancelled ? (
+                  <AlertCircle size={26} />
+                ) : (
+                  <Check size={26} className="stroke-[2.5]" />
+                )}
+              </span>
+              <div>
+                <span className="inline-block rounded-md bg-emerald-50 px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wider text-emerald-700">
+                  {isCancelled ? "CANCELLED" : isDelivered ? "DELIVERED" : displayStatusLabel.toUpperCase()}
+                </span>
+                <h2 className="mt-1 text-2xl font-black text-slate-900 tracking-tight">
+                  {isCancelled
+                    ? "Order Cancelled"
+                    : isDelivered
+                      ? "Your order has been delivered"
+                      : isAtDestination
+                        ? "Delivery Partner at your doorstep"
+                        : isOutForDelivery
+                          ? "Your order is out for delivery"
+                          : isDispatched
+                            ? "Dispatched from Store warehouse"
+                            : "Your order is confirmed"}
+                </h2>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  {isDelivered && (getStageTimestamp("delivered", 4) || tracking.updatedAt)
+                    ? `Delivered on ${formatDateTime(getStageTimestamp("delivered", 4) || tracking.updatedAt)}`
+                    : `Last updated: ${formatDateTime(tracking.updatedAt || tracking.createdAt)}`}
+                </p>
+              </div>
             </div>
-            <span className="hidden h-14 w-14 place-items-center rounded-full bg-blue-50 text-brand sm:grid">
-              <Truck />
-            </span>
+
+            <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+              {/* Live ETA Chip if active and not delivered */}
+              {!isDelivered && (liveEta?.etaSeconds != null || liveEta?.estimatedArrivalTimestamp) && (
+                <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3.5 py-2">
+                  <Clock className="h-5 w-5 text-emerald-600 animate-pulse" />
+                  <div className="text-left">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block">
+                      Estimated Arrival
+                    </span>
+                    <span className="text-xs font-black text-emerald-950 block">
+                      ~{Math.max(1, Math.ceil((liveEta.etaSeconds || 300) / 60))} mins
+                      {liveEta.distanceRemainingMeters && (
+                        <span className="font-medium text-emerald-700 ml-1">
+                          ({(liveEta.distanceRemainingMeters / 1000).toFixed(1)} km)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Delivered to Home Address pill */}
+              <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-2.5">
+                <div className="relative">
+                  <Truck className="h-6 w-6 text-slate-700" />
+                  <span className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-600 text-white">
+                    <Check size={9} className="stroke-[3]" />
+                  </span>
+                </div>
+                <div className="text-left">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Delivered to
+                  </span>
+                  <span className="text-xs font-bold text-slate-800 block truncate max-w-[140px]" title={destinationAddress}>
+                    {destinationAddress}
+                  </span>
+                  <Link
+                    to={`/my-orders/${tracking.orderId}`}
+                    className="text-[11px] font-bold text-blue-600 hover:underline inline-flex items-center gap-0.5 mt-0.5"
+                  >
+                    <span>View details</span>
+                    <ChevronRight size={12} />
+                  </Link>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Standard Status Timeline */}
+          {/* Stepper Timeline: Horizontal 5 Steps with Green Check Circles & connecting lines */}
           {!isCancelled ? (
-            <div className="tracking-timeline mt-9">
-              {stages.map((stage, index) => {
-                const completed = index <= activeIndex
-                const active = index === activeIndex
-                return (
-                  <div
-                    key={stage}
-                    className={`tracking-stage ${completed ? "complete" : ""} ${
-                      active ? "current" : ""
-                    }`}
-                  >
-                    <span className="tracking-dot">
-                      {completed ? <Check size={16} /> : index + 1}
-                    </span>
-                    <div>
-                      <b className="capitalize">{stage}</b>
-                      <small>
-                        {completed
-                          ? active
-                            ? "Current status"
-                            : "Completed"
-                          : "Pending"}
-                      </small>
+            <div className="py-8">
+              <div className="relative">
+                {/* Connecting background track positioned at exactly 18px (center of 36px node) */}
+                <div className="absolute left-[10%] right-[10%] top-[18px] h-[3px] -translate-y-1/2 bg-slate-200 z-0" />
+
+                {/* Filled completed green track */}
+                <div
+                  className="absolute left-[10%] top-[18px] h-[3px] -translate-y-1/2 bg-emerald-600 transition-all duration-500 z-0"
+                  style={{
+                    width: `${(activeIndex / (canonicalStages.length - 1)) * 80}%`,
+                  }}
+                />
+
+                <div className="relative z-10 flex items-start justify-between">
+                  {canonicalStages.map((stage, index) => {
+                    const completed = index <= activeIndex
+                    const isCurrent = index === activeIndex
+                    const Icon = stageIcons[index]
+                    const timestamp = getStageTimestamp(stage.key, index)
+                    const dateParts = formatStepDateParts(timestamp)
+
+                    return (
+                      <div
+                        key={stage.key}
+                        className="flex flex-1 flex-col items-center text-center"
+                      >
+                        {/* Check Circle Node with exact centering */}
+                        <div
+                          className={`flex h-9 w-9 items-center justify-center rounded-full text-white transition-all shadow-xs shrink-0 ${
+                            completed
+                              ? "bg-emerald-600 ring-4 ring-emerald-50"
+                              : "border-2 border-slate-300 bg-white text-slate-500"
+                          }`}
+                        >
+                          {completed ? (
+                            <Check size={18} className="stroke-[3]" />
+                          ) : (
+                            <span className="text-xs font-black text-slate-500 leading-none flex items-center justify-center">
+                              {index + 1}
+                            </span>
+                          )}
+                        </div>
+
+                      {/* Icon Pill Under Checkmark */}
+                      <div className="mt-3 flex h-8 w-8 items-center justify-center rounded-full bg-slate-50 border border-slate-100 text-slate-600">
+                        <Icon size={15} />
+                      </div>
+
+                      {/* Milestone Title */}
+                      <b className="mt-2 text-xs sm:text-sm font-extrabold text-slate-900 leading-tight">
+                        {stage.label}
+                      </b>
+
+                      {/* Date & Time from Database */}
+                      {dateParts ? (
+                        <div className="mt-1 text-[11px] leading-snug">
+                          <span className="block font-medium text-slate-600">{dateParts.datePart}</span>
+                          <span className="block font-bold text-slate-800">{dateParts.timePart}</span>
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-[11px] leading-snug">
+                          <span className={`block font-semibold ${isCurrent ? "text-emerald-700" : "text-slate-400"}`}>
+                            {isCurrent ? "In Progress" : "Pending"}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+                </div>
+              </div>
             </div>
           ) : (
             <div className="mt-8 rounded-xl border border-red-200 bg-red-50 p-5">
@@ -186,6 +590,33 @@ export function TrackingPage() {
                   </p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Delivered Successfully Banner with View / Download Invoice Button */}
+          {isDelivered && (
+            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 sm:p-5">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-full bg-emerald-100 text-emerald-700 shrink-0">
+                  <Sparkles size={20} />
+                </span>
+                <div>
+                  <b className="text-sm font-extrabold text-emerald-950 block">Delivered Successfully!</b>
+                  <p className="text-xs text-emerald-800 font-medium mt-0.5">
+                    Your order has been delivered. Thank you for shopping with us!
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleDownloadInvoice}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 px-4 py-2.5 text-xs font-black text-emerald-800 shadow-xs transition hover:shadow-sm shrink-0 cursor-pointer w-full sm:w-auto"
+                title="Download invoice document to your device"
+              >
+                <Download size={15} className="text-emerald-700" />
+                <span>Download Invoice</span>
+              </button>
             </div>
           )}
 

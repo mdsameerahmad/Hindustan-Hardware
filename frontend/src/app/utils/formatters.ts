@@ -8,13 +8,11 @@ export function formatPrice(value: number): string {
   }).format(value)
 }
 
-export function statusTone(status: OrderStatus): "success" | "danger" | "warning" | "blue" {
-  return status === "Delivered"
-    ? "success"
-    : status === "Cancelled"
-      ? "danger"
-      : status === "Out for Delivery"
-        ? "warning"
-        : "blue"
+export function statusTone(status: OrderStatus | string): "success" | "danger" | "warning" | "blue" {
+  const s = String(status || "").toLowerCase()
+  if (s === "delivered" || s === "order delivered") return "success"
+  if (s === "cancelled" || s === "order cancelled") return "danger"
+  if (s === "out for delivery" || s === "at destination") return "warning"
+  return "blue"
 }
 

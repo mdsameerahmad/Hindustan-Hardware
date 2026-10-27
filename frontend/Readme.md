@@ -1126,3 +1126,58 @@ Successfully completed **Frontend Phase 3**, concluding all frontend phases for 
 - **Frontend Build**: `npm run build` &mdash; **0 errors (built in 3.37s)**.
 - **Backend Build & Typecheck**: `npm run build` &mdash; **0 errors**.
 - **Backend Test Suite**: `tests/delivery_tracking.test.ts`, `tests/socket_tracking.test.ts`, `tests/road_routing.test.ts`, `tests/e2e_tracking_lifecycle.test.ts` &mdash; **49 of 49 passed (100%)**.
+
+---
+
+## 23. Real-Time Zero-Refresh Estimated Arrival (ETA) & Shortest Path Routing System
+
+### Objective Completed
+Engineered a live, synchronized Estimated Arrival (ETA) calculation and delivery tracking pipeline across Customer, Admin, and Delivery Partner portals with zero page reloads.
+
+#### 1. Zero-Refresh Live Estimated Arrival Sync Across All Panels
+- **Customer Panel (`TrackingPage.tsx` & `LiveTrackingDetailPage.tsx` & `LiveTrackingCard.tsx`)**:
+  - Live animated Estimated Arrival chip displayed directly in the milestone tracking header.
+  - Automatically receives live ETA countdown (`~X mins`, dynamic arrival time ISO, and remaining distance in km) on every incoming GPS broadcast.
+  - No page refresh required — state dynamically syncs directly through WebSocket packets.
+- **Admin Panel (`AdminOrderDetailPage.tsx`)**:
+  - Live status bar with animated connection dot, dynamic vehicle speed (`km/h`), heading (`°`), live distance countdown, and real-time arrival time.
+  - Auto-follows vehicle coordinates while retaining optional manual panning toggle.
+- **Delivery Partner Portal (`DeliveryPartnerPortalPage.tsx`)**:
+  - Live HUD and Google Maps-style turn-by-turn navigation overlay.
+  - Real-time speedometer, heading compass, and live ETA counter updating continuously as the partner moves.
+
+#### 2. Shortest Distance Road Routing Algorithm
+- Configured multi-route candidate search via OSRM & OSM routed-car queries (`alternatives=3`).
+- Compares geometry routes and strictly selects the **shortest physical path** (`distanceMeters`), using duration as a tie-breaker.
+- Eliminates circuitous or inefficient highway detours in local Bihar regions.
+
+#### 3. Real-Time Socket.IO Telemetry Contract
+Every GPS packet emitted by the server (`delivery:location_update`) carries calculated dynamic ETA fields:
+```typescript
+interface DeliveryLocationBroadcastPayload {
+  deliveryId: string;
+  orderId: string;
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  speed: number | null;
+  heading: number | null;
+  deviceTimestamp: string;
+  serverReceivedAt: string;
+  isStale: boolean;
+  estimatedArrivalTimestamp?: string | null;  // ISO 8601 dynamic arrival time
+  etaSeconds?: number | null;                 // Live duration countdown in seconds
+  distanceRemainingMeters?: number | null;    // Real-time remaining distance in meters
+}
+```
+
+#### 4. Simulation & Verification
+Live movement and zero-refresh ETA updates can be tested end-to-end via:
+```bash
+npx tsx scripts/simulate-delivery.ts \
+  --deliveryId=efebcfd1-36ac-47d9-bb31-452a1ccd49a6 \
+  --email="driver@hindustanhardware.com" \
+  --password="PartnerPass123!" \
+  --interval=1
+```
+- **Build Status**: Verified with `npm run build` &mdash; **0 errors**.

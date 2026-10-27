@@ -73,6 +73,11 @@ export function AdminOrderDetailPage() {
 
   // Real-Time Delivery Partner Tracking & Route state
   const [routeData, setRouteData] = useState<DeliveryRouteResponse | null>(null)
+  const [liveEstimatedArrival, setLiveEstimatedArrival] = useState<{
+    estimatedArrivalTimestamp?: string | null
+    etaSeconds?: number | null
+    distanceRemainingMeters?: number | null
+  } | null>(null)
   const [partnerLocation, setPartnerLocation] = useState<{
     latitude: number
     longitude: number
@@ -93,6 +98,12 @@ export function AdminOrderDetailPage() {
       .then((res) => {
         if (res) {
           setRouteData(res)
+          setLiveEstimatedArrival((prev) => ({
+            ...prev,
+            etaSeconds: res.durationSeconds,
+            distanceRemainingMeters: res.distanceMeters,
+            estimatedArrivalTimestamp: new Date(Date.now() + res.durationSeconds * 1000).toISOString(),
+          }))
         }
       })
       .catch(() => {})
@@ -187,6 +198,14 @@ export function AdminOrderDetailPage() {
           accuracy: payload.accuracy,
         })
         setIsLocationStale(Boolean(payload.isStale))
+
+        if (payload.etaSeconds != null || payload.estimatedArrivalTimestamp) {
+          setLiveEstimatedArrival({
+            estimatedArrivalTimestamp: payload.estimatedArrivalTimestamp,
+            etaSeconds: payload.etaSeconds,
+            distanceRemainingMeters: payload.distanceRemainingMeters,
+          })
+        }
 
         // Recalculate route if 25s elapsed
         if (Date.now() - lastRouteFetchTimeRef.current > 25000) {
@@ -527,9 +546,29 @@ export function AdminOrderDetailPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                {routeData && (
-                  <span className="text-[11px] font-mono text-[#D4AF37] font-bold bg-slate-800 border border-slate-700 px-2.5 py-0.5 rounded-full">
-                    {(routeData.distanceMeters / 1000).toFixed(1)} km • ~{Math.ceil(routeData.durationSeconds / 60)} mins
+                {(liveEstimatedArrival || routeData) && (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-mono text-[#D4AF37] font-bold bg-slate-800 border border-slate-700 px-2.5 py-0.5 rounded-full shadow-xs">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    <span>
+                      {liveEstimatedArrival?.distanceRemainingMeters != null
+                        ? `${(liveEstimatedArrival.distanceRemainingMeters / 1000).toFixed(1)} km`
+                        : routeData
+                        ? `${(routeData.distanceMeters / 1000).toFixed(1)} km`
+                        : ""}
+                    </span>
+                    <span>•</span>
+                    <span>
+                      {liveEstimatedArrival?.etaSeconds != null
+                        ? `ETA ~${Math.max(1, Math.ceil(liveEstimatedArrival.etaSeconds / 60))} mins`
+                        : routeData
+                        ? `~${Math.ceil(routeData.durationSeconds / 60)} mins`
+                        : ""}
+                    </span>
+                    {liveEstimatedArrival?.estimatedArrivalTimestamp && (
+                      <span className="text-[10px] text-slate-400 font-normal hidden sm:inline">
+                        ({new Date(liveEstimatedArrival.estimatedArrivalTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})
+                      </span>
+                    )}
                   </span>
                 )}
                 <button
@@ -705,24 +744,48 @@ export function AdminOrderDetailPage() {
               </h2>
             </div>
 
-            {/* Horizontal Timeline Bar */}
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 mb-5">
+            {/* Horizontal Timeline Bar: 5 Canonical Stages */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 mb-5">
               {[
-                { status: "pending", label: "Order Placed" },
-                { status: "confirmed", label: "Confirmed" },
-                { status: "processing", label: "Preparing" },
-                { status: "shipped", label: "Out for Delivery" },
+                { status: "confirmed", label: "Order Confirmed" },
+                { status: "dispatched", label: "Dispatched from Store" },
+                { status: "out_for_delivery", label: "Out for Delivery" },
+                { status: "at_destination", label: "At Destination" },
+                { status: "delivered", label: "Order Delivered" },
               ].map((step, idx) => {
-                const stageOrder = ["pending", "confirmed", "processing", "shipped", "delivered"]
-                const currentIdx = stageOrder.indexOf(order.status)
-                const thisIdx = stageOrder.indexOf(step.status)
-                const isPassedOrActive = currentIdx >= thisIdx && order.status !== "cancelled"
-                const isCurrent = order.status === step.status
+                const isDeliveredStep = order.status === "delivered" || trackingInfo?.assignment?.status === "delivered"
+                const isAtDestStep = isAtDestination || isDeliveredStep
+                const isOutForDeliveryStep =
+                  trackingInfo?.assignment?.status === "out_for_delivery" || isAtDestStep
+                const isDispatchedStep =
+                  Boolean(trackingInfo?.assignment?.pickedUpAt || trackingInfo?.assignment?.status === "picked_up") ||
+                  isOutForDeliveryStep ||
+                  order.status === "shipped"
+
+                let isPassedOrActive = false
+                let isCurrent = false
+
+                if (idx === 0) {
+                  isPassedOrActive = order.status !== "cancelled"
+                  isCurrent = !isDispatchedStep && !isDeliveredStep && order.status !== "cancelled"
+                } else if (idx === 1) {
+                  isPassedOrActive = isDispatchedStep
+                  isCurrent = isDispatchedStep && !isOutForDeliveryStep
+                } else if (idx === 2) {
+                  isPassedOrActive = isOutForDeliveryStep
+                  isCurrent = isOutForDeliveryStep && !isAtDestStep
+                } else if (idx === 3) {
+                  isPassedOrActive = isAtDestStep
+                  isCurrent = isAtDestStep && !isDeliveredStep
+                } else if (idx === 4) {
+                  isPassedOrActive = isDeliveredStep
+                  isCurrent = isDeliveredStep
+                }
 
                 return (
                   <div
                     key={step.status}
-                    className={`rounded-xl border p-2.5 text-center transition ${
+                    className={`rounded-xl border p-2 text-center transition ${
                       isCurrent
                         ? "border-[#0b2447] bg-[#0b2447] text-white shadow-xs font-bold"
                         : isPassedOrActive
@@ -733,7 +796,7 @@ export function AdminOrderDetailPage() {
                     <span className="block text-[10px] uppercase tracking-wider opacity-75">
                       Step {idx + 1}
                     </span>
-                    <span className="mt-0.5 block text-xs font-bold leading-tight">
+                    <span className="mt-0.5 block text-[11px] font-bold leading-tight">
                       {step.label}
                     </span>
                   </div>

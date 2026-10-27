@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { customerOrdersApi } from "../commerceApi"
 import type { OrderStatusTrackingResponse } from "../commerceTypes"
+import { trackingSocketService, type OrderStatusBroadcastPayload } from "../trackingSocketService"
 
 export function useOrderStatus(orderId: string | undefined, isAuthenticated: boolean) {
   const [tracking, setTracking] = useState<OrderStatusTrackingResponse | null>(null)
@@ -30,6 +31,41 @@ export function useOrderStatus(orderId: string | undefined, isAuthenticated: boo
   useEffect(() => {
     fetchTracking()
   }, [fetchTracking])
+
+  // Real-Time Socket Subscription: Instantaneous Order Status Transitions without page refresh
+  useEffect(() => {
+    if (!orderId || !isAuthenticated) return
+
+    const unsubscribe = trackingSocketService.subscribeToOrder(
+      orderId,
+      (payload: OrderStatusBroadcastPayload) => {
+        setTracking((prev) => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            currentStatus: payload.status,
+            updatedAt: payload.timestamp || new Date().toISOString(),
+            history: [
+              ...(prev.history || []),
+              {
+                id: `sock_${Date.now()}`,
+                orderId: payload.orderId,
+                previousStatus: payload.previousStatus || prev.currentStatus,
+                newStatus: payload.status,
+                actorId: null,
+                reason: payload.reason || null,
+                createdAt: payload.timestamp || new Date().toISOString(),
+              },
+            ],
+          }
+        })
+      }
+    )
+
+    return () => {
+      unsubscribe()
+    }
+  }, [orderId, isAuthenticated])
 
   const cancelCurrentOrder = useCallback(
     async (reason: string = "Cancelled by customer"): Promise<boolean> => {

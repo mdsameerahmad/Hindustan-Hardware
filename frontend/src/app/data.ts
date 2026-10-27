@@ -42,7 +42,18 @@ export type Product = {
   specs: Record<string, string>
 }
 
-export type OrderStatus = "Order Placed" | "Order Confirmed" | "Preparing Your Order" | "Ready for Dispatch" | "Out for Delivery" | "Delivered" | "Cancelled"
+export type OrderStatus =
+  | "Order Confirmed"
+  | "Dispatched from Store"
+  | "Out for Delivery"
+  | "At Destination"
+  | "Order Delivered"
+  | "Cancelled"
+  // Legacy / fallback compatibility
+  | "Order Placed"
+  | "Preparing Your Order"
+  | "Ready for Dispatch"
+  | "Delivered"
 
 export type Order = {
   id: string
@@ -918,10 +929,9 @@ export const initialOrders: Order[] = [
 ]
 
 export const orderStages: OrderStatus[] = [
-  "Order Placed",
   "Order Confirmed",
-  "Preparing Your Order",
-  "Ready for Dispatch",
+  "Dispatched from Store",
   "Out for Delivery",
-  "Delivered",
+  "At Destination",
+  "Order Delivered",
 ]

@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ShieldCheck,
   RotateCcw,
+  Sparkles,
 } from "lucide-react"
 import { Button, Badge } from "../../components"
 import { locationApi, type SupportedCity, type GeocodingSuggestion } from "../locationApi"
@@ -121,7 +122,7 @@ export function AddressPickerModal({
     }
   }, [selectedCity])
 
-  // Debounced address search
+  // Debounced address search (Hybrid OSM + Nominatim Google Maps style search)
   useEffect(() => {
     const trimmed = searchQuery.trim()
     if (trimmed.length < 2) {
@@ -136,20 +137,23 @@ export function AddressPickerModal({
 
     const timer = setTimeout(async () => {
       try {
-        const results = await locationApi.searchAddresses(trimmed, selectedCity, 6)
+        const results = await locationApi.searchAddresses(trimmed, selectedCity, 12, {
+          lat: pinCoords.latitude,
+          lon: pinCoords.longitude,
+        })
         setSuggestions(results)
         if (results.length === 0) {
-          setSearchError("No matching addresses found. You can place the pin manually on the map.")
+          setSearchError("No matching street, road or landmark found. You can place the pin directly on the map.")
         }
       } catch (err: any) {
         setSearchError("Address search unavailable. You can locate your address manually on the map.")
       } finally {
         setIsSearching(false)
       }
-    }, 400)
+    }, 300)
 
     return () => clearTimeout(timer)
-  }, [searchQuery, selectedCity])
+  }, [searchQuery, selectedCity, pinCoords.latitude, pinCoords.longitude])
 
   // Reverse geocode when pin moves
   const runReverseGeocode = useCallback(async (lat: number, lon: number) => {
@@ -476,7 +480,7 @@ export function AddressPickerModal({
               {/* Search Box */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                  Search Colony, Road or Landmark in {selectedCity}
+                  Search Colony, Street, Road, Railway Station or Landmark in {selectedCity}
                 </label>
                 <div className="relative">
                   <Search
@@ -487,7 +491,7 @@ export function AddressPickerModal({
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={`e.g. PG Road, Eidgah, Court Area, Hospital Road...`}
+                    placeholder={`Search street, road, railway station, bus stand (e.g. PG Road, Station, Sadar Hospital...)`}
                     className="w-full rounded-xl border border-slate-700 bg-slate-900/90 pl-10 pr-10 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 focus:outline-none"
                     autoFocus
                   />
@@ -500,28 +504,100 @@ export function AddressPickerModal({
                 </div>
               </div>
 
-              {/* Suggestions List */}
+              {/* Suggestions List - Google Maps Style */}
               {suggestions.length > 0 && (
-                <div className="space-y-1.5 max-h-56 overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/60 p-2">
-                  {suggestions.map((sug) => (
-                    <div
-                      key={sug.id}
-                      onClick={() => handleSelectSuggestion(sug)}
-                      className="p-2.5 rounded-lg hover:bg-slate-800/80 cursor-pointer transition flex items-start gap-2.5 text-xs group"
-                    >
-                      <MapPin
-                        size={15}
-                        className="text-amber-400 mt-0.5 shrink-0 group-hover:scale-110 transition"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <strong className="text-white block font-bold truncate">{sug.name}</strong>
-                        <span className="text-slate-400 block truncate text-[11px]">
-                          {sug.formattedAddress}
+                <div className="space-y-1.5 max-h-64 overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/80 p-2 scrollbar-thin">
+                  {suggestions.map((sug) => {
+                    const lowerName = sug.name.toLowerCase()
+                    const lowerAddr = sug.formattedAddress.toLowerCase()
+
+                    const isStation =
+                      lowerName.includes("station") ||
+                      lowerAddr.includes("station") ||
+                      lowerName.includes("junction")
+                    const isBus =
+                      lowerName.includes("bus stand") ||
+                      lowerAddr.includes("bus stand") ||
+                      lowerName.includes("bus stop")
+                    const isBypass =
+                      lowerName.includes("bypass") ||
+                      lowerAddr.includes("bypass")
+                    const isMandir =
+                      lowerName.includes("mandir") ||
+                      lowerAddr.includes("mandir") ||
+                      lowerName.includes("temple")
+                    const isMasjid =
+                      lowerName.includes("masjid") ||
+                      lowerAddr.includes("masjid") ||
+                      lowerName.includes("mosque") ||
+                      lowerName.includes("eidgah")
+                    const isRoad =
+                      lowerName.includes("road") ||
+                      lowerName.includes("marg") ||
+                      lowerName.includes("path") ||
+                      lowerName.includes("chowk") ||
+                      sug.street ||
+                      lowerAddr.includes("road")
+
+                    return (
+                      <div
+                        key={sug.id}
+                        onClick={() => handleSelectSuggestion(sug)}
+                        className="p-2.5 rounded-lg hover:bg-slate-800/90 cursor-pointer transition flex items-start gap-2.5 text-xs group border border-transparent hover:border-slate-700"
+                      >
+                        <span className="grid h-7 w-7 place-items-center rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0 mt-0.5 group-hover:bg-amber-500 group-hover:text-black transition">
+                          {isStation ? (
+                            <Building size={14} />
+                          ) : isBus ? (
+                            <Navigation size={14} />
+                          ) : isMandir || isMasjid ? (
+                            <Sparkles size={14} />
+                          ) : (
+                            <MapPin size={14} />
+                          )}
                         </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <strong className="text-white block font-bold truncate">{sug.name}</strong>
+                            {isStation && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                                Railway Station
+                              </span>
+                            )}
+                            {isBus && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                Bus Stand
+                              </span>
+                            )}
+                            {isBypass && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                                Bypass
+                              </span>
+                            )}
+                            {isMandir && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-orange-500/10 text-orange-400 border border-orange-500/30">
+                                Mandir
+                              </span>
+                            )}
+                            {isMasjid && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                Masjid
+                              </span>
+                            )}
+                            {isRoad && !isStation && !isBus && !isBypass && !isMandir && !isMasjid && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                Street / Road
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-slate-400 block truncate text-[11px] mt-0.5">
+                            {sug.formattedAddress}
+                          </span>
+                        </div>
+                        <ChevronRight size={14} className="text-slate-500 shrink-0 self-center group-hover:text-amber-400 transition" />
                       </div>
-                      <ChevronRight size={14} className="text-slate-500 shrink-0 self-center" />
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
 

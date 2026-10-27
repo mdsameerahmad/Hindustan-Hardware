@@ -43,6 +43,11 @@ export function DeliveryPartnerPortalPage() {
   const [error, setError] = useState<string | null>(null)
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<string | null>(null)
   const [routeData, setRouteData] = useState<DeliveryRouteResponse | null>(null)
+  const [liveEstimatedArrival, setLiveEstimatedArrival] = useState<{
+    estimatedArrivalTimestamp?: string | null
+    etaSeconds?: number | null
+    distanceRemainingMeters?: number | null
+  } | null>(null)
   const [routeLoading, setRouteLoading] = useState<boolean>(false)
   const [isRideActive, setIsRideActive] = useState<boolean>(false)
   const [autoFollow, setAutoFollow] = useState<boolean>(true)
@@ -95,6 +100,14 @@ export function DeliveryPartnerPortalPage() {
     try {
       const res = await deliveryTrackingApi.getDeliveryRoute(deliveryId)
       setRouteData(res)
+      if (res) {
+        setLiveEstimatedArrival((prev) => ({
+          ...prev,
+          etaSeconds: res.durationSeconds,
+          distanceRemainingMeters: res.distanceMeters,
+          estimatedArrivalTimestamp: new Date(Date.now() + res.durationSeconds * 1000).toISOString(),
+        }))
+      }
       lastRouteFetchTimeRef.current = Date.now()
     } catch {
       setRouteData(null)
@@ -193,6 +206,14 @@ export function DeliveryPartnerPortalPage() {
           accuracy: payload.accuracy,
         })
         setIsLocationStale(Boolean(payload.isStale))
+
+        if (payload.etaSeconds != null || payload.estimatedArrivalTimestamp) {
+          setLiveEstimatedArrival({
+            estimatedArrivalTimestamp: payload.estimatedArrivalTimestamp,
+            etaSeconds: payload.etaSeconds,
+            distanceRemainingMeters: payload.distanceRemainingMeters,
+          })
+        }
 
         // Recalculate route if significant distance or time elapsed
         if (Date.now() - lastRouteFetchTimeRef.current > 25000) {
@@ -579,9 +600,29 @@ export function DeliveryPartnerPortalPage() {
                           </div>
 
                           <div className="flex items-center gap-2">
-                            {routeData && (
-                              <span className="text-[11px] font-mono text-[#8F6B12] font-bold bg-[#FFF9E6] border border-[#F3E5AB] px-2 py-0.5 rounded-full">
-                                {(routeData.distanceMeters / 1000).toFixed(1)} km • ~{Math.ceil(routeData.durationSeconds / 60)} mins
+                            {(liveEstimatedArrival || routeData) && (
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-mono text-[#8F6B12] font-bold bg-[#FFF9E6] border border-[#F3E5AB] px-2.5 py-0.5 rounded-full shadow-xs">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
+                                <span>
+                                  {liveEstimatedArrival?.distanceRemainingMeters != null
+                                    ? `${(liveEstimatedArrival.distanceRemainingMeters / 1000).toFixed(1)} km`
+                                    : routeData
+                                    ? `${(routeData.distanceMeters / 1000).toFixed(1)} km`
+                                    : ""}
+                                </span>
+                                <span>•</span>
+                                <span>
+                                  {liveEstimatedArrival?.etaSeconds != null
+                                    ? `ETA ~${Math.max(1, Math.ceil(liveEstimatedArrival.etaSeconds / 60))} mins`
+                                    : routeData
+                                    ? `~${Math.ceil(routeData.durationSeconds / 60)} mins`
+                                    : ""}
+                                </span>
+                                {liveEstimatedArrival?.estimatedArrivalTimestamp && (
+                                  <span className="text-[10px] text-amber-700/80 font-normal hidden sm:inline">
+                                    ({new Date(liveEstimatedArrival.estimatedArrivalTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})
+                                  </span>
+                                )}
                               </span>
                             )}
                             <button
@@ -754,13 +795,13 @@ export function DeliveryPartnerPortalPage() {
                                     </div>
                                   </div>
 
-                                  {routeData && (
+                                  {(liveEstimatedArrival || routeData) && (
                                     <div className="text-right">
                                       <span className="text-lg sm:text-xl font-black text-[#D4AF37] block">
-                                        ~{Math.ceil(routeData.durationSeconds / 60)} min
+                                        ~{Math.max(1, Math.ceil((liveEstimatedArrival?.etaSeconds ?? routeData?.durationSeconds ?? 0) / 60))} min
                                       </span>
                                       <span className="text-xs text-slate-400 font-mono">
-                                        {(routeData.distanceMeters / 1000).toFixed(1)} km left
+                                        {(((liveEstimatedArrival?.distanceRemainingMeters ?? routeData?.distanceMeters ?? 0)) / 1000).toFixed(1)} km left
                                       </span>
                                     </div>
                                   )}
