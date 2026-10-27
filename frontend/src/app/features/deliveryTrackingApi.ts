@@ -228,7 +228,7 @@ export const deliveryTrackingApi = {
    */
   updateDeliveryStatus: async (
     deliveryId: string,
-    status: "assigned" | "picked_up" | "out_for_delivery" | "delivered" | "failed" | "cancelled",
+    status: "assigned" | "picked_up" | "out_for_delivery" | "failed" | "cancelled",
     notes?: string,
   ) => {
     return apiRequest<{ id: string; status: string; updatedAt: string }>(
@@ -237,6 +237,17 @@ export const deliveryTrackingApi = {
         method: "PATCH",
         requiresAuth: true,
         body: JSON.stringify({ status, notes }),
+      },
+    )
+  },
+
+  verifyDeliveryOtp: async (deliveryId: string, otp: string) => {
+    return apiRequest<{ id: string; orderId: string; status: "delivered"; updatedAt: string }>(
+      `/deliveries/${deliveryId}/verify-otp`,
+      {
+        method: "POST",
+        requiresAuth: true,
+        body: JSON.stringify({ otp }),
       },
     )
   },

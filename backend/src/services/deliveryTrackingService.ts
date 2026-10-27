@@ -23,6 +23,7 @@ import {
 } from '../types';
 import { RoadRoutingService } from './roadRoutingService';
 import { ServiceabilityService } from './serviceabilityService';
+import { hashDeliveryOtp } from './deliveryOtpService';
 
 export function isLocationStale(
   serverReceivedAtOrDeviceTimestamp: string,
@@ -147,7 +148,7 @@ export class DeliveryTrackingService {
   static readonly ALLOWED_ASSIGNMENT_TRANSITIONS: Record<DeliveryAssignmentStatus, DeliveryAssignmentStatus[]> = {
     assigned: ['picked_up', 'cancelled', 'failed'],
     picked_up: ['out_for_delivery', 'cancelled', 'failed'],
-    out_for_delivery: ['delivered', 'failed', 'cancelled'],
+    out_for_delivery: ['failed', 'cancelled'],
     delivered: [],
     failed: [],
     cancelled: [],
@@ -303,6 +304,10 @@ export class DeliveryTrackingService {
     actorRole?: string;
     notes?: string | null;
   }): Promise<DeliveryAssignmentRecord> {
+    if (params.status === 'delivered') {
+      throw new BadRequestError('Customer delivery OTP verification is required to mark an order delivered.');
+    }
+
     const client = getSupabaseAdminClient() || getSupabaseClient();
     if (!client) throw new InternalServerError('Database service is unavailable.');
 
@@ -381,11 +386,6 @@ export class DeliveryTrackingService {
         .update({ status: 'shipped', updated_at: now })
         .eq('id', assignment.order_id)
         .eq('status', 'processing');
-    } else if (params.status === 'delivered') {
-      await client
-        .from('orders')
-        .update({ status: 'delivered', updated_at: now })
-        .eq('id', assignment.order_id);
     }
 
     const resultRecord: DeliveryAssignmentRecord = {
@@ -422,6 +422,95 @@ export class DeliveryTrackingService {
       logger.warn('Failed to broadcast status update to socket room', {
         error: broadcastErr instanceof Error ? broadcastErr.message : String(broadcastErr),
         assignmentId: params.assignmentId,
+      });
+    }
+
+    return resultRecord;
+  }
+
+  /** Atomically verifies a customer OTP and marks its assigned delivery and order delivered. */
+  static async verifyDeliveryOtp(params: {
+    assignmentId: string;
+    actorId: string;
+    otp: string;
+  }): Promise<DeliveryAssignmentRecord> {
+    const client = getSupabaseAdminClient();
+    if (!client) throw new InternalServerError('Administrative database client is unavailable.');
+
+    const { data, error } = await client.rpc('verify_delivery_otp', {
+      p_assignment_id: params.assignmentId,
+      p_actor_id: params.actorId,
+      p_otp_hash: hashDeliveryOtp(params.otp),
+    });
+
+    if (error || !data) {
+      logger.error('Atomic delivery OTP verification failed', {
+        assignmentId: params.assignmentId,
+        error: error
+          ? {
+              message: error.message,
+              code: error.code,
+              details: error.details,
+              hint: error.hint,
+            }
+          : 'RPC returned no data',
+      });
+      throw new InternalServerError('Unable to verify delivery OTP.');
+    }
+
+    if (!data.success) {
+      switch (data.code) {
+        case 'NOT_FOUND':
+          throw new NotFoundError('Delivery assignment not found.');
+        case 'NOT_ASSIGNED':
+          throw new ForbiddenError('You are not assigned to this delivery.');
+        case 'DELIVERY_NOT_OUT_FOR_DELIVERY':
+          throw new BadRequestError('The delivery must be marked out for delivery before OTP verification.');
+        case 'OTP_EXPIRED':
+          throw new BadRequestError('This delivery OTP has expired. Contact an administrator to resolve the delivery.');
+        case 'OTP_LOCKED':
+          throw new BadRequestError('Too many incorrect OTP attempts. This delivery OTP is locked.');
+        case 'OTP_INVALID':
+          throw new BadRequestError(`Incorrect delivery OTP. ${data.attemptsRemaining} attempt(s) remaining.`);
+        case 'OTP_UNAVAILABLE':
+          throw new BadRequestError('No delivery OTP is available for this order.');
+        default:
+          throw new BadRequestError('Delivery OTP verification was rejected.');
+      }
+    }
+
+    const resultRecord: DeliveryAssignmentRecord = {
+      id: data.assignmentId,
+      orderId: data.orderId,
+      deliveryPartnerId: data.deliveryPartnerId,
+      customerId: data.customerId,
+      status: 'delivered',
+      notes: data.notes ?? null,
+      assignedAt: data.assignedAt,
+      pickedUpAt: data.pickedUpAt ?? null,
+      completedAt: data.completedAt,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+    };
+
+    try {
+      broadcastDeliveryStatus({
+        deliveryId: resultRecord.id,
+        orderId: resultRecord.orderId,
+        status: 'delivered',
+        timestamp: resultRecord.updatedAt,
+        notes: resultRecord.notes,
+      });
+      broadcastOrderStatus({
+        orderId: resultRecord.orderId,
+        status: 'delivered',
+        reason: 'Delivery completed after successful customer OTP verification',
+        timestamp: resultRecord.updatedAt,
+      });
+    } catch (broadcastErr) {
+      logger.warn('Failed to broadcast OTP-verified delivery completion', {
+        error: broadcastErr instanceof Error ? broadcastErr.message : String(broadcastErr),
+        assignmentId: resultRecord.id,
       });
     }
 

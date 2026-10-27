@@ -314,6 +314,7 @@ export interface OrderResponse {
   invoiceUrl?: string | null;
   invoiceFileName?: string | null;
   invoiceUploadedAt?: string | null;
+  deliveryOtp?: string | null;
   items: OrderItemRecord[];
   createdAt: string;
   updatedAt: string;

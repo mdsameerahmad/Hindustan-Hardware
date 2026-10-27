@@ -1,6 +1,7 @@
 import { CheckCircle2 } from "lucide-react"
 import { Link, useLocation, useParams } from "react-router"
 import { Badge, Button, formatPrice } from "../components"
+import { DeliveryOtpCard } from "../components/DeliveryOtpCard"
 
 export function OrderSuccessPage() {
   const { id } = useParams()
@@ -40,6 +41,10 @@ export function OrderSuccessPage() {
         <p className="mt-2 text-slate-500">
           Order Reference: <b className="text-ink font-mono">{orderNumber}</b>
         </p>
+
+        <div className="mx-auto mt-6 max-w-lg text-left">
+          <DeliveryOtpCard otp={routeOrder?.deliveryOtp} />
+        </div>
 
         <div className="mx-auto mt-7 max-w-lg rounded-xl bg-slate-50 p-6 text-left border border-slate-200">
           <div className="summary-line">

@@ -15,6 +15,7 @@ import {
   PaymentStatus,
 } from '../types';
 import { logger } from '../common/utils/logger';
+import { decryptDeliveryOtp } from './deliveryOtpService';
 
 export class OrderService {
   /**
@@ -244,6 +245,7 @@ export class OrderService {
       canCancel,
       createdAt: order.created_at,
       updatedAt: order.updated_at,
+      deliveryOtp: order.delivery_otp_ciphertext ? decryptDeliveryOtp(order.delivery_otp_ciphertext) : null,
     };
   }
 

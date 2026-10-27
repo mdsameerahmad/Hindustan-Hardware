@@ -5,6 +5,7 @@ import { OrderResponse, CheckoutValidationResult, OrderItemRecord, CustomerAddre
 import { AddressService } from './addressService';
 import { CartService } from './cartService';
 import { logger } from '../common/utils/logger';
+import { createDeliveryOtp, decryptDeliveryOtp, DeliveryOtpBundle } from './deliveryOtpService';
 
 export class CheckoutService {
   /**
@@ -283,6 +284,7 @@ export class CheckoutService {
     // 4. Execute atomic order creation using process_cod_checkout RPC or coordinated transaction
     const orderNumber = this.generateOrderNumber();
     const idempotencyKey = params.idempotencyKey || null;
+    const deliveryOtp = createDeliveryOtp();
 
     try {
       // Try database-level RPC function for guaranteed atomicity
@@ -293,6 +295,8 @@ export class CheckoutService {
         p_customer_notes: params.customerNotes || null,
         p_idempotency_key: idempotencyKey,
         p_cart_id: cart.id,
+        p_delivery_otp_hash: deliveryOtp.hash,
+        p_delivery_otp_ciphertext: deliveryOtp.ciphertext,
       });
 
       if (!rpcError && rpcResult && rpcResult.order_id) {
@@ -315,7 +319,7 @@ export class CheckoutService {
     }
 
     // Fallback: Safe coordinated transaction
-    return this.createOrderCoordinated(userId, cart.id, orderNumber, shippingAddress, params);
+    return this.createOrderCoordinated(userId, cart.id, orderNumber, shippingAddress, params, deliveryOtp);
   }
 
   /**
@@ -329,7 +333,8 @@ export class CheckoutService {
     params: {
       customerNotes?: string | null;
       idempotencyKey?: string;
-    }
+    },
+    deliveryOtp: DeliveryOtpBundle
   ): Promise<OrderResponse> {
     const client = getSupabaseAdminClient() || getSupabaseClient();
     if (!client) throw new InternalServerError('Database service is unavailable.');
@@ -462,6 +467,8 @@ export class CheckoutService {
         shipping_address_snapshot: shippingAddress,
         customer_notes: params.customerNotes || null,
         idempotency_key: params.idempotencyKey || null,
+        delivery_otp_hash: deliveryOtp.hash,
+        delivery_otp_ciphertext: deliveryOtp.ciphertext,
       })
       .select('id')
       .single();
@@ -579,6 +586,7 @@ export class CheckoutService {
       items: formattedItems,
       createdAt: order.created_at,
       updatedAt: order.updated_at,
+      deliveryOtp: order.delivery_otp_ciphertext ? decryptDeliveryOtp(order.delivery_otp_ciphertext) : null,
     };
   }
 }

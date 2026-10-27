@@ -160,7 +160,7 @@ describe('Delivery Tracking Validation & Domain Logic', () => {
     it('validates assignment status updates', () => {
       expect(updateAssignmentStatusSchema.safeParse({ status: 'out_for_delivery' }).success).toBe(true);
       expect(updateAssignmentStatusSchema.safeParse({ status: 'picked_up' }).success).toBe(true);
-      expect(updateAssignmentStatusSchema.safeParse({ status: 'delivered' }).success).toBe(true);
+      expect(updateAssignmentStatusSchema.safeParse({ status: 'delivered' }).success).toBe(false);
       expect(updateAssignmentStatusSchema.safeParse({ status: 'unknown_status' }).success).toBe(false);
     });
   });

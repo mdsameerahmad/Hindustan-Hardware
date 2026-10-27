@@ -197,6 +197,7 @@ export interface OrderResponse {
   invoiceUrl?: string | null
   invoiceFileName?: string | null
   invoiceUploadedAt?: string | null
+  deliveryOtp?: string | null
   items: OrderItemSnapshot[]
   createdAt: string
   updatedAt?: string

@@ -2,8 +2,8 @@ import { z } from 'zod';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load .env if present
-dotenv.config();
+// Resolve from the backend project root, regardless of the process working directory.
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -22,6 +22,7 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().url('SUPABASE_URL must be a valid URL').optional().or(z.literal('')),
   SUPABASE_ANON_KEY: z.string().min(1).optional().or(z.literal('')),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional().or(z.literal('')),
+  DELIVERY_OTP_ENCRYPTION_KEY: z.string().optional().or(z.literal('')),
   REQUEST_BODY_LIMIT: z.string().default('1mb'),
   // Live Delivery Tracking configuration
   TRACKING_FRESHNESS_THRESHOLD_SECONDS: z.string().default('120').transform((val) => parseInt(val, 10) || 120),

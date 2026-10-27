@@ -87,19 +87,11 @@ describe('Phase 8 — Complete Admin Panel Backend & Store Management', () => {
 
   const setupAuthMocks = (user = adminUser, profile = adminProfile) => {
     vi.spyOn(supabaseConfig, 'isSupabaseConfigured').mockReturnValue(true);
-    vi.spyOn(supabaseConfig, 'getSupabaseClient').mockReturnValue({
-      auth: {
-        getUser: vi.fn().mockImplementation((token: string) => {
-          if (token === 'admin-token') {
-            return Promise.resolve({ data: { user: adminUser }, error: null });
-          }
-          if (token === 'customer-token') {
-            return Promise.resolve({ data: { user: customerUser }, error: null });
-          }
-          return Promise.resolve({ data: { user: null }, error: new Error('Invalid token') });
-        }),
-      },
-    } as any);
+    vi.spyOn(supabaseConfig, 'verifyUserAccessToken').mockImplementation(async (token: string) => {
+      if (token === 'admin-token') return { data: { user: adminUser } as any, error: null } as any;
+      if (token === 'customer-token') return { data: { user: customerUser } as any, error: null } as any;
+      return { data: { user: null } as any, error: new Error('Invalid token') } as any;
+    });
 
     vi.spyOn(supabaseConfig, 'getSupabaseAdminClient').mockReturnValue({
       from: (table: string) => {
@@ -108,7 +100,7 @@ describe('Phase 8 — Complete Admin Panel Backend & Store Management', () => {
             select: () => ({
               eq: (field: string, val: any) => ({
                 single: vi.fn().mockResolvedValue({
-                  data: val === adminUser.id ? adminProfile : customerProfile,
+                  data: val === user.id ? profile : val === adminUser.id ? adminProfile : customerProfile,
                   error: null,
                 }),
               }),
@@ -401,7 +393,7 @@ describe('Phase 8 — Complete Admin Panel Backend & Store Management', () => {
         });
 
       expect(res.status).toBe(400);
-      expect(res.body.error.message).toContain('Invalid status transition');
+      expect(res.body.error.message).toContain('Customer delivery OTP verification is required');
     });
   });
 

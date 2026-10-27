@@ -151,6 +151,11 @@ DECLARE
   v_variant RECORD;
   v_inventory RECORD;
   v_effective_price NUMERIC(12, 2);
+  v_raw_price NUMERIC(12, 2);
+  v_discount_percentage NUMERIC(5, 2);
+  v_discount_match TEXT[];
+  v_variant_name TEXT;
+  v_variant_sku TEXT;
   v_line_total NUMERIC(12, 2);
   v_subtotal NUMERIC(12, 2) := 0.00;
   v_total_amount NUMERIC(12, 2) := 0.00;
@@ -192,16 +197,18 @@ BEGIN
     v_item_count := v_item_count + 1;
 
     -- Fetch Product
-    SELECT id, name, sku, base_price, is_active INTO v_product
-    FROM public.products
-    WHERE id = v_cart_item.product_id;
+    SELECT p.id, p.name, p.sku, p.base_price, p.is_active, p.specs, b.description AS brand_description
+    INTO v_product
+    FROM public.products p
+    LEFT JOIN public.brands b ON b.id = p.brand_id
+    WHERE p.id = v_cart_item.product_id;
 
     IF NOT FOUND OR NOT v_product.is_active THEN
       RAISE EXCEPTION 'Product % is invalid or no longer active.', v_cart_item.product_id;
     END IF;
 
     -- Fetch Variant if applicable
-    v_effective_price := v_product.base_price;
+    v_raw_price := v_product.base_price;
     IF v_cart_item.variant_id IS NOT NULL THEN
       SELECT id, name, sku, price_override, is_active INTO v_variant
       FROM public.product_variants
@@ -212,9 +219,21 @@ BEGIN
       END IF;
 
       IF v_variant.price_override IS NOT NULL THEN
-        v_effective_price := v_variant.price_override;
+        v_raw_price := v_variant.price_override;
       END IF;
     END IF;
+
+    v_discount_percentage := NULL;
+    IF COALESCE(v_product.specs->>'discount_percentage', v_product.specs->>'discountPercentage') ~ '^([0-9]+(\.[0-9]+)?)$' THEN
+      v_discount_percentage := (COALESCE(v_product.specs->>'discount_percentage', v_product.specs->>'discountPercentage'))::NUMERIC;
+    ELSE
+      v_discount_match := regexp_match(COALESCE(v_product.brand_description, ''), '\[DISCOUNT:([0-9]+(\.[0-9]+)?)%\]', 'i');
+      IF v_discount_match IS NOT NULL THEN
+        v_discount_percentage := v_discount_match[1]::NUMERIC;
+      END IF;
+    END IF;
+    v_discount_percentage := LEAST(GREATEST(COALESCE(v_discount_percentage, 0), 0), 100);
+    v_effective_price := ROUND(v_raw_price * (1 - v_discount_percentage / 100), 2);
 
     -- Lock and Check Inventory
     IF v_cart_item.variant_id IS NOT NULL THEN
@@ -304,20 +323,36 @@ BEGIN
     FROM public.cart_items ci
     WHERE ci.cart_id = p_cart_id
   LOOP
-    SELECT id, name, sku, base_price INTO v_product
-    FROM public.products
-    WHERE id = v_cart_item.product_id;
+    SELECT p.id, p.name, p.sku, p.base_price, p.specs, b.description AS brand_description
+    INTO v_product
+    FROM public.products p
+    LEFT JOIN public.brands b ON b.id = p.brand_id
+    WHERE p.id = v_cart_item.product_id;
 
-    v_effective_price := v_product.base_price;
+    v_raw_price := v_product.base_price;
+    v_variant_name := NULL;
+    v_variant_sku := NULL;
     IF v_cart_item.variant_id IS NOT NULL THEN
-      SELECT id, name, sku, price_override INTO v_variant
+      SELECT name, sku, price_override INTO v_variant_name, v_variant_sku, v_effective_price
       FROM public.product_variants
       WHERE id = v_cart_item.variant_id;
 
-      IF v_variant.price_override IS NOT NULL THEN
-        v_effective_price := v_variant.price_override;
+      IF v_effective_price IS NOT NULL THEN
+        v_raw_price := v_effective_price;
       END IF;
     END IF;
+
+    v_discount_percentage := NULL;
+    IF COALESCE(v_product.specs->>'discount_percentage', v_product.specs->>'discountPercentage') ~ '^([0-9]+(\.[0-9]+)?)$' THEN
+      v_discount_percentage := (COALESCE(v_product.specs->>'discount_percentage', v_product.specs->>'discountPercentage'))::NUMERIC;
+    ELSE
+      v_discount_match := regexp_match(COALESCE(v_product.brand_description, ''), '\[DISCOUNT:([0-9]+(\.[0-9]+)?)%\]', 'i');
+      IF v_discount_match IS NOT NULL THEN
+        v_discount_percentage := v_discount_match[1]::NUMERIC;
+      END IF;
+    END IF;
+    v_discount_percentage := LEAST(GREATEST(COALESCE(v_discount_percentage, 0), 0), 100);
+    v_effective_price := ROUND(v_raw_price * (1 - v_discount_percentage / 100), 2);
 
     v_line_total := ROUND(v_effective_price * v_cart_item.quantity, 2);
 
@@ -337,8 +372,8 @@ BEGIN
       v_cart_item.product_id,
       v_cart_item.variant_id,
       v_product.name,
-      COALESCE(v_variant.sku, v_product.sku),
-      v_variant.name,
+      COALESCE(v_variant_sku, v_product.sku),
+      v_variant_name,
       v_effective_price,
       v_cart_item.quantity,
       v_line_total

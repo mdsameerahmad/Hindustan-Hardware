@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import * as supabaseConfig from '../src/config/supabase';
+import { decryptDeliveryOtp } from '../src/services/deliveryOtpService';
 
 describe('Phase 6 — Checkout, Cash on Delivery & Order Creation', () => {
   const app = createApp();
@@ -19,13 +20,9 @@ describe('Phase 6 — Checkout, Cash on Delivery & Order Creation', () => {
 
   const setupAuthMocks = () => {
     vi.spyOn(supabaseConfig, 'isSupabaseConfigured').mockReturnValue(true);
-    vi.spyOn(supabaseConfig, 'getSupabaseClient').mockReturnValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: mockUser },
-          error: null,
-        }),
-      },
+    vi.spyOn(supabaseConfig, 'verifyUserAccessToken').mockResolvedValue({
+      data: { user: mockUser } as any,
+      error: null,
     } as any);
   };
 
@@ -343,6 +340,11 @@ describe('Phase 6 — Checkout, Cash on Delivery & Order Creation', () => {
         eq: vi.fn().mockResolvedValue({ error: null }),
       });
 
+      const mockCheckoutRpc = vi.fn().mockImplementation((_name: string, rpcParams: Record<string, string>) => {
+        createdOrder.delivery_otp_ciphertext = rpcParams.p_delivery_otp_ciphertext;
+        return Promise.resolve({ data: { success: true, order_id: 'order-uuid-1' }, error: null });
+      });
+
       vi.spyOn(supabaseConfig, 'getSupabaseAdminClient').mockReturnValue({
         from: (table: string) => {
           if (table === 'profiles') {
@@ -452,10 +454,7 @@ describe('Phase 6 — Checkout, Cash on Delivery & Order Creation', () => {
           }
           return {} as any;
         },
-        rpc: vi.fn().mockResolvedValue({
-          data: { success: true, order_id: 'order-uuid-1' },
-          error: null,
-        }),
+        rpc: mockCheckoutRpc,
       } as any);
 
       const res = await request(app)
@@ -482,6 +481,10 @@ describe('Phase 6 — Checkout, Cash on Delivery & Order Creation', () => {
       expect(res.body.data.status).toBe('pending');
       expect(res.body.data.totalAmount).toBe(1040);
       expect(res.body.data.items[0].unitPrice).toBe(520);
+      expect(res.body.data.deliveryOtp).toMatch(/^\d{6}$/);
+      const rpcParams = mockCheckoutRpc.mock.calls[0][1];
+      expect(rpcParams.p_delivery_otp_hash).toMatch(/^[a-f0-9]{64}$/);
+      expect(decryptDeliveryOtp(rpcParams.p_delivery_otp_ciphertext)).toBe(res.body.data.deliveryOtp);
     });
 
     it('rejects order placement when stock is insufficient and does not place order', async () => {

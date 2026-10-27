@@ -307,10 +307,10 @@ export function AdminOrderDetailPage() {
   }
 
   const allowedTransitions: Record<string, string[]> = {
-    pending: ["confirmed", "processing", "shipped", "delivered", "cancelled"],
-    confirmed: ["pending", "processing", "shipped", "delivered", "cancelled"],
-    processing: ["confirmed", "shipped", "delivered", "cancelled"],
-    shipped: ["processing", "delivered", "cancelled"],
+    pending: ["confirmed", "processing", "shipped", "cancelled"],
+    confirmed: ["pending", "processing", "shipped", "cancelled"],
+    processing: ["confirmed", "shipped", "cancelled"],
+    shipped: ["processing", "cancelled"],
     delivered: [],
     cancelled: [],
   }
@@ -983,7 +983,7 @@ export function AdminOrderDetailPage() {
           <section className="rounded-xl border border-border bg-white p-5 shadow-xs">
             <h3 className="font-black text-slate-900 text-sm">Update Order Milestone</h3>
             <p className="text-[11px] text-slate-500 mt-1 mb-3">
-              Advances order status; synced in real time to the customer tracking page.
+              Advances order status; the assigned delivery partner completes delivery after OTP verification.
             </p>
 
             <div className="space-y-1.5">
@@ -991,7 +991,6 @@ export function AdminOrderDetailPage() {
                 { status: "confirmed", label: "1. Confirm Order" },
                 { status: "processing", label: "2. Mark Preparing / Packing" },
                 { status: "shipped", label: "3. Dispatched / Out for Delivery" },
-                { status: "delivered", label: "4. Mark Delivered" },
               ].map((step) => {
                 const isCurrent = order.status === step.status
                 return (

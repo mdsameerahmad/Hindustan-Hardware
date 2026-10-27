@@ -241,6 +241,24 @@ export class ProductService {
     return this.parseProductRow(data);
   }
 
+  /** Get the stored product values for the admin editor without applying storefront discounts. */
+  static async getProductForAdmin(id: string): Promise<Record<string, unknown>> {
+    const client = getSupabaseAdminClient();
+    if (!client) throw new InternalServerError('Administrative database client is unavailable.');
+
+    const { data, error } = await client
+      .from('products')
+      .select(`*, brand:brands(id, name, slug, logo_url, description), category:categories(id, name, slug), variants:product_variants(*), inventory:inventory(*)`)
+      .eq('id', id)
+      .single();
+
+    if (error || !data) throw new NotFoundError('Product not found');
+    return {
+      ...data,
+      inventory: Array.isArray(data.inventory) && data.inventory.length > 0 ? data.inventory[0] : null,
+    };
+  }
+
   /**
    * Get single product by Slug (public).
    */

@@ -153,6 +153,15 @@ adminRouter.delete('/brands/:id', async (req: Request, res: Response, next: Next
 });
 
 // ----------------- Products Admin CRUD -----------------
+adminRouter.get('/products/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const product = await ProductService.getProductForAdmin(String(req.params.id));
+    return sendSuccess(res, product, 'Product loaded successfully');
+  } catch (err) {
+    next(err);
+  }
+});
+
 adminRouter.post('/products', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = createProductSchema.safeParse(req.body);

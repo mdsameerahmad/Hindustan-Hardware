@@ -1,7 +1,6 @@
 import { Loader2 } from "lucide-react"
 import React, { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router"
-import { catalogueApi } from "../api/catalogueApi"
 import { Button, PageHeader } from "../components"
 import { adminApi } from "../features/commerceApi"
 import { AdminImageManager } from "../features/components/AdminImageManager"
@@ -55,7 +54,7 @@ export function ProductFormPage() {
     if (!id) return
     let isMounted = true
     setLoadingProduct(true)
-    catalogueApi
+    adminApi
       .getProduct(id)
       .then((prod: any) => {
         if (!isMounted) return

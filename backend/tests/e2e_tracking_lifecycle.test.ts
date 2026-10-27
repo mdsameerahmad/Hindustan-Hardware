@@ -8,6 +8,7 @@ import { initSocketIO, closeSocketIO, broadcastDeliveryLocation } from '../src/c
 import { RoadRoutingService } from '../src/services/roadRoutingService';
 import { OsrmRoutingProvider } from '../src/services/osrmRoutingProvider';
 import * as supabaseConfig from '../src/config/supabase';
+import { hashDeliveryOtp } from '../src/services/deliveryOtpService';
 
 describe('Phase 5 — Full E2E Delivery Tracking Lifecycle & Security Audit', () => {
   let app: any;
@@ -867,7 +868,7 @@ describe('Phase 5 — Full E2E Delivery Tracking Lifecycle & Security Audit', ()
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
-      expect(res.body.error.message).toContain("Invalid status transition from 'assigned' to 'delivered'");
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
     });
   });
 
@@ -881,8 +882,31 @@ describe('Phase 5 — Full E2E Delivery Tracking Lifecycle & Security Audit', ()
 
       let currentStatus: any = 'assigned';
       let parentOrderStatus = 'processing';
+      const mockVerifyOtpRpc = vi.fn().mockImplementation((_functionName: string, args: any) => {
+        currentStatus = 'delivered';
+        parentOrderStatus = 'delivered';
+        return Promise.resolve({
+          data: {
+            success: true,
+            alreadyVerified: false,
+            assignmentId: mockDeliveryId,
+            orderId: mockOrderId,
+            deliveryPartnerId: mockPartnerId,
+            customerId: mockCustomerId,
+            status: 'delivered',
+            notes: null,
+            assignedAt: new Date().toISOString(),
+            pickedUpAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          error: null,
+        });
+      });
 
       const mockAdminClient = {
+        rpc: mockVerifyOtpRpc,
         from: vi.fn((table: string) => {
           if (table === 'profiles') {
             return {
@@ -977,15 +1001,29 @@ describe('Phase 5 — Full E2E Delivery Tracking Lifecycle & Security Audit', ()
       expect(outRes.status).toBe(200);
       expect(outRes.body.data.status).toBe('out_for_delivery');
 
-      // Step 3: Partner completes delivery -> delivered
-      const deliveredRes = await request(app)
+      // Direct status updates cannot bypass OTP verification.
+      const directDeliveredRes = await request(app)
         .patch(`/api/v1/deliveries/${mockDeliveryId}/status`)
         .set('Authorization', 'Bearer partner-token')
         .send({ status: 'delivered', notes: 'Handed over to customer' });
 
+      expect(directDeliveredRes.status).toBe(400);
+      expect(parentOrderStatus).toBe('shipped');
+
+      // Only the verification endpoint transitions the assignment and parent order to delivered.
+      const deliveredRes = await request(app)
+        .post(`/api/v1/deliveries/${mockDeliveryId}/verify-otp`)
+        .set('Authorization', 'Bearer partner-token')
+        .send({ otp: '123456' });
+
       expect(deliveredRes.status).toBe(200);
       expect(deliveredRes.body.data.status).toBe('delivered');
-      expect(deliveredRes.body.data.notes).toBe('Handed over to customer');
+      expect(parentOrderStatus).toBe('delivered');
+      expect(mockVerifyOtpRpc).toHaveBeenCalledWith('verify_delivery_otp', expect.objectContaining({
+        p_assignment_id: mockDeliveryId,
+        p_actor_id: mockPartnerId,
+        p_otp_hash: hashDeliveryOtp('123456'),
+      }));
     });
 
     it('denies former partner access after reassignment by admin', async () => {

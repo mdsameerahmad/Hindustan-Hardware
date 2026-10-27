@@ -8,6 +8,7 @@ import {
   locationHistoryQuerySchema,
   locationUpdateSchema,
   updateAssignmentStatusSchema,
+  verifyDeliveryOtpSchema,
 } from '../common/validation/trackingSchemas';
 import { DeliveryTrackingService } from '../services/deliveryTrackingService';
 import { RoadRoutingService } from '../services/roadRoutingService';
@@ -86,6 +87,36 @@ deliveryRouter.patch(
       });
 
       return sendSuccess(res, updated, 'Delivery assignment status updated successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/deliveries/:deliveryId/verify-otp
+ * Verify the customer's delivery code and atomically complete the assignment and order.
+ */
+deliveryRouter.post(
+  '/:deliveryId/verify-otp',
+  authenticate,
+  requireRole('delivery_partner'),
+  trackingRateLimiter,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const paramParsed = deliveryIdParamSchema.safeParse(req.params);
+      if (!paramParsed.success) return next(paramParsed.error);
+
+      const bodyParsed = verifyDeliveryOtpSchema.safeParse(req.body);
+      if (!bodyParsed.success) return next(bodyParsed.error);
+
+      const updated = await DeliveryTrackingService.verifyDeliveryOtp({
+        assignmentId: paramParsed.data.deliveryId,
+        actorId: req.user!.id,
+        otp: bodyParsed.data.otp,
+      });
+
+      return sendSuccess(res, updated, 'Delivery OTP verified; order marked delivered successfully');
     } catch (err) {
       next(err);
     }

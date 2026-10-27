@@ -444,6 +444,13 @@ export const adminApi = {
   },
 
   // ----------------- Products Admin API -----------------
+  getProduct: async (id: string) => {
+    return apiRequest<any>(`/admin/products/${id}`, {
+      method: "GET",
+      requiresAuth: true,
+    })
+  },
+
   createProduct: async (payload: import("./commerceTypes").CreateProductPayload) => {
     return apiRequest<any>("/admin/products", {
       method: "POST",

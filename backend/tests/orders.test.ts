@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import * as supabaseConfig from '../src/config/supabase';
+import { createDeliveryOtp } from '../src/services/deliveryOtpService';
 
 describe('Phase 7 — Customer Order Management, Order History & Status Tracking', () => {
   const app = createApp();
@@ -49,6 +50,7 @@ describe('Phase 7 — Customer Order Management, Order History & Status Tracking
       postalCode: '800001',
     },
     customer_notes: 'Please call before delivery',
+    delivery_otp_ciphertext: createDeliveryOtp().ciphertext,
     created_at: '2026-10-19T10:00:00.000Z',
     updated_at: '2026-10-19T10:00:00.000Z',
     order_items: [
@@ -133,19 +135,11 @@ describe('Phase 7 — Customer Order Management, Order History & Status Tracking
 
   const setupAuthMocks = (user = customerUser, profile = mockCustomerProfile) => {
     vi.spyOn(supabaseConfig, 'isSupabaseConfigured').mockReturnValue(true);
-    vi.spyOn(supabaseConfig, 'getSupabaseClient').mockReturnValue({
-      auth: {
-        getUser: vi.fn().mockImplementation((token: string) => {
-          if (token === 'valid-customer-token') {
-            return Promise.resolve({ data: { user }, error: null });
-          }
-          if (token === 'other-customer-token') {
-            return Promise.resolve({ data: { user: otherCustomerUser }, error: null });
-          }
-          return Promise.resolve({ data: { user: null }, error: new Error('Invalid token') });
-        }),
-      },
-    } as any);
+    vi.spyOn(supabaseConfig, 'verifyUserAccessToken').mockImplementation(async (token: string) => {
+      if (token === 'valid-customer-token') return { data: { user } as any, error: null } as any;
+      if (token === 'other-customer-token') return { data: { user: otherCustomerUser } as any, error: null } as any;
+      return { data: { user: null } as any, error: new Error('Invalid token') } as any;
+    });
 
     vi.spyOn(supabaseConfig, 'getSupabaseAdminClient').mockReturnValue({
       from: (table: string) => {
@@ -355,6 +349,7 @@ describe('Phase 7 — Customer Order Management, Order History & Status Tracking
       expect(res.body.data.items[0].unitPrice).toBe(500.0);
       expect(res.body.data.statusHistory.length).toBe(1);
       expect(res.body.data.statusHistory[0].newStatus).toBe('pending');
+      expect(res.body.data.deliveryOtp).toMatch(/^\d{6}$/);
     });
 
     it('returns safe 404 Not Found when order belongs to another customer or does not exist', async () => {

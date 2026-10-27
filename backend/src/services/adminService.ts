@@ -26,10 +26,10 @@ export class AdminService {
    * Allowed state transitions for store administrators
    */
   public static readonly ALLOWED_ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-    pending: ['confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
-    confirmed: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
-    processing: ['confirmed', 'shipped', 'delivered', 'cancelled'],
-    shipped: ['processing', 'delivered', 'cancelled'],
+    pending: ['confirmed', 'processing', 'shipped', 'cancelled'],
+    confirmed: ['pending', 'processing', 'shipped', 'cancelled'],
+    processing: ['confirmed', 'shipped', 'cancelled'],
+    shipped: ['processing', 'cancelled'],
     delivered: [], // Final terminal state
     cancelled: [], // Final terminal state
   };
@@ -476,6 +476,10 @@ export class AdminService {
     adminId: string,
     reason?: string
   ): Promise<OrderDetailsResponse> {
+    if (newStatus === 'delivered') {
+      throw new BadRequestError('Customer delivery OTP verification is required to mark an order delivered.');
+    }
+
     const client = getSupabaseAdminClient() || getSupabaseClient();
     if (!client) throw new InternalServerError('Database service is unavailable.');
 

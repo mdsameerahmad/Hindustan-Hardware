@@ -200,7 +200,10 @@ export function Deliveries() {
       if (currentStatus === "pending") nextStatus = "confirmed"
       else if (currentStatus === "confirmed") nextStatus = "processing"
       else if (currentStatus === "processing") nextStatus = "shipped"
-      else if (currentStatus === "shipped") nextStatus = "delivered"
+      else if (currentStatus === "shipped") {
+        setActionMsg("The assigned delivery partner must verify the customer OTP to complete this order.")
+        return
+      }
 
       await adminApi.updateOrderStatus(orderId, nextStatus, "Dispatched via Delivery Management console")
       setActionMsg(`Order ${orderId} progressed to ${nextStatus}`)
@@ -216,7 +219,7 @@ export function Deliveries() {
     <>
       <PageHeader
         title="Delivery management"
-        description="Fulfillment assignment, warehouse dispatching, and live order status progression."
+        description="Fulfillment assignment and dispatch; delivery partners complete handover after customer OTP verification."
         action={
           <Button variant="ghost" onClick={refetch} title="Refresh deliveries">
             <RefreshCcw size={15} />
@@ -256,7 +259,7 @@ export function Deliveries() {
             if (statusKey === "pending") buttonLabel = "Confirm Order"
             else if (statusKey === "confirmed") buttonLabel = "Start Processing"
             else if (statusKey === "processing") buttonLabel = "Dispatch / Ship"
-            else if (statusKey === "shipped") buttonLabel = "Confirm Delivery"
+            else if (statusKey === "shipped") buttonLabel = "Awaiting OTP verification"
 
             return (
               <div key={order.id} className="rounded-xl border border-border bg-white p-5 shadow-xs">
@@ -285,7 +288,7 @@ export function Deliveries() {
                 <div className="mt-4 flex gap-2">
                   <Button
                     variant="outline"
-                    disabled={updatingId === order.id}
+                    disabled={updatingId === order.id || statusKey === "shipped"}
                     onClick={() => handleDispatch(order.id, statusKey)}
                   >
                     {updatingId === order.id ? (

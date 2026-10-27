@@ -102,15 +102,19 @@ export const createDeliveryAssignmentSchema = z.object({
 
 export const updateAssignmentStatusSchema = z.object({
   status: z.enum(
-    ['assigned', 'picked_up', 'out_for_delivery', 'delivered', 'failed', 'cancelled'],
+    ['assigned', 'picked_up', 'out_for_delivery', 'failed', 'cancelled'],
     {
       errorMap: () => ({
         message:
-          "Status must be one of: 'assigned', 'picked_up', 'out_for_delivery', 'delivered', 'failed', 'cancelled'.",
+          "Status must be one of: 'assigned', 'picked_up', 'out_for_delivery', 'failed', 'cancelled'. Delivery completion requires OTP verification.",
       }),
     }
   ),
   notes: z.string().max(500).nullable().optional(),
+});
+
+export const verifyDeliveryOtpSchema = z.object({
+  otp: z.string().regex(/^\d{6}$/, 'Delivery OTP must be exactly 6 digits.'),
 });
 
 export const assignedDeliveriesQuerySchema = z.object({

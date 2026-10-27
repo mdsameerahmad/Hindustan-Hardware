@@ -3,6 +3,7 @@ import { useState } from "react"
 import { Link, useNavigate, useParams } from "react-router"
 import { useAuth } from "../authContext"
 import { Badge, Button, EmptyState, PageHeader, formatPrice } from "../components"
+import { DeliveryOtpCard } from "../components/DeliveryOtpCard"
 import { useOrderDetails } from "../features/hooks/useOrderDetails"
 
 export function OrderDetailPage() {
@@ -215,6 +216,7 @@ export function OrderDetailPage() {
 
         {/* Sidebar Summary */}
         <aside className="space-y-4">
+          <DeliveryOtpCard otp={order.deliveryOtp} />
           <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
             <h3 className="font-black text-base">Order status</h3>
             <div className="mt-2">

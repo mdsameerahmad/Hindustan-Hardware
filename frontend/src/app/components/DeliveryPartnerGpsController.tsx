@@ -9,7 +9,6 @@ import {
   Square
 } from "lucide-react"
 import React, { useState } from "react"
-import { Badge, Button } from "../components"
 import { deliveryTrackingApi } from "../features/deliveryTrackingApi"
 import { useDeviceGps } from "../features/useDeviceGps"
 
@@ -49,6 +48,7 @@ export const DeliveryPartnerGpsController: React.FC<DeliveryPartnerGpsController
   const [currentStatus, setCurrentStatus] = useState<string>(initialStatus)
   const [statusUpdating, setStatusUpdating] = useState<boolean>(false)
   const [statusError, setStatusError] = useState<string | null>(null)
+  const [deliveryOtp, setDeliveryOtp] = useState("")
   const [rideEnded, setRideEnded] = useState<boolean>(false)
 
   const isTerminal = (currentStatus === "delivered" && rideEnded) || ["failed", "cancelled"].includes(currentStatus)
@@ -96,7 +96,7 @@ export const DeliveryPartnerGpsController: React.FC<DeliveryPartnerGpsController
   }, [currentPosition, onLocationChange])
 
   const handleStatusTransition = async (
-    newStatus: "assigned" | "picked_up" | "out_for_delivery" | "delivered" | "failed" | "cancelled",
+    newStatus: "assigned" | "picked_up" | "out_for_delivery" | "failed" | "cancelled",
   ) => {
     setStatusUpdating(true)
     setStatusError(null)
@@ -164,6 +164,29 @@ export const DeliveryPartnerGpsController: React.FC<DeliveryPartnerGpsController
       if (onLocationChange) {
         onLocationChange(coords)
       }
+    } finally {
+      setStatusUpdating(false)
+    }
+  }
+
+  const handleVerifyDeliveryOtp = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!/^\d{6}$/.test(deliveryOtp)) {
+      setStatusError("Enter the customer's 6-digit delivery OTP.")
+      return
+    }
+
+    setStatusUpdating(true)
+    setStatusError(null)
+    try {
+      await deliveryTrackingApi.verifyDeliveryOtp(deliveryId, deliveryOtp)
+      setDeliveryOtp("")
+      setCurrentStatus("delivered")
+      setRideEnded(true)
+      stopTracking()
+      onStatusChange?.("delivered")
+    } catch (err: any) {
+      setStatusError(err?.message || "Delivery OTP verification failed.")
     } finally {
       setStatusUpdating(false)
     }
@@ -248,17 +271,38 @@ export const DeliveryPartnerGpsController: React.FC<DeliveryPartnerGpsController
             </button>
           )}
 
-          {/* 5. Order Delivered Button */}
-          {(currentStatus === "out_for_delivery" || currentStatus === "picked_up") && (
-            <button
-              type="button"
-              disabled={statusUpdating}
-              onClick={() => handleStatusTransition("delivered")}
-              className="btn-cart-gradient flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-xs font-black transition shadow-md disabled:opacity-50"
-            >
-              <CheckCircle2 size={16} className="text-[#D4AF37]" />
-              <span>{statusUpdating ? "Marking Delivered..." : "Order Delivered"}</span>
-            </button>
+          {currentStatus === "out_for_delivery" && (
+            <form onSubmit={handleVerifyDeliveryOtp} className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3">
+              <label htmlFor="delivery-otp" className="block text-xs font-bold text-amber-950">
+                Enter customer&apos;s 6-digit OTP to complete delivery
+              </label>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                <input
+                  id="delivery-otp"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  value={deliveryOtp}
+                  onChange={(event) => setDeliveryOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                  disabled={statusUpdating}
+                  className="min-w-0 flex-1 rounded-lg border border-amber-300 bg-white px-3 py-2 font-mono text-lg tracking-[0.35em] text-slate-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200 disabled:opacity-60"
+                  aria-describedby="delivery-otp-help"
+                />
+                <button
+                  type="submit"
+                  disabled={statusUpdating || deliveryOtp.length !== 6}
+                  className="btn-cart-gradient inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-xs font-black shadow-xs disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <CheckCircle2 size={16} className="text-[#D4AF37]" />
+                  {statusUpdating ? "Verifying..." : "Verify & Mark Delivered"}
+                </button>
+              </div>
+              <p id="delivery-otp-help" className="mt-1.5 text-[11px] text-amber-800">
+                The order status changes only after the code is verified.
+              </p>
+            </form>
           )}
 
           {/* End Ride / Conclude when marked Delivered */}
