@@ -4,18 +4,22 @@ import { InternalServerError } from '../common/errors';
 
 const OTP_AAD = Buffer.from('hindustan-hardware:delivery-otp:v1');
 
+const DEV_FALLBACK_OTP_KEY = Buffer.from('S3k89WbFvQ2mPZ5xLrN4yUtA8cDhJe1gMo7qXi9vBtU=', 'base64');
+
 function getOtpKey(): Buffer {
   const configuredKey = env.DELIVERY_OTP_ENCRYPTION_KEY?.trim();
-  if (!configuredKey && env.NODE_ENV === 'test') {
-    return Buffer.alloc(32, 0x5a);
-  }
-
   if (!configuredKey) {
+    if (env.NODE_ENV === 'test' || env.NODE_ENV === 'development') {
+      return DEV_FALLBACK_OTP_KEY;
+    }
     throw new InternalServerError('Delivery OTP encryption key is not configured.');
   }
 
   const key = Buffer.from(configuredKey, 'base64');
   if (key.length !== 32) {
+    if (env.NODE_ENV === 'development') {
+      return DEV_FALLBACK_OTP_KEY;
+    }
     throw new InternalServerError('Delivery OTP encryption key must be a base64-encoded 32-byte key.');
   }
   return key;

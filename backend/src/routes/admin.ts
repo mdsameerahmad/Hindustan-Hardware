@@ -129,6 +129,23 @@ adminRouter.post('/brands', async (req: Request, res: Response, next: NextFuncti
   }
 });
 
+adminRouter.post(
+  '/brands/:id/logo',
+  uploadImageMiddleware,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = String(req.params.id);
+      if (!req.file) {
+        throw new BadRequestError('Logo image file is required in the "image" form field.');
+      }
+      const updated = await BrandService.uploadBrandLogo(id, req.file.buffer);
+      return sendSuccess(res, updated, 'Brand logo uploaded successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 adminRouter.patch('/brands/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = String(req.params.id);

@@ -187,7 +187,29 @@ export class ComparisonService {
 
     const targetItem = this.formatComparisonItem(targetData);
 
-    // 2. Query alternative active products (different brand, same category or comparison group)
+    // Extract size pattern helper (e.g. 1.25", 1-1/4", 25mm, 32mm, 1", 0.75", 1/2", 3/4", etc.)
+    const extractSize = (nameOrSpec?: string | null): string => {
+      if (!nameOrSpec) return '';
+      // Match patterns like 1.25", 1 1/4", 1/2", 25mm, 1", 32mm, etc.
+      const match = nameOrSpec.match(/\b(\d+(?:\.\d+)?(?:\s*-\s*\d+\/\d+|\s*\/\s*\d+)?\s*(?:\"|inch|in|mm)?)\b/i);
+      return match ? match[1].toLowerCase().replace(/\s+/g, '') : '';
+    };
+
+    const targetSize = targetItem.diameter || targetItem.specs?.size || targetItem.specs?.diameter || extractSize(targetItem.name);
+
+    // Extract product core keywords to avoid unrelated products (e.g. "valve", "ball valve", "tee", "elbow", "pipe")
+    const cleanKeywords = (name: string): string[] => {
+      const stopWords = new Set(['and', 'with', 'for', 'the', 'zoloto', 'astral', 'supreme', 'prince', 'finolex', 'ashirvad', 'watertec', 'full', 'piece', 'in', 'mm']);
+      return name
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length > 2 && !stopWords.has(w));
+    };
+
+    const targetKeywords = cleanKeywords(targetItem.name);
+
+    // 2. Query candidates from same category or comparison group
     let query = supabase
       .from('products')
       .select(
@@ -203,7 +225,11 @@ export class ComparisonService {
       .eq('is_active', true)
       .neq('id', productId);
 
-    // If target has a comparison_group_id, query candidates in that group OR same category
+    // Filter out same brand to strictly provide cross-brand alternatives
+    if (targetData.brand_id) {
+      query = query.neq('brand_id', targetData.brand_id);
+    }
+
     if (targetData.comparison_group_id) {
       query = query.or(`comparison_group_id.eq.${targetData.comparison_group_id},category_id.eq.${targetData.category_id}`);
     } else {
@@ -223,8 +249,8 @@ export class ComparisonService {
       query = query.lte('base_price', filters.maxPrice);
     }
 
-    const limit = filters?.limit ?? 6;
-    query = query.limit(limit);
+    // Fetch a wider candidate pool to allow accurate size & product relevance ranking
+    query = query.limit(40);
 
     const { data: candidates, error: candidateError } = await query;
     if (candidateError) {
@@ -240,7 +266,7 @@ export class ComparisonService {
       'intendedApplication',
     ];
 
-    const results: ProductAlternativeItem[] = (candidates || []).map((candidateRow) => {
+    const scoredResults = (candidates || []).map((candidateRow) => {
       const candidateItem = this.formatComparisonItem(candidateRow);
       const matchingAttributes: string[] = [];
       const differingAttributes: string[] = [];
@@ -255,14 +281,62 @@ export class ComparisonService {
         }
       }
 
+      // Check size match between target and candidate
+      const candidateSize = candidateItem.diameter || candidateItem.specs?.size || candidateItem.specs?.diameter || extractSize(candidateItem.name);
+      const sizeMatched = Boolean(
+        targetSize &&
+        candidateSize &&
+        (targetSize === candidateSize ||
+         candidateItem.name.toLowerCase().includes(targetSize) ||
+         targetItem.name.toLowerCase().includes(candidateSize))
+      );
+
+      if (sizeMatched && !matchingAttributes.includes('diameter')) {
+        matchingAttributes.push('size / diameter');
+      }
+
+      // Score relevance
+      let relevanceScore = 0;
+
+      // Same comparison group
+      if (candidateItem.comparisonGroupId && candidateItem.comparisonGroupId === targetItem.comparisonGroupId) {
+        relevanceScore += 50;
+      }
+
+      // Exact same size match gives huge priority
+      if (sizeMatched) {
+        relevanceScore += 40;
+      }
+
+      // Same material
+      if (candidateItem.material && targetItem.material && candidateItem.material.toLowerCase() === targetItem.material.toLowerCase()) {
+        relevanceScore += 15;
+      }
+
+      // Matching product type keywords in name (e.g. "valve", "elbow", "tee")
+      const candidateNameLower = candidateItem.name.toLowerCase();
+      for (const kw of targetKeywords) {
+        if (candidateNameLower.includes(kw)) {
+          relevanceScore += 10;
+        }
+      }
+
       return {
-        product: candidateItem,
-        matchingAttributes,
-        differingAttributes,
-        priceDifference: candidateItem.basePrice - targetItem.basePrice,
+        item: {
+          product: candidateItem,
+          matchingAttributes,
+          differingAttributes,
+          priceDifference: candidateItem.basePrice - targetItem.basePrice,
+        },
+        relevanceScore,
+        sizeMatched,
       };
     });
 
-    return results;
+    // Sort by highest relevance score first (size match + product type match)
+    scoredResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+    const limit = filters?.limit ?? 6;
+    return scoredResults.slice(0, limit).map((s) => s.item);
   }
 }

@@ -1,6 +1,7 @@
 import { getSupabaseClient, getSupabaseAdminClient } from '../config/supabase';
 import { InternalServerError, NotFoundError, ConflictError, BadRequestError } from '../common/errors';
 import { Product, PaginatedResult, ProductVariant, Inventory } from '../types';
+import { ImageService } from './imageService';
 
 export interface ProductQueryOptions {
   page: number;
@@ -55,11 +56,34 @@ export class ProductService {
       basePrice = Math.round(originalPrice * (1 - effectiveDiscount / 100) * 100) / 100;
     }
 
+    // Resolve genuine product image uploaded by admin
+    let resolvedImage: string | null = null;
+    let resolvedImages: string[] = [];
+
+    if (Array.isArray(row.product_images) && row.product_images.length > 0) {
+      // Sort: primary first, then display_order
+      const sorted = [...row.product_images].sort((a: any, b: any) => {
+        if (a.is_primary && !b.is_primary) return -1;
+        if (!a.is_primary && b.is_primary) return 1;
+        return (a.display_order ?? 0) - (b.display_order ?? 0);
+      });
+      resolvedImages = sorted.map((img: any) => ImageService.getPublicUrl(img.storage_path));
+      resolvedImage = resolvedImages[0] || null;
+    } else if (row.image_url) {
+      resolvedImage = row.image_url;
+      resolvedImages = [row.image_url];
+    } else if (row.specs?.image_url || row.specs?.imageUrl) {
+      resolvedImage = (row.specs?.image_url || row.specs?.imageUrl) as string;
+      resolvedImages = [resolvedImage];
+    }
+
     return {
       ...row,
       base_price: basePrice,
       compare_at_price: compareAtPrice,
       discount_percentage: effectiveDiscount,
+      image_url: resolvedImage,
+      product_images: resolvedImages,
       brand: row.brand
         ? {
             ...row.brand,
@@ -99,7 +123,8 @@ export class ProductService {
         brand:brands(id, name, slug, logo_url, description),
         category:categories(id, name, slug),
         variants:product_variants(*),
-        inventory:inventory(*)
+        inventory:inventory(*),
+        product_images:product_images(*)
       `,
         { count: 'exact' }
       )
@@ -228,7 +253,8 @@ export class ProductService {
         brand:brands(id, name, slug, logo_url, description),
         category:categories(id, name, slug),
         variants:product_variants(*),
-        inventory:inventory(*)
+        inventory:inventory(*),
+        product_images:product_images(*)
       `
       )
       .eq('id', id);
@@ -248,7 +274,7 @@ export class ProductService {
 
     const { data, error } = await client
       .from('products')
-      .select(`*, brand:brands(id, name, slug, logo_url, description), category:categories(id, name, slug), variants:product_variants(*), inventory:inventory(*)`)
+      .select(`*, brand:brands(id, name, slug, logo_url, description), category:categories(id, name, slug), variants:product_variants(*), inventory:inventory(*), product_images:product_images(*)`)
       .eq('id', id)
       .single();
 
@@ -274,7 +300,8 @@ export class ProductService {
         brand:brands(id, name, slug, logo_url, description),
         category:categories(id, name, slug),
         variants:product_variants(*),
-        inventory:inventory(*)
+        inventory:inventory(*),
+        product_images:product_images(*)
       `
       )
       .eq('slug', slug);

@@ -1,6 +1,10 @@
 import { getSupabaseClient, getSupabaseAdminClient } from '../config/supabase';
 import { InternalServerError, NotFoundError, ConflictError, BadRequestError } from '../common/errors';
 import { Brand } from '../types';
+import { v4 as uuidv4 } from 'uuid';
+import { PRODUCT_STORAGE_BUCKET, ImageService } from './imageService';
+import { validateImageMagicBytes } from '../common/middleware/imageUpload';
+import { logger } from '../common/utils/logger';
 
 export class BrandService {
   /**
@@ -21,8 +25,13 @@ export class BrandService {
 
     return {
       ...row,
+      logoUrl: row.logo_url || row.logoUrl || null,
+      logo_url: row.logo_url || row.logoUrl || null,
       description: cleanDescription,
       discount_percentage,
+      discountPercentage: discount_percentage,
+      displayOrder: row.display_order ?? row.displayOrder ?? 0,
+      isActive: row.is_active ?? row.isActive ?? true,
     };
   }
 
@@ -221,4 +230,57 @@ export class BrandService {
     const { error } = await adminClient.from('brands').delete().eq('id', id);
     if (error) throw new InternalServerError(`Failed to delete brand: ${error.message}`);
   }
+
+  /**
+   * Upload brand logo to Supabase Storage and link URL to brand record.
+   */
+  static async uploadBrandLogo(brandId: string, fileBuffer: Buffer): Promise<Brand> {
+    const adminClient = getSupabaseAdminClient();
+    if (!adminClient) throw new InternalServerError('Administrative database client is unavailable.');
+
+    // 1. Verify brand exists
+    const brand = await this.getBrandById(brandId, false);
+    if (!brand) throw new NotFoundError('Brand not found.');
+
+    // 2. Validate magic bytes
+    const magic = validateImageMagicBytes(fileBuffer);
+    if (!magic.isValid) {
+      throw new BadRequestError('File content is corrupted or not a valid image format.');
+    }
+
+    // 3. Upload to storage bucket
+    const fileId = uuidv4();
+    const storagePath = `brands/${brandId}/logo-${fileId}.${magic.extension}`;
+
+    const { error: uploadError } = await adminClient.storage
+      .from(PRODUCT_STORAGE_BUCKET)
+      .upload(storagePath, fileBuffer, {
+        contentType: magic.mimeType,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      logger.error('Failed to upload brand logo to storage', { error: uploadError.message, storagePath });
+      throw new InternalServerError(`Failed to upload brand logo: ${uploadError.message}`);
+    }
+
+    const publicUrl = ImageService.getPublicUrl(storagePath);
+
+    // 4. Update brand record
+    const { data, error: updateError } = await adminClient
+      .from('brands')
+      .update({ logo_url: publicUrl })
+      .eq('id', brandId)
+      .select('*')
+      .single();
+
+    if (updateError || !data) {
+      logger.warn('Failed to update brand record with logo URL, rolling back storage object', { storagePath });
+      await adminClient.storage.from(PRODUCT_STORAGE_BUCKET).remove([storagePath]).catch(() => {});
+      throw new InternalServerError(`Failed to save brand logo: ${updateError?.message}`);
+    }
+
+    return this.parseBrandRow(data);
+  }
 }
+

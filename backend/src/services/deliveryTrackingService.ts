@@ -385,7 +385,7 @@ export class DeliveryTrackingService {
         .from('orders')
         .update({ status: 'shipped', updated_at: now })
         .eq('id', assignment.order_id)
-        .eq('status', 'processing');
+        .in('status', ['confirmed', 'processing']);
     }
 
     const resultRecord: DeliveryAssignmentRecord = {
