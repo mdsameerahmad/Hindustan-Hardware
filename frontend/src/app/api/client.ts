@@ -51,12 +51,12 @@ export class ApiError extends Error {
   }
 }
 
-const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000
+const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000
 
 interface StoredAuthSession {
   accessToken: string
   refreshToken?: string | null
-  expiresAt: number // Timestamp when the 1-month session window expires
+  expiresAt: number // Timestamp when the 10-day session window expires
 }
 
 let cachedSession: StoredAuthSession | null = null
@@ -120,7 +120,7 @@ export const tokenStorage = {
     const session: StoredAuthSession = {
       accessToken,
       refreshToken: refreshToken || tokenStorage.getRefreshToken(),
-      expiresAt: Date.now() + ONE_MONTH_MS, // Token automatically deleted after 1 month
+      expiresAt: Date.now() + TEN_DAYS_MS, // Token automatically deleted after 10 days
     }
     cachedSession = session
 
@@ -196,7 +196,7 @@ export async function apiRequest<T = any>(
     )
   }
 
-  // Handle 401: Attempt silent token refresh via refreshToken if within 1-month window
+  // Handle 401: Attempt silent token refresh via refreshToken if within 10-day window
   if (response.status === 401 && !_isRetry && !cleanEndpoint.includes("/auth/")) {
     const refreshToken = tokenStorage.getRefreshToken()
     if (refreshToken) {

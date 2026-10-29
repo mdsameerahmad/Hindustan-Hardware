@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
       }
     } catch (err: any) {
-      // Only clear if confirmed 401 Unauthorized (invalid/expired beyond 1-month refresh window)
+      // Only clear if confirmed 401 Unauthorized (invalid/expired beyond 10-day refresh window)
       if (err?.statusCode === 401 || err?.status === 401) {
         tokenStorage.clear()
         saveUser(null)

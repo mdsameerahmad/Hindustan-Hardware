@@ -2,7 +2,19 @@ import {
   ArrowRight,
   GitCompareArrows,
   Search,
-  Trash2
+  Trash2,
+  Sparkles,
+  ShieldCheck,
+  Tag,
+  Loader2,
+  ExternalLink,
+  CheckCircle2,
+  Pipette,
+  Wrench,
+  Zap,
+  Bath,
+  LayoutGrid,
+  ChevronRight,
 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { Link, useParams } from "react-router"
@@ -27,55 +39,103 @@ export function BrandMark({
   brand: Brand
   compact?: boolean
 }) {
+  const [imageError, setImageError] = useState(false)
   const initials = brand.name
     .split(" ")
     .map((word) => word[0])
     .slice(0, 2)
     .join("")
-  return brand.logo ? (
-    <img
-      src={brand.logo}
-      alt={`${brand.name} logo`}
-      className={
-        compact ? "h-9 max-w-28 object-contain" : "h-12 max-w-36 object-contain"
-      }
-    />
-  ) : (
-    <div className="flex items-center gap-3">
-      <span
-        className={`grid shrink-0 place-items-center rounded-lg bg-[#0B0B0B] border border-[#D4AF37]/50 font-black text-[#D4AF37] ${
-          compact ? "h-9 w-9 text-xs" : "h-12 w-12"
+    .toUpperCase()
+
+  const hasLogo = Boolean(brand.logo && !imageError)
+
+  return (
+    <div className="flex items-center gap-3.5">
+      <div
+        className={`relative grid place-items-center rounded-xl bg-white border border-slate-200 shadow-2xs overflow-hidden shrink-0 ${
+          compact ? "h-10 w-10 p-1" : "h-14 w-14 p-1.5"
         }`}
       >
-        {initials}
-      </span>
-      <b className={compact ? "text-sm text-[#0B0B0B]" : "text-base text-[#0B0B0B]"}>{brand.name}</b>
+        {hasLogo ? (
+          <img
+            src={brand.logo}
+            alt={`${brand.name} logo`}
+            onError={() => setImageError(true)}
+            className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="grid h-full w-full place-items-center rounded-lg bg-gradient-to-tr from-[#0B0B0B] via-[#1A1A1A] to-[#2B2414] text-[#D4AF37] font-black tracking-wider text-xs border border-[#D4AF37]/30">
+            {initials}
+          </div>
+        )}
+      </div>
+      <div className="min-w-0">
+        <h4 className={`font-black tracking-tight text-slate-900 truncate ${compact ? "text-sm" : "text-base"}`}>
+          {brand.name}
+        </h4>
+        {brand.discountPercentage ? (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+            {brand.discountPercentage}% OFF
+          </span>
+        ) : null}
+      </div>
     </div>
   )
 }
 
 export function BrandStrip({ className = "" }: { className?: string }) {
   const { brands } = useStore()
+  const scrollRef = useState<HTMLDivElement | null>(null)
+
+  const activeBrands = useMemo(
+    () =>
+      brands
+        .filter((brand) => brand.active)
+        .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)),
+    [brands]
+  )
+
+  const scrollLeft = () => {
+    const el = document.getElementById("brand-slider-container")
+    if (el) el.scrollBy({ left: -320, behavior: "smooth" })
+  }
+
+  const scrollRight = () => {
+    const el = document.getElementById("brand-slider-container")
+    if (el) el.scrollBy({ left: 320, behavior: "smooth" })
+  }
+
   return (
     <section className={`container-wide ${className}`}>
-      <SectionHeading
-        eyebrow="Manufacturer catalog"
-        title="Shop by Brand"
-        action={
-          <Link className="link-arrow" to="/brands">
-            View All Brands <ArrowRight size={16} />
-          </Link>
-        }
-      />
-      <p className="-mt-4 mb-6 text-sm text-slate-500">
-        Explore trusted plumbing brands and find the right product for your
-        project.
-      </p>
-      <div className="brand-strip">
-        {brands
-          .filter((brand) => brand.active)
-          .sort((a, b) => a.displayOrder - b.displayOrder)
-          .map((brand) => {
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5">
+        <div>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-[#0B0B0B]">
+              Shop by Brand
+            </h2>
+            <span className="hidden sm:inline-block text-xs text-slate-500 font-normal">
+              Explore trusted plumbing brands and find the right product for your project.
+            </span>
+          </div>
+          <p className="sm:hidden text-xs text-slate-500 mt-1">
+            Explore trusted plumbing brands and find the right product for your project.
+          </p>
+        </div>
+        <Link
+          to="/brands"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D4AF37] hover:text-[#B89124] transition-colors shrink-0"
+        >
+          View All Brands <ArrowRight size={14} />
+        </Link>
+      </div>
+
+      <div className="relative group/strip">
+        {/* Scroll Container */}
+        <div
+          id="brand-slider-container"
+          className="flex items-center gap-3.5 overflow-x-auto scrollbar-none py-2 px-1 scroll-smooth"
+        >
+          {activeBrands.map((brand) => {
             const initials = brand.name
               .split(" ")
               .map((word) => word[0])
@@ -87,27 +147,49 @@ export function BrandStrip({ className = "" }: { className?: string }) {
               <Link
                 key={brand.id}
                 to={`/brands/${brand.slug}`}
-                className="brand-circle-item group"
+                className="group flex flex-col items-center justify-between w-32 sm:w-36 h-28 sm:h-32 shrink-0 rounded-2xl border border-slate-200/90 bg-white p-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-[#D4AF37]/50"
               >
-                <div className="brand-circle-avatar">
+                {/* Brand Logo Container */}
+                <div className="h-14 sm:h-16 w-full flex items-center justify-center overflow-hidden">
                   {brand.logo ? (
                     <img
                       src={brand.logo}
                       alt={brand.name}
-                      className="h-full w-full object-contain p-1"
+                      className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105"
                     />
                   ) : (
-                    <div className="grid h-full w-full place-items-center rounded-full bg-gradient-to-br from-[#1C1C1C] to-[#0B0B0B] text-base font-black tracking-wider text-[#D4AF37] border border-[#D4AF37]/30 shadow-inner">
+                    <div className="grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-tr from-[#0B0B0B] via-[#1A1A1A] to-[#2B2414] text-xs font-black tracking-wider text-[#D4AF37] border border-[#D4AF37]/30 shadow-xs">
                       {initials}
                     </div>
                   )}
                 </div>
-                <span className="brand-circle-name">
+
+                {/* Brand Label */}
+                <span className="text-xs font-bold text-slate-800 group-hover:text-[#0B0B0B] truncate w-full mt-2">
                   {brand.name}
                 </span>
               </Link>
             )
           })}
+        </div>
+
+        {/* Scroll Arrows */}
+        <button
+          type="button"
+          onClick={scrollLeft}
+          aria-label="Previous brands"
+          className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 hidden sm:flex h-9 w-9 items-center justify-center rounded-full bg-white border border-slate-200 shadow-md text-slate-700 hover:text-black hover:border-slate-400 transition"
+        >
+          <ChevronRight size={16} className="rotate-180" />
+        </button>
+        <button
+          type="button"
+          onClick={scrollRight}
+          aria-label="Next brands"
+          className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 hidden sm:flex h-9 w-9 items-center justify-center rounded-full bg-white border border-slate-200 shadow-md text-slate-700 hover:text-black hover:border-slate-400 transition"
+        >
+          <ChevronRight size={16} />
+        </button>
       </div>
     </section>
   )
@@ -125,116 +207,47 @@ const brandFilters = [
 ]
 
 export function BrandsPage() {
-  const { brands, products } = useStore()
-  const [query, setQuery] = useState("")
-
-  const shown = useMemo(() => {
-    return brands.filter(
-      (brand) =>
-        brand.active &&
-        brand.name.toLowerCase().includes(query.toLowerCase()),
-    )
-  }, [brands, query])
-
-  return (
-    <div className="container-wide py-9">
-      <PageHeader
-        breadcrumbs="Home / Brands"
-        title="Manufacturer Brands"
-        description="Browse certified manufacturers and trusted hardware brands available at Hindustan Hardware."
-      />
-      <div className="rounded-xl border border-border bg-white p-4">
-        <div className="relative max-w-lg">
-          <Search className="absolute left-3 top-3 text-slate-400" size={18} />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            className="field pl-10"
-            placeholder="Search brands (e.g. Ashirvad, Astral, Supreme, CRI, Zoloto)..."
-          />
-        </div>
-      </div>
-      <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {shown.map((brand) => {
-          const count = products.filter(
-            (product) =>
-              product.brandId === brand.id && product.active !== false,
-          ).length
-          const actualCategories = [
-            ...new Set(
-              products
-                .filter((product) => product.brandId === brand.id)
-                .map((product) => product.productType),
-            ),
-          ]
-          return (
-            <article
-              key={brand.id}
-              className="rounded-xl border border-border bg-white p-6 transition hover:-translate-y-1 hover:shadow-lg flex flex-col justify-between"
-            >
-              <div>
-                <BrandMark brand={brand} />
-                <p className="mt-4 text-sm leading-6 text-slate-500">
-                  {brand.description}
-                </p>
-              </div>
-              <div className="mt-6 flex items-center justify-between border-t border-border pt-4">
-                <span className="text-xs font-semibold text-[#D4AF37] uppercase tracking-wider">
-                  Verified Brand
-                </span>
-                <Link to={`/brands/${brand.slug}`}>
-                  <Button variant="outline">Browse Products</Button>
-                </Link>
-              </div>
-            </article>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-export function BrandDetailPage() {
-  const { slug } = useParams()
-  const { brands } = useStore()
-  const [brand, setBrand] = useState<Brand | null>(() => brands.find((item) => item.slug === slug) || null)
-  const [items, setItems] = useState<Product[]>([])
+  const [brands, setBrands] = useState<Brand[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState("")
+  const [selectedCategory, setSelectedCategory] = useState<string>("all")
+  const [sortBy, setSortBy] = useState<"name" | "discount" | "order">("name")
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
 
+  // Strictly fetch authoritative brands and categories directly from the database
   useEffect(() => {
     let isMounted = true
-    if (!slug) return
     setLoading(true)
     setError(null)
 
-    // 1. Fetch brand details
-    catalogueApi
-      .getBrandBySlug(slug)
-      .then((b) => {
+    Promise.all([
+      catalogueApi.getBrands(),
+      catalogueApi.getCategories().catch(() => []),
+    ])
+      .then(([backendBrands, backendCats]) => {
         if (!isMounted) return
-        const mappedBrand: Brand = {
+        const mapped: Brand[] = (backendBrands || []).map((b: any) => ({
           id: b.id,
           name: b.name,
           slug: b.slug,
-          logo: b.logo_url || undefined,
+          logo: b.logo_url || b.logoUrl || undefined,
           description: b.description || `${b.name} genuine plumbing and hardware solutions.`,
-          supportedCategories: [],
-          active: b.is_active,
-          displayOrder: b.display_order ?? 0,
-        }
-        setBrand(mappedBrand)
-
-        // 2. Fetch products by this brand
-        return catalogueApi.listProducts({ brand: b.id, limit: 50 })
-      })
-      .then((res) => {
-        if (!isMounted || !res) return
-        setItems(res.items.map(transformBackendProduct))
+          supportedCategories: Array.isArray(b.supported_categories)
+            ? b.supported_categories
+            : Array.isArray(b.supportedCategories)
+            ? b.supportedCategories
+            : [],
+          active: b.is_active ?? b.isActive ?? true,
+          displayOrder: b.display_order ?? b.displayOrder ?? 0,
+          discountPercentage: b.discount_percentage ?? b.discountPercentage ?? null,
+        }))
+        setBrands(mapped)
+        setCategories((backendCats || []).map((c: any) => ({ id: c.id, name: c.name })))
       })
       .catch((err: any) => {
         if (!isMounted) return
-        setError(err?.message || "Manufacturer details could not be loaded from the catalogue.")
+        setError(err?.message || "Failed to load brands from the catalogue database.")
       })
       .finally(() => {
         if (isMounted) setLoading(false)
@@ -243,15 +256,356 @@ export function BrandDetailPage() {
     return () => {
       isMounted = false
     }
-  }, [slug, brands])
+  }, [])
+
+  // Category filter tabs matching reference image with dynamic fallback
+  const categoryFilters = useMemo(() => {
+    const defaultPills = [
+      { id: "all", label: "All Brands", icon: LayoutGrid },
+      { id: "pipes", label: "Pipes & Fittings", icon: Pipette },
+      { id: "pumps", label: "Pumps", icon: Wrench },
+      { id: "electrical", label: "Electrical", icon: Zap },
+      { id: "sanitaryware", label: "Sanitaryware", icon: Bath },
+    ]
+
+    if (categories.length > 0) {
+      const dbPills = categories.slice(0, 5).map((cat) => {
+        const lower = cat.name.toLowerCase()
+        let IconComponent = LayoutGrid
+        if (lower.includes("pipe") || lower.includes("fitting")) IconComponent = Pipette
+        else if (lower.includes("pump") || lower.includes("tool")) IconComponent = Wrench
+        else if (lower.includes("elect")) IconComponent = Zap
+        else if (lower.includes("sanitary") || lower.includes("bath")) IconComponent = Bath
+
+        return {
+          id: cat.name.toLowerCase(),
+          label: cat.name,
+          icon: IconComponent,
+        }
+      })
+      return [{ id: "all", label: "All Brands", icon: LayoutGrid }, ...dbPills]
+    }
+
+    return defaultPills
+  }, [categories])
+
+  const filteredBrands = useMemo(() => {
+    let list = brands.filter((brand) => brand.active)
+
+    if (query.trim()) {
+      const q = query.toLowerCase().trim()
+      list = list.filter(
+        (brand) =>
+          brand.name.toLowerCase().includes(q) ||
+          brand.description.toLowerCase().includes(q) ||
+          brand.slug.toLowerCase().includes(q)
+      )
+    }
+
+    if (selectedCategory !== "all") {
+      const catLower = selectedCategory.toLowerCase()
+      list = list.filter((brand) => {
+        const desc = (brand.description || "").toLowerCase()
+        const name = (brand.name || "").toLowerCase()
+        const supported = (brand.supportedCategories || []).map((c) => c.toLowerCase())
+        return (
+          desc.includes(catLower) ||
+          name.includes(catLower) ||
+          supported.some((sc) => sc.includes(catLower)) ||
+          (catLower.includes("pipe") && (desc.includes("pipe") || desc.includes("fitting") || name.includes("pipe"))) ||
+          (catLower.includes("pump") && (desc.includes("pump") || name.includes("cri") || name.includes("crompton"))) ||
+          (catLower.includes("sanitary") && (desc.includes("sanitary") || desc.includes("bath") || desc.includes("cava") || desc.includes("birla"))) ||
+          (catLower.includes("elect") && (desc.includes("electric") || desc.includes("wire") || name.includes("havells") || name.includes("anchor")))
+        )
+      })
+    }
+
+    if (sortBy === "name") {
+      list.sort((a, b) => a.name.localeCompare(b.name))
+    } else if (sortBy === "discount") {
+      list.sort((a, b) => (b.discountPercentage || 0) - (a.discountPercentage || 0))
+    } else {
+      list.sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+    }
+
+    return list
+  }, [brands, query, selectedCategory, sortBy])
+
+  return (
+    <div className="bg-[#f8fafc] min-h-screen pb-16">
+      {/* Top Hero Banner matching Reference Image layout */}
+      <div className="relative border-b border-slate-200/80 bg-gradient-to-r from-[#eef4f9] via-[#f1f6fa] to-[#e4edf5] overflow-hidden">
+        {/* Soft gradient wash */}
+        <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/85 to-transparent z-0" />
+
+        {/* Hardware & Sanitary Showcase Illustration on Right */}
+        <div className="absolute right-0 top-0 bottom-0 w-1/2 md:w-5/12 hidden md:block overflow-hidden pointer-events-none z-0">
+          <div className="relative w-full h-full flex items-center justify-end pr-8">
+            <img
+              src="https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1000&q=80"
+              alt="Plumbing hardware and sanitary fittings"
+              className="object-cover h-full w-full max-w-lg opacity-85 mix-blend-multiply"
+              style={{
+                maskImage: "linear-gradient(to left, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 100%)",
+                WebkitMaskImage: "linear-gradient(to left, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 100%)",
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="container-wide relative z-10 py-8 md:py-12">
+          {/* Breadcrumb Navigation */}
+          <nav className="flex items-center gap-1.5 text-xs text-slate-500 font-medium mb-3">
+            <Link to="/" className="hover:text-[#0B0B0B] transition-colors">
+              Home
+            </Link>
+            <ChevronRight size={13} className="text-slate-400" />
+            <span className="text-slate-800 font-semibold">Brands</span>
+          </nav>
+
+          {/* Title and Tagline */}
+          <div className="max-w-2xl">
+            <h1 className="text-3xl md:text-5xl font-black tracking-tight text-[#0B0B0B] leading-tight">
+              Explore <span className="text-[#0B0B0B] underline decoration-[#D4AF37] decoration-4 underline-offset-4">Brands</span>
+            </h1>
+            <p className="mt-3 text-sm md:text-base text-slate-600 leading-relaxed font-normal">
+              Discover top plumbing, sanitary and hardware brands at Hindustan Hardware & Sanitary. Genuine products. Trusted quality.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Container */}
+      <div className="container-wide pt-8">
+        {/* Filter, Search & Sort Control Bar */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-3 shadow-2xs mb-8 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3.5">
+          {/* Search Input Box */}
+          <div className="relative flex-1 min-w-[240px] max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search brands..."
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] transition-all"
+            />
+          </div>
+
+          {/* Category Filter Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
+            {categoryFilters.map((tab) => {
+              const Icon = tab.icon
+              const isActive = selectedCategory === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setSelectedCategory(tab.id)}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+                    isActive
+                      ? "bg-[#0B0B0B] text-white shadow-xs"
+                      : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/80 hover:text-slate-900"
+                  }`}
+                >
+                  <Icon size={14} className={isActive ? "text-[#D4AF37]" : "text-slate-500"} />
+                  <span>{tab.label}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Right Section: Results Count & Sort Dropdown */}
+          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+            <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">
+              {filteredBrands.length} {filteredBrands.length === 1 ? "brand" : "brands"} found
+            </span>
+
+            <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+            <div className="relative flex items-center">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                aria-label="Sort brands"
+                className="appearance-none bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl py-2 pl-3 pr-8 cursor-pointer focus:outline-none focus:border-[#D4AF37]"
+              >
+                <option value="name">Sort by: A - Z</option>
+                <option value="order">Sort by: Featured</option>
+                <option value="discount">Sort by: Discount</option>
+              </select>
+              <ChevronRight
+                size={13}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rotate-90 text-slate-500 pointer-events-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Brands Grid matching reference image cards */}
+        {loading ? (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {[...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                className="h-48 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs animate-pulse flex flex-col justify-between"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-14 w-14 rounded-xl bg-slate-100" />
+                    <div className="h-4 w-24 bg-slate-100 rounded" />
+                  </div>
+                  <div className="h-6 w-16 bg-slate-100 rounded-full" />
+                </div>
+                <div className="space-y-2 mt-4">
+                  <div className="h-3 w-full bg-slate-100 rounded" />
+                  <div className="h-3 w-4/5 bg-slate-100 rounded" />
+                </div>
+                <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+                  <div className="h-3 w-16 bg-slate-100 rounded" />
+                  <div className="h-8 w-24 bg-slate-100 rounded-xl" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <EmptyState
+            title="Could not load brands"
+            text={error}
+            action={
+              <Button onClick={() => window.location.reload()} variant="primary">
+                Retry
+              </Button>
+            }
+          />
+        ) : filteredBrands.length === 0 ? (
+          <EmptyState
+            title="No matching manufacturers found"
+            text={`No brands match your search for "${query}". Try adjusting your query or filter.`}
+            action={
+              <Button
+                onClick={() => {
+                  setQuery("")
+                  setSelectedCategory("all")
+                }}
+                variant="outline"
+              >
+                Clear Filters
+              </Button>
+            }
+          />
+        ) : (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredBrands.map((brand) => (
+              <article
+                key={brand.id}
+                className="group flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5.5 shadow-2xs transition-all duration-200 hover:shadow-md hover:border-[#D4AF37]/50"
+              >
+                <div>
+                  {/* Card Header: Brand Logo + Brand Name on Left, Verified Badge on Right */}
+                  <div className="flex items-start justify-between gap-3">
+                    <BrandMark brand={brand} />
+
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 border border-emerald-200/80 shrink-0">
+                      <CheckCircle2 size={13} className="text-emerald-600 fill-emerald-100" />
+                      Verified
+                    </span>
+                  </div>
+
+                  {/* Card Description */}
+                  <p className="mt-4 text-xs sm:text-sm text-slate-600 line-clamp-2 leading-relaxed">
+                    {brand.description || `${brand.name} genuine plumbing and hardware solutions.`}
+                  </p>
+                </div>
+
+                {/* Card Footer: Slug on left, 'View Catalog ->' Button on right */}
+                <div className="mt-5 pt-3.5 border-t border-slate-100/90 flex items-center justify-between">
+                  <span className="font-mono text-xs font-medium text-slate-400">
+                    /{brand.slug}
+                  </span>
+
+                  <Link
+                    to={`/brands/${brand.slug}`}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#0B0B0B] hover:bg-[#D4AF37] hover:text-[#0B0B0B] text-white px-4 py-2 text-xs font-bold transition-all shadow-xs group-hover:shadow"
+                  >
+                    View Catalog <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function BrandDetailPage() {
+  const { slug } = useParams()
+  const [brand, setBrand] = useState<Brand | null>(null)
+  const [items, setItems] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchFilter, setSearchFilter] = useState("")
+
+  useEffect(() => {
+    let isMounted = true
+    if (!slug) return
+    setLoading(true)
+    setError(null)
+
+    // Authoritatively query brand and its products straight from the database
+    catalogueApi
+      .getBrandBySlug(slug)
+      .then((b: any) => {
+        if (!isMounted) return null
+        const mappedBrand: Brand = {
+          id: b.id,
+          name: b.name,
+          slug: b.slug,
+          logo: b.logo_url || b.logoUrl || undefined,
+          description: b.description || `${b.name} certified plumbing, fittings, and hardware portfolio.`,
+          supportedCategories: [],
+          active: b.is_active ?? b.isActive ?? true,
+          displayOrder: b.display_order ?? b.displayOrder ?? 0,
+          discountPercentage: b.discount_percentage ?? b.discountPercentage ?? null,
+        }
+        setBrand(mappedBrand)
+        return catalogueApi.listProducts({ brand: b.id, limit: 100 })
+      })
+      .then((res) => {
+        if (!isMounted || !res) return
+        setItems(res.items.map(transformBackendProduct))
+      })
+      .catch((err: any) => {
+        if (!isMounted) return
+        setError(err?.message || "Manufacturer details could not be loaded from the database catalogue.")
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [slug])
+
+  const visibleProducts = useMemo(() => {
+    if (!searchFilter.trim()) return items
+    const q = searchFilter.toLowerCase().trim()
+    return items.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q) ||
+        p.material.toLowerCase().includes(q)
+    )
+  }, [items, searchFilter])
 
   if (loading) {
     return (
       <div className="container-wide py-12">
-        <div className="h-40 rounded-2xl bg-white border border-border p-7 animate-pulse mb-8" />
+        <div className="h-56 rounded-3xl bg-slate-900/10 animate-pulse mb-8" />
         <div className="product-grid">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-72 rounded-xl bg-slate-100 animate-pulse" />
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-72 rounded-2xl bg-slate-100 animate-pulse border border-border" />
           ))}
         </div>
       </div>
@@ -262,11 +616,11 @@ export function BrandDetailPage() {
     return (
       <div className="container-wide py-12">
         <EmptyState
-          title="Brand not found"
-          text={error || "This manufacturer is not active in the catalogue."}
+          title="Manufacturer Not Found"
+          text={error || "This manufacturer is not active in the catalogue database."}
           action={
             <Link to="/brands">
-              <Button>Browse all brands</Button>
+              <Button>Browse All Brands</Button>
             </Link>
           }
         />
@@ -276,28 +630,97 @@ export function BrandDetailPage() {
 
   return (
     <div className="container-wide py-9">
-      <div className="mb-8 rounded-2xl border border-border bg-white p-7">
-        <BrandMark brand={brand} />
-        <h1 className="mt-6 text-3xl font-black">{brand.name} products</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-          {brand.description}. Authoritative manufacturer catalogue products.
-        </p>
+      {/* Brand Hero Banner */}
+      <div className="relative mb-10 overflow-hidden rounded-3xl bg-gradient-to-br from-[#0B0B0B] via-[#161616] to-[#241E12] p-8 md:p-10 border border-[#D4AF37]/30 shadow-2xl text-white">
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
+            <div className="relative grid h-20 w-20 place-items-center rounded-2xl bg-white p-2 shadow-xl border border-slate-200 shrink-0">
+              {brand.logo ? (
+                <img
+                  src={brand.logo}
+                  alt={`${brand.name} logo`}
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <div className="grid h-full w-full place-items-center rounded-xl bg-gradient-to-tr from-[#0B0B0B] via-[#1A1A1A] to-[#2B2414] text-[#D4AF37] font-black text-xl border border-[#D4AF37]/30">
+                  {brand.name.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="rounded-full bg-[#D4AF37]/20 border border-[#D4AF37]/40 px-2.5 py-0.5 text-[10px] font-black text-[#D4AF37] uppercase tracking-wider">
+                  Verified Partner
+                </span>
+                {brand.discountPercentage ? (
+                  <span className="rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2.5 py-0.5 text-[10px] font-black text-emerald-400">
+                    {brand.discountPercentage}% OFF Storewide
+                  </span>
+                ) : null}
+              </div>
+              <h1 className="text-2xl md:text-4xl font-black tracking-tight text-white">{brand.name}</h1>
+              <p className="mt-1 max-w-xl text-xs md:text-sm text-slate-300 leading-relaxed">
+                {brand.description}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <Link to="/brands">
+              <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
+                ← All Brands
+              </Button>
+            </Link>
+          </div>
+        </div>
       </div>
 
-      {items.length ? (
+      {/* Brand Product Listing Header */}
+      <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-black text-slate-900 tracking-tight">
+            Products by {brand.name} ({visibleProducts.length})
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">Authoritative products fetched from database catalog.</p>
+        </div>
+
+        {items.length > 0 && (
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+            <input
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              placeholder={`Search ${brand.name} products...`}
+              className="w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 py-2 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
+            />
+          </div>
+        )}
+      </div>
+
+      {visibleProducts.length ? (
         <div className="product-grid">
-          {items.map((product) => (
+          {visibleProducts.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
         </div>
       ) : (
         <EmptyState
-          title="No products listed"
-          text={`There are currently no active products under ${brand.name}.`}
+          title={searchFilter ? "No matching products found" : "No products listed"}
+          text={
+            searchFilter
+              ? `No products match "${searchFilter}" under ${brand.name}.`
+              : `There are currently no active products in the database catalogue for ${brand.name}.`
+          }
           action={
-            <Link to="/products">
-              <Button>View all products</Button>
-            </Link>
+            searchFilter ? (
+              <Button onClick={() => setSearchFilter("")} variant="outline">
+                Clear Product Filter
+              </Button>
+            ) : (
+              <Link to="/products">
+                <Button>View All Products</Button>
+              </Link>
+            )
           }
         />
       )}

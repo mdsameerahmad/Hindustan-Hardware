@@ -1,10 +1,13 @@
 import {
   AlertCircle,
+  ArrowLeft,
   Banknote,
   CheckCircle2,
+  ChevronRight,
   Clock,
   Compass,
   Crosshair,
+  Eye,
   LogOut,
   MapPin,
   Maximize2,
@@ -68,23 +71,16 @@ export function DeliveryPartnerPortalPage() {
       const items = res?.items || []
       setDeliveries(items)
 
-      // Auto-select first active delivery if none selected
-      const activeList = items.filter((d) =>
-        ["assigned", "picked_up", "out_for_delivery"].includes(d.status)
-      )
-      if (activeList.length > 0 && (!selectedDeliveryId || !items.some(i => i.id === selectedDeliveryId))) {
-        setSelectedDeliveryId(activeList[0].id)
-      }
     } catch (err: any) {
       setError(err?.message || "Failed to load assigned deliveries.")
     } finally {
       setLoading(false)
     }
-  }, [selectedDeliveryId])
+  }, [])
 
   useEffect(() => {
     fetchDeliveries()
-  }, [])
+  }, [fetchDeliveries])
 
   const activeDeliveries = deliveries.filter((d) =>
     ["assigned", "picked_up", "out_for_delivery"].includes(d.status)
@@ -93,7 +89,7 @@ export function DeliveryPartnerPortalPage() {
     ["delivered", "failed", "cancelled"].includes(d.status)
   )
 
-  const currentDelivery = deliveries.find((d) => d.id === selectedDeliveryId) || activeDeliveries[0]
+  const currentDelivery = selectedDeliveryId ? deliveries.find((d) => d.id === selectedDeliveryId) || null : null
 
   const fetchRouteForDelivery = useCallback(async (deliveryId: string) => {
     setRouteLoading(true)
@@ -297,103 +293,161 @@ export function DeliveryPartnerPortalPage() {
     }
   }
 
+  const [isDutyOnline, setIsDutyOnline] = useState<boolean>(true)
+
   return (
-    <div className="min-h-screen bg-[#F5F5F5] text-slate-900 pb-16 font-sans">
-      {/* Driver Header — Signature Black & Gold Hindustan Hardware Theme */}
-      <header className="sticky top-0 z-30 bg-[#0B0B0B]/95 backdrop-blur-md border-b border-[#1C1C1C] px-3.5 py-2.5 sm:px-6 sm:py-3.5 shadow-md">
+    <div className="min-h-screen bg-[#F5F5F5] text-[#0B0B0B] pb-28 md:pb-16 font-sans">
+      {/* Signature Black & Gold Hindustan Hardware Header */}
+      <header className="sticky top-0 z-30 bg-[#0B0B0B] border-b border-[#1C1C1C] px-3.5 py-2.5 sm:px-6 sm:py-3 shadow-md">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-[#E5C158] via-[#D4AF37] to-[#AA841E] flex items-center justify-center text-[#0B0B0B] font-black shadow-md shadow-[#D4AF37]/25 shrink-0 border border-[#E5C158]">
-              <Truck size={20} />
+          {/* Brand & Partner Profile */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-[#E5C158] via-[#D4AF37] to-[#AA841E] text-[#0B0B0B] flex items-center justify-center font-black shadow-md shadow-[#D4AF37]/20 border border-[#E5C158] shrink-0">
+              <Truck size={22} className="stroke-[2.5]" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-widest text-[#D4AF37] truncate font-serif">
-                  Hindustan Partner
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#D4AF37] bg-white/5 border border-[#D4AF37]/30 px-1.5 py-0.5 rounded">
+                  Hindustan Rider
                 </span>
-                <span className="hidden xs:inline-flex items-center gap-1 text-[9px] sm:text-[10px] bg-[#1C1C1C] border border-[#2A2A2A] px-2 py-0.5 rounded-full text-slate-200 font-mono shrink-0">
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-300 font-mono">
                   <Shield size={10} className="text-[#D4AF37]" />
-                  Verified Fleet
+                  Verified
                 </span>
               </div>
               <h1 className="text-sm sm:text-base font-black text-white leading-tight truncate">
-                {user?.profile?.full_name || user?.email || "Partner"}
+                {user?.profile?.full_name || user?.email?.split("@")[0] || "Partner"}
               </h1>
             </div>
           </div>
 
+          {/* Right Controls: Online/Offline Duty Toggle + Actions */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Duty Status Switch with Brand Gold Glow */}
+            <button
+              type="button"
+              onClick={() => setIsDutyOnline((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition-all shadow-xs border ${
+                isDutyOnline
+                  ? "bg-[#D4AF37] text-[#0B0B0B] border-[#E5C158] shadow-md shadow-[#D4AF37]/25"
+                  : "bg-[#1C1C1C] text-slate-400 border-[#2A2A2A]"
+              }`}
+            >
+              <span className={`h-2 w-2 rounded-full ${isDutyOnline ? "bg-[#0B0B0B] animate-ping" : "bg-slate-500"}`} />
+              <span>{isDutyOnline ? "ONLINE" : "OFFLINE"}</span>
+            </button>
+
             <button
               onClick={fetchDeliveries}
               disabled={loading}
               title="Refresh assignments"
-              className="p-2 rounded-xl bg-[#181818] text-slate-300 hover:text-[#D4AF37] hover:bg-[#222222] border border-[#2C2C2C] transition-all shadow-sm"
+              className="p-2 rounded-xl bg-[#1C1C1C] text-slate-300 hover:text-[#D4AF37] hover:bg-[#2A2A2A] border border-[#262626] transition-all"
             >
               <RefreshCw size={15} className={loading ? "animate-spin text-[#D4AF37]" : ""} />
             </button>
+
             <button
               onClick={() => logout()}
               title="Sign out"
-              className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-[#181818] text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 border border-[#2C2C2C] text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              className="p-2 rounded-xl bg-[#1C1C1C] text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 border border-[#262626] transition-all"
             >
-              <LogOut size={14} />
-              <span className="hidden sm:inline">Sign Out</span>
+              <LogOut size={15} />
             </button>
           </div>
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="max-w-4xl mx-auto px-3.5 sm:px-6 pt-5 sm:pt-6 space-y-4 sm:space-y-5">
-        {/* Metric Badges Strip */}
-        <section className="grid grid-cols-3 gap-2.5 sm:gap-4">
-          <div className="rounded-2xl bg-white border border-slate-200/90 p-3 sm:p-4 text-center min-w-0 shadow-xs hover:border-[#D4AF37]/50 transition-colors">
-            <span className="block text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate">Active Dispatches</span>
-            <span className="text-xl sm:text-2xl font-black text-[#B89124]">{activeDeliveries.length}</span>
+      <main className="max-w-4xl mx-auto px-3.5 sm:px-6 pt-4 space-y-4">
+        {/* Metric Cards in Exact Brand Palette */}
+        <section className="grid grid-cols-3 gap-2.5 sm:gap-3.5">
+          {/* Active Orders */}
+          <div className="rounded-2xl bg-white border border-[#E8E8E8] p-3 sm:p-4 shadow-xs flex flex-col justify-between hover:border-[#D4AF37]/50 transition-colors">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-400">
+                Active Trips
+              </span>
+              <span className="h-6 w-6 rounded-lg bg-[#FFF9E6] text-[#B89124] border border-[#F3E5AB] flex items-center justify-center font-bold text-xs">
+                <Package size={13} />
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-2xl sm:text-3xl font-black text-[#0B0B0B] leading-none">
+                {activeDeliveries.length}
+              </span>
+              <span className="text-[10px] font-bold text-slate-400">pending</span>
+            </div>
           </div>
-          <div className="rounded-2xl bg-white border border-slate-200/90 p-3 sm:p-4 text-center min-w-0 shadow-xs hover:border-emerald-300 transition-colors">
-            <span className="block text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate">Delivered</span>
-            <span className="text-xl sm:text-2xl font-black text-emerald-600">{completedDeliveries.length}</span>
+
+          {/* Delivered Orders */}
+          <div className="rounded-2xl bg-white border border-[#E8E8E8] p-3 sm:p-4 shadow-xs flex flex-col justify-between hover:border-emerald-300 transition-colors">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-400">
+                Completed
+              </span>
+              <span className="h-6 w-6 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center font-bold text-xs">
+                <CheckCircle2 size={13} />
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-2xl sm:text-3xl font-black text-emerald-600 leading-none">
+                {completedDeliveries.length}
+              </span>
+              <span className="text-[10px] font-bold text-emerald-700">orders</span>
+            </div>
           </div>
-          <div className="rounded-2xl bg-white border border-slate-200/90 p-3 sm:p-4 text-center min-w-0 shadow-xs hover:border-slate-300 transition-colors">
-            <span className="block text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate">Total Orders</span>
-            <span className="text-xl sm:text-2xl font-black text-[#0B0B0B]">{deliveries.length}</span>
+
+          {/* COD Collectable */}
+          <div className="rounded-2xl bg-white border border-[#E8E8E8] p-3 sm:p-4 shadow-xs flex flex-col justify-between hover:border-[#D4AF37]/50 transition-colors">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-400">
+                COD Cash
+              </span>
+              <span className="h-6 w-6 rounded-lg bg-[#FFF9E6] text-[#B89124] border border-[#F3E5AB] flex items-center justify-center font-bold text-xs">
+                <Banknote size={13} />
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-xl sm:text-2xl font-black text-[#0B0B0B] leading-none font-mono truncate">
+                ₹{activeDeliveries.reduce((acc, d) => acc + (d.codAmount || 0), 0).toLocaleString("en-IN")}
+              </span>
+            </div>
           </div>
         </section>
 
-        {/* View Selection Tabs */}
-        <div className="flex border-b border-slate-200 gap-4 sm:gap-6 text-xs sm:text-sm font-bold overflow-x-auto scrollbar-none">
+        {/* View Selection Tabs with Pill Buttons */}
+        <div className="flex items-center p-1 bg-slate-200/90 rounded-2xl gap-1 text-xs font-black">
           <button
             onClick={() => setActiveTab("active")}
-            className={`pb-3 flex items-center gap-1.5 sm:gap-2 border-b-2 whitespace-nowrap transition font-bold ${
+            className={`flex-1 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
               activeTab === "active"
-                ? "border-[#D4AF37] text-[#0B0B0B]"
-                : "border-transparent text-slate-500 hover:text-slate-800"
+                ? "bg-[#0B0B0B] text-[#D4AF37] shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <Package size={16} className={activeTab === "active" ? "text-[#B89124]" : ""} />
+            <Package size={15} className={activeTab === "active" ? "text-[#D4AF37]" : ""} />
             <span>Active Deliveries ({activeDeliveries.length})</span>
           </button>
           <button
             onClick={() => setActiveTab("history")}
-            className={`pb-3 flex items-center gap-1.5 sm:gap-2 border-b-2 whitespace-nowrap transition font-bold ${
+            className={`flex-1 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
               activeTab === "history"
-                ? "border-[#D4AF37] text-[#0B0B0B]"
-                : "border-transparent text-slate-500 hover:text-slate-800"
+                ? "bg-[#0B0B0B] text-[#D4AF37] shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <Clock size={16} className={activeTab === "history" ? "text-[#B89124]" : ""} />
-            <span>Delivery History ({completedDeliveries.length})</span>
+            <Clock size={15} className={activeTab === "history" ? "text-[#D4AF37]" : ""} />
+            <span>Trip History ({completedDeliveries.length})</span>
           </button>
         </div>
 
         {/* Error State */}
         {error && (
-          <div className="rounded-2xl bg-red-50 border border-red-200 p-4 flex items-start gap-3 text-red-900 text-sm shadow-xs">
+          <div className="rounded-2xl bg-red-50 border border-red-200 p-3.5 flex items-start gap-3 text-red-900 text-xs shadow-xs">
             <AlertCircle size={18} className="text-red-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <b className="block text-red-950 font-bold">Failed to sync delivery assignments</b>
-              <p className="mt-0.5 text-xs text-red-700">{error}</p>
+              <p className="mt-0.5 text-red-700">{error}</p>
             </div>
             <button
               onClick={fetchDeliveries}
@@ -407,135 +461,254 @@ export function DeliveryPartnerPortalPage() {
         {/* Loading Skeleton */}
         {loading && deliveries.length === 0 && (
           <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center space-y-3 shadow-xs">
-            <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-[#D4AF37] border-t-transparent" />
-            <p className="text-sm font-semibold text-slate-600">Loading your assigned deliveries...</p>
+            <div className="h-9 w-9 mx-auto animate-spin rounded-full border-4 border-[#F7C600] border-t-black" />
+            <p className="text-xs font-bold text-slate-600">Syncing assigned rider trips...</p>
           </div>
         )}
 
         {/* Active Tab View */}
         {activeTab === "active" && !loading && (
-          <div className="space-y-5">
+          <div className="space-y-4">
             {activeDeliveries.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center space-y-3 shadow-xs">
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center space-y-3 shadow-xs">
                 <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#FFF9E6] border border-[#F3E5AB] text-[#B89124]">
-                  <CheckCircle2 size={30} />
+                  <CheckCircle2 size={32} />
                 </div>
-                <h3 className="text-lg font-black text-[#0B0B0B]">No Active Deliveries</h3>
-                <p className="text-sm text-slate-500 max-w-sm mx-auto leading-relaxed">
-                  You are fully caught up! When an administrator assigns a delivery dispatch to you, it will appear right here.
+                <h3 className="text-base font-black text-[#0B0B0B]">No Orders in Queue</h3>
+                <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+                  Keep your GPS on and stay tuned. New delivery dispatches will appear here instantly without refresh.
                 </p>
                 <button
                   onClick={fetchDeliveries}
-                  className="btn-gold-gradient inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold transition shadow-sm mt-2"
+                  className="btn-gold-gradient inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-black transition shadow-xs mt-1"
                 >
-                  <RefreshCw size={14} /> Check for New Dispatches
+                  <RefreshCw size={13} /> Check for Orders
                 </button>
               </div>
             ) : (
               <>
-                {/* Active Deliveries Selector (if multiple) */}
-                {activeDeliveries.length > 1 && (
-                  <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-                    {activeDeliveries.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => setSelectedDeliveryId(item.id)}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition border ${
-                          currentDelivery?.id === item.id
-                            ? "btn-gold-gradient text-[#0B0B0B] border-[#D4AF37]"
-                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                        }`}
-                      >
-                        {item.orderNumber} • <span className="capitalize">{item.status.replace(/_/g, " ")}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {/* When no delivery is opened, display all active deliveries as rich, engaging cards */}
+                {!currentDelivery ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-500">
+                        Assigned Orders ({activeDeliveries.length})
+                      </span>
+                      <span className="text-[11px] font-bold text-[#AA841E]">
+                        Tap a card to start delivery
+                      </span>
+                    </div>
 
-                {/* Selected Active Delivery Detail Card */}
-                {currentDelivery && (
-                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      {activeDeliveries.map((item) => (
+                        <div
+                          key={item.id}
+                          onClick={() => setSelectedDeliveryId(item.id)}
+                          className="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs transition-all duration-200 hover:border-[#D4AF37] hover:shadow-md hover:-translate-y-0.5"
+                        >
+                          {/* Accent Top Bar */}
+                          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#D4AF37] to-[#B89124] opacity-80 group-hover:opacity-100 transition" />
+
+                          {/* Header: Order ID + Status Badge */}
+                          <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                            <div>
+                              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                                ORDER REF
+                              </span>
+                              <h3 className="text-sm sm:text-base font-black text-slate-900 group-hover:text-[#AA841E] transition">
+                                {item.orderNumber}
+                              </h3>
+                            </div>
+                            <span
+                              className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                item.status === "out_for_delivery"
+                                  ? "bg-[#FFF9E6] text-[#8F6B12] border border-[#F3E5AB]"
+                                  : item.status === "picked_up"
+                                    ? "bg-blue-50 text-blue-900 border border-blue-200"
+                                    : "bg-slate-100 text-slate-800"
+                              }`}
+                            >
+                              {item.status.replace(/_/g, " ")}
+                            </span>
+                          </div>
+
+                          {/* Recipient & Location Preview */}
+                          <div className="py-3 space-y-2">
+                            <div className="flex items-start gap-2.5">
+                              <div className="h-8 w-8 rounded-xl bg-slate-100 group-hover:bg-[#FFF9E6] flex items-center justify-center shrink-0 text-slate-600 group-hover:text-[#AA841E] transition">
+                                <MapPin size={16} />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-black text-slate-900 truncate">
+                                  {item.destination?.recipientName || "Customer"}
+                                </p>
+                                <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                                  {item.destination?.addressLine1}
+                                  {item.destination?.city ? `, ${item.destination.city}` : ""}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Summary Pills: Items & Payment */}
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              {item.codAmount != null ? (
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-black">
+                                  <Banknote size={13} className="text-amber-700" />
+                                  <span>COD: ₹{item.codAmount.toLocaleString("en-IN")}</span>
+                                </div>
+                              ) : (
+                                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-black">
+                                  <CheckCircle2 size={12} className="text-emerald-600" />
+                                  <span>Prepaid</span>
+                                </div>
+                              )}
+
+                              {item.itemsSummary && item.itemsSummary.length > 0 && (
+                                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 text-[11px] font-bold">
+                                  <Package size={12} className="text-slate-500" />
+                                  <span>{item.itemsSummary.length} {item.itemsSummary.length === 1 ? "Item" : "Items"}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Card Footer Action */}
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-600 transition">
+                              Click to open map & controls
+                            </span>
+                            <div className="btn-gold-gradient inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-black shadow-xs transition group-hover:shadow-md">
+                              <span>Open Order</span>
+                              <ChevronRight size={14} />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  /* Detail View for the opened delivery */
+                  <div className="space-y-3.5">
+                    {/* Navigation Top Bar: Back to Cards + Delivery Switcher */}
+                    <div className="flex items-center justify-between gap-2 bg-white rounded-2xl border border-slate-200 p-2.5 sm:p-3 shadow-xs">
+                      <button
+                        onClick={() => setSelectedDeliveryId(null)}
+                        className="inline-flex items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 px-3.5 py-2 text-xs font-black text-slate-800 transition"
+                      >
+                        <ArrowLeft size={15} />
+                        <span>All Deliveries ({activeDeliveries.length})</span>
+                      </button>
+
+                      {activeDeliveries.length > 1 && (
+                        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                          {activeDeliveries.map((item) => (
+                            <button
+                              key={item.id}
+                              onClick={() => setSelectedDeliveryId(item.id)}
+                              className={`px-2.5 py-1.5 rounded-xl text-xs font-black transition border whitespace-nowrap ${
+                                currentDelivery.id === item.id
+                                  ? "bg-[#0B0B0B] text-[#D4AF37] border-[#0B0B0B]"
+                                  : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                              }`}
+                            >
+                              {item.orderNumber}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     {/* Destination & Order Highlights */}
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 space-y-4 shadow-sm min-w-0">
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3.5">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 space-y-3.5 shadow-sm min-w-0">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                         <div className="min-w-0">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                            Current Order Reference
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                            Order ID
                           </span>
-                          <h2 className="text-base sm:text-lg font-black text-[#0B0B0B] truncate">
+                          <h2 className="text-base sm:text-lg font-black text-slate-900 truncate">
                             {currentDelivery.orderNumber}
                           </h2>
                         </div>
-                        <Badge tone={getStatusTone(currentDelivery.status)}>
-                          <span className="capitalize">{currentDelivery.status.replace(/_/g, " ")}</span>
-                        </Badge>
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                          currentDelivery.status === "out_for_delivery"
+                            ? "bg-[#FFF9E6] text-[#8F6B12] border border-[#F3E5AB]"
+                            : currentDelivery.status === "picked_up"
+                              ? "bg-blue-50 text-blue-900 border border-blue-200"
+                              : "bg-slate-100 text-slate-800"
+                        }`}>
+                          {currentDelivery.status.replace(/_/g, " ")}
+                        </span>
                       </div>
 
-                      {/* Cash on Delivery Banner */}
+                      {/* Cash on Delivery Banner — Exact Brand Palette */}
                       {currentDelivery.codAmount != null && (
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl bg-gradient-to-r from-[#FFF9E6] via-[#FFFDF5] to-white border border-[#E5C158]/70 p-3.5 sm:px-4 sm:py-3.5 text-[#0B0B0B] shadow-xs">
+                        <div className="flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#FFF9E6] via-[#FFFDF5] to-white border border-[#E5C158] p-3.5 text-slate-900 shadow-xs">
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="h-8 w-8 rounded-lg bg-[#D4AF37]/20 border border-[#D4AF37]/40 flex items-center justify-center shrink-0">
-                              <Banknote size={18} className="text-[#B89124]" />
+                            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#E5C158] via-[#D4AF37] to-[#AA841E] flex items-center justify-center shrink-0 text-[#0B0B0B] shadow-xs">
+                              <Banknote size={20} className="stroke-[2.5]" />
                             </div>
                             <div className="min-w-0">
-                              <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider block text-[#8F6B12] truncate">
+                              <span className="text-[11px] font-black uppercase tracking-wider block text-[#8F6B12] truncate">
                                 Cash on Delivery (COD)
                               </span>
-                              <span className="text-[11px] sm:text-xs text-slate-600 block">
-                                Collect cash payment upon final delivery
+                              <span className="text-[11px] text-slate-600 font-semibold block">
+                                Collect cash before marking delivered
                               </span>
                             </div>
                           </div>
-                          <span className="text-lg sm:text-xl font-black font-mono text-[#0B0B0B] self-end sm:self-auto">
+                          <span className="text-xl sm:text-2xl font-black font-mono text-[#0B0B0B] shrink-0">
                             ₹{currentDelivery.codAmount.toLocaleString("en-IN")}
                           </span>
                         </div>
                       )}
 
                       {/* Delivery Address & Contact */}
-                      <div className="rounded-xl bg-slate-50 border border-slate-200/80 p-4 space-y-3 min-w-0">
+                      <div className="rounded-2xl bg-[#F8FAFC] border border-slate-200 p-4 space-y-3.5 min-w-0">
                         <div className="flex items-start gap-3 min-w-0">
-                          <div className="h-7 w-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 mt-0.5 text-[#B89124]">
-                            <MapPin size={16} />
+                          <div className="h-8 w-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 mt-0.5 text-[#B89124] shadow-xs">
+                            <MapPin size={18} className="stroke-[2.5]" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
-                              Delivery Destination
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                              Deliver to Customer
                             </span>
-                            <h3 className="text-xs sm:text-sm font-bold text-[#0B0B0B] mt-0.5 break-words">
+                            <h3 className="text-sm font-black text-slate-900 mt-0.5 break-words">
                               {currentDelivery.destination.recipientName}
                             </h3>
-                            <p className="text-xs text-slate-600 mt-1 leading-relaxed break-words">
+                            <p className="text-xs text-slate-600 mt-1 leading-relaxed break-words font-medium">
                               {currentDelivery.destination.addressLine1}
                               {currentDelivery.destination.addressLine2 ? `, ${currentDelivery.destination.addressLine2}` : ""}
-                              {currentDelivery.destination.landmark ? ` (Near: ${currentDelivery.destination.landmark})` : ""}
+                              {currentDelivery.destination.landmark ? ` (Near ${currentDelivery.destination.landmark})` : ""}
                               <br />
-                              {currentDelivery.destination.city}, {currentDelivery.destination.state} - {currentDelivery.destination.postalCode}
+                              <span className="font-bold text-slate-800">
+                                {currentDelivery.destination.city}, {currentDelivery.destination.state} - {currentDelivery.destination.postalCode}
+                              </span>
                             </p>
                           </div>
                         </div>
 
                         {/* Action buttons: Call Customer & Turn-by-Turn Directions in Maps */}
-                        <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
+                        <div className="pt-2 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {currentDelivery.destination.phone ? (
+                            <a
+                              href={`tel:${currentDelivery.destination.phone}`}
+                              className="btn-gold-gradient w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-black transition shadow-sm active:scale-[0.99]"
+                            >
+                              <Phone size={16} className="stroke-[2.5]" /> Call Customer ({currentDelivery.destination.phone})
+                            </a>
+                          ) : (
+                            <div />
+                          )}
                           <a
                             href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
                               `${currentDelivery.destination.addressLine1}, ${currentDelivery.destination.city}, ${currentDelivery.destination.state}`
                             )}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="btn-cart-gradient w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition shadow-xs"
+                            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#0B0B0B] hover:bg-black px-4 py-3 text-xs font-black text-white transition shadow-sm active:scale-[0.99]"
                           >
-                            <Navigation size={14} className="text-[#D4AF37]" /> Open in Google Maps
+                            <Navigation size={16} className="text-[#D4AF37] stroke-[2.5]" /> Open in Maps
                           </a>
-                          {currentDelivery.destination.phone && (
-                            <a
-                              href={`tel:${currentDelivery.destination.phone}`}
-                              className="btn-gold-gradient w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-[#0B0B0B] transition shadow-xs"
-                            >
-                              <Phone size={14} /> Call Customer ({currentDelivery.destination.phone})
-                            </a>
-                          )}
                         </div>
                       </div>
 
@@ -723,19 +896,21 @@ export function DeliveryPartnerPortalPage() {
                           />
                         </div>
 
-                        {/* Full Screen Google Maps Style Navigation Modal */}
+                        {/* Full Screen Driver Navigation HUD Modal */}
                         {isFullScreenNav && (
-                          <div className="fixed inset-0 z-[9999] bg-slate-950 flex flex-col">
-                            {/* Google Maps Style Navigation Top Bar */}
-                            <div className="absolute top-0 left-0 right-0 z-[10000] p-3 sm:p-4 bg-gradient-to-b from-slate-950/90 via-slate-950/60 to-transparent pointer-events-none">
-                              <div className="flex items-center justify-between pointer-events-auto">
-                                <div className="flex items-center gap-2.5 rounded-2xl bg-emerald-700 text-white px-4 py-2.5 shadow-xl border border-emerald-500/30">
-                                  <Navigation size={22} className="text-emerald-100 fill-emerald-100 shrink-0 animate-pulse" />
-                                  <div>
-                                    <span className="block text-[11px] font-bold uppercase tracking-wider text-emerald-200">
+                          <div className="fixed inset-0 z-[9999] bg-[#0B0B0B] flex flex-col font-sans">
+                            {/* Navigation HUD Top Header — Brand Black & Gold */}
+                            <div className="absolute top-0 left-0 right-0 z-[10000] p-3 sm:p-4 bg-gradient-to-b from-[#0B0B0B]/95 via-[#0B0B0B]/70 to-transparent pointer-events-none">
+                              <div className="max-w-2xl mx-auto flex items-center justify-between gap-3 pointer-events-auto">
+                                <div className="flex items-center gap-2.5 sm:gap-3 rounded-2xl bg-[#1C1C1C]/90 backdrop-blur-md text-white px-3.5 py-2.5 sm:px-4 sm:py-3 shadow-xl border border-[#D4AF37]/40 min-w-0 flex-1">
+                                  <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-[#E5C158] via-[#D4AF37] to-[#AA841E] text-[#0B0B0B] flex items-center justify-center shrink-0 shadow-md">
+                                    <Navigation size={20} className="fill-[#0B0B0B] stroke-[#0B0B0B] animate-pulse" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <span className="block text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-[#D4AF37] truncate">
                                       Turn-by-Turn Navigation
                                     </span>
-                                    <span className="block text-sm sm:text-base font-black">
+                                    <span className="block text-xs sm:text-sm font-black text-white truncate">
                                       Heading to {currentDelivery.destination.recipientName}
                                     </span>
                                   </div>
@@ -744,10 +919,10 @@ export function DeliveryPartnerPortalPage() {
                                 <button
                                   type="button"
                                   onClick={() => setIsFullScreenNav(false)}
-                                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-white font-bold text-xs shadow-lg border border-slate-700 transition"
+                                  className="flex items-center gap-1.5 px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl bg-[#1C1C1C]/90 hover:bg-[#252525] text-white font-black text-xs shadow-xl border border-[#333333] transition shrink-0 backdrop-blur-md active:scale-95"
                                 >
-                                  <Minimize2 size={16} className="text-[#D4AF37]" />
-                                  <span>Exit Navigation</span>
+                                  <Minimize2 size={15} className="text-[#D4AF37]" />
+                                  <span>Exit HUD</span>
                                 </button>
                               </div>
                             </div>
@@ -776,54 +951,71 @@ export function DeliveryPartnerPortalPage() {
                               />
                             </div>
 
-                            {/* Google Maps Style Navigation Bottom Floating Card */}
-                            <div className="absolute bottom-4 left-3 right-3 sm:left-6 sm:right-6 z-[10000] pointer-events-auto">
-                              <div className="mx-auto max-w-xl rounded-2xl bg-slate-900/95 p-4 text-white shadow-2xl border border-slate-800 backdrop-blur-md">
-                                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                                  <div className="flex items-center gap-3">
-                                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 font-mono text-xl font-black border border-emerald-500/30">
-                                      {partnerLocationInfo?.speed != null ? Math.round(partnerLocationInfo.speed * 3.6) : 0}
-                                      <span className="text-[10px] ml-0.5">km/h</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                                        Destination Address
+                            {/* Driver Navigation HUD Bottom Floating Card */}
+                            <div className="absolute bottom-3 left-3 right-3 sm:bottom-5 sm:left-6 sm:right-6 z-[10000] pointer-events-auto">
+                              <div className="mx-auto max-w-xl rounded-2xl bg-[#0B0B0B]/95 p-4 text-white shadow-2xl border border-[#262626] backdrop-blur-xl">
+                                <div className="flex items-center justify-between border-b border-[#222222] pb-3 gap-3">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    {/* Speed Meter */}
+                                    <div className="flex h-12 w-12 sm:h-14 sm:w-14 flex-col items-center justify-center rounded-2xl bg-[#1C1C1C] text-white font-mono border border-[#D4AF37]/50 shadow-inner shrink-0">
+                                      <span className="text-lg sm:text-xl font-black leading-none text-[#D4AF37]">
+                                        {partnerLocationInfo?.speed != null ? Math.round(partnerLocationInfo.speed * 3.6) : 0}
                                       </span>
-                                      <span className="text-xs sm:text-sm font-semibold text-slate-200 line-clamp-1">
+                                      <span className="text-[9px] uppercase font-bold text-slate-400 mt-0.5">km/h</span>
+                                    </div>
+
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-[10px] font-black uppercase tracking-wider text-[#D4AF37] block">
+                                        Drop-off Location
+                                      </span>
+                                      <span className="text-xs sm:text-sm font-bold text-slate-100 block truncate">
                                         {currentDelivery.destination.addressLine1}, {currentDelivery.destination.city}
                                       </span>
+                                      {currentDelivery.destination.phone && (
+                                        <a
+                                          href={`tel:${currentDelivery.destination.phone}`}
+                                          className="inline-flex items-center gap-1 text-[11px] font-black text-[#D4AF37] hover:underline mt-0.5"
+                                        >
+                                          <Phone size={11} /> Call ({currentDelivery.destination.phone})
+                                        </a>
+                                      )}
                                     </div>
                                   </div>
 
                                   {(liveEstimatedArrival || routeData) && (
-                                    <div className="text-right">
-                                      <span className="text-lg sm:text-xl font-black text-[#D4AF37] block">
+                                    <div className="text-right shrink-0">
+                                      <span className="text-xl sm:text-2xl font-black text-[#D4AF37] font-mono leading-none block">
                                         ~{Math.max(1, Math.ceil((liveEstimatedArrival?.etaSeconds ?? routeData?.durationSeconds ?? 0) / 60))} min
                                       </span>
-                                      <span className="text-xs text-slate-400 font-mono">
+                                      <span className="text-xs text-slate-400 font-mono mt-0.5 block font-bold">
                                         {(((liveEstimatedArrival?.distanceRemainingMeters ?? routeData?.distanceMeters ?? 0)) / 1000).toFixed(1)} km left
                                       </span>
                                     </div>
                                   )}
                                 </div>
 
-                                <div className="pt-3 flex items-center justify-between text-xs">
+                                {/* HUD Controls Strip */}
+                                <div className="pt-3 flex items-center justify-between text-xs gap-2">
                                   <div className="flex items-center gap-2">
-                                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-                                    <span className="text-slate-300 font-medium">GPS Active & Auto-Tracking</span>
+                                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                                    <span className="text-slate-300 font-bold text-[11px] sm:text-xs">
+                                      {autoFollow ? "GPS Centered • Auto-Nav" : "Manual Map View"}
+                                    </span>
                                   </div>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => setAutoFollow((p) => !p)}
-                                    className={`px-3 py-1 rounded-lg text-xs font-bold border ${
-                                      autoFollow
-                                        ? "bg-blue-600/30 text-blue-300 border-blue-500/40"
-                                        : "bg-slate-800 text-slate-400 border-slate-700"
-                                    }`}
-                                  >
-                                    {autoFollow ? "Center on Me" : "Follow Off"}
-                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setAutoFollow((p) => !p)}
+                                      className={`px-3 py-1.5 rounded-xl text-xs font-black transition border ${
+                                        autoFollow
+                                          ? "btn-gold-gradient text-[#0B0B0B] border-[#E5C158]"
+                                          : "bg-[#1C1C1C] text-slate-400 border-[#333333]"
+                                      }`}
+                                    >
+                                      {autoFollow ? "Center on Me" : "Follow Off"}
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             </div>

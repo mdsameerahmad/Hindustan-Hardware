@@ -252,23 +252,10 @@ export const AlternativeProducts: React.FC<AlternativeProductsProps> = ({
               <div className="mt-3 flex gap-2">
                 <Button
                   onClick={() => onAddToCart(product.id)}
-                  className="flex-1 text-xs py-2"
+                  className="w-full text-xs py-2"
                 >
                   <ShoppingCart size={14} /> Add to Cart
                 </Button>
-                {onToggleCompare && (
-                  <Button
-                    variant="outline"
-                    onClick={() => onToggleCompare(product.id)}
-                    className="px-2.5"
-                    title="Add to comparison"
-                  >
-                    <GitCompareArrows
-                      size={15}
-                      className={isCompared?.(product.id) ? 'text-[#D4AF37]' : ''}
-                    />
-                  </Button>
-                )}
               </div>
             </div>
           </div>

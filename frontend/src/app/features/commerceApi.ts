@@ -443,6 +443,16 @@ export const adminApi = {
     })
   },
 
+  uploadBrandLogo: async (id: string, file: File) => {
+    const formData = new FormData()
+    formData.append("image", file)
+    return apiRequest<import("./commerceTypes").AdminBrand>(`/admin/brands/${id}/logo`, {
+      method: "POST",
+      requiresAuth: true,
+      body: formData,
+    })
+  },
+
   // ----------------- Products Admin API -----------------
   getProduct: async (id: string) => {
     return apiRequest<any>(`/admin/products/${id}`, {

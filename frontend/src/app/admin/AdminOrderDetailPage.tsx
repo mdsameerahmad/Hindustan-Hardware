@@ -989,10 +989,9 @@ export function AdminOrderDetailPage() {
             <div className="space-y-1.5">
               {[
                 { status: "confirmed", label: "1. Confirm Order" },
-                { status: "processing", label: "2. Mark Preparing / Packing" },
-                { status: "shipped", label: "3. Dispatched / Out for Delivery" },
+                { status: "shipped", label: "2. Dispatched from Store" },
               ].map((step) => {
-                const isCurrent = order.status === step.status
+                const isCurrent = order.status === step.status || (step.status === "confirmed" && order.status === "processing")
                 return (
                   <button
                     key={step.status}

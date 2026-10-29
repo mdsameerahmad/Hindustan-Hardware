@@ -542,16 +542,25 @@ export function StorefrontLayout() {
         {/* Secondary Navigation Ribbon */}
         <nav className="border-t border-[#1C1C1C] bg-[#000000] text-xs font-semibold overflow-x-auto scrollbar-none">
           <div className="container-wide flex items-center gap-2 py-2">
-            {/* All Categories Dropdown Button */}
-            <div className="relative shrink-0">
-              <button
-                onClick={() => setCategoriesDropdownOpen(!categoriesDropdownOpen)}
-                className="flex items-center gap-2 rounded bg-[#D4AF37] px-3.5 py-1.5 font-bold text-[#0B0B0B] hover:bg-[#B89124] transition shadow-sm"
-              >
-                <Menu size={14} />
-                <span>All Categories</span>
-                <ChevronDown size={14} className={`transition-transform ${categoriesDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
+            {/* All Categories Button & Dropdown */}
+            <div className="relative shrink-0 flex items-center">
+              <div className="inline-flex rounded overflow-hidden shadow-sm">
+                <Link
+                  to="/products"
+                  className="flex items-center gap-2 bg-[#D4AF37] px-3.5 py-1.5 font-bold text-[#0B0B0B] hover:bg-[#B89124] transition"
+                >
+                  <Menu size={14} />
+                  <span>All Categories</span>
+                </Link>
+                <button
+                  type="button"
+                  aria-label="Toggle categories menu"
+                  onClick={() => setCategoriesDropdownOpen(!categoriesDropdownOpen)}
+                  className="bg-[#D4AF37] px-2 py-1.5 text-[#0B0B0B] hover:bg-[#B89124] border-l border-[#B89124]/40 transition"
+                >
+                  <ChevronDown size={14} className={`transition-transform duration-200 ${categoriesDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
 
               {/* Dropdown Menu */}
               {categoriesDropdownOpen && (
@@ -561,10 +570,27 @@ export function StorefrontLayout() {
                     onClick={() => setCategoriesDropdownOpen(false)}
                   />
                   <div className="absolute left-0 top-full mt-1.5 w-64 rounded-xl border border-[#222222] bg-[#0B0B0B] py-2 shadow-2xl z-50">
-                    <div className="px-4 py-2 border-b border-[#1C1C1C] text-[10px] font-bold uppercase tracking-wider text-[#888888]">
-                      Product Categories
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-[#1C1C1C]">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#888888]">
+                        Product Categories
+                      </span>
+                      <Link
+                        to="/products"
+                        onClick={() => setCategoriesDropdownOpen(false)}
+                        className="text-[10px] font-bold text-[#D4AF37] hover:underline"
+                      >
+                        All Products →
+                      </Link>
                     </div>
                     <div className="max-h-80 overflow-y-auto">
+                      <Link
+                        to="/products"
+                        onClick={() => setCategoriesDropdownOpen(false)}
+                        className="flex items-center justify-between px-4 py-2.5 text-xs font-bold text-[#D4AF37] hover:bg-[#1C1C1C] border-b border-[#1C1C1C]/50 transition"
+                      >
+                        <span>View All Products</span>
+                        <span className="text-[10px]">→</span>
+                      </Link>
                       {categories.map((category) => (
                         <Link
                           key={category.id || category.slug}

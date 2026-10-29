@@ -23,57 +23,40 @@ import { type Product } from "../data"
 import { transformBackendProduct } from "../utils/productTransform"
 import { BrandStrip } from "./BrandPages"
 
-// Default visual themes for storefront hero presentations
-const heroImagePresets = [
-  "https://images.unsplash.com/photo-1642797735471-3e90055c5ff9?auto=format&fit=crop&w=1600&q=85",
-  "https://images.unsplash.com/photo-1603093433330-e0e5c30df0fe?auto=format&fit=crop&w=1600&q=85",
-  "https://images.unsplash.com/photo-1707409464203-df2f21c32b9c?auto=format&fit=crop&w=1600&q=85",
-]
+// Realistic fallback photography for hardware categories matching the reference image
+const categoryImages: Record<string, { image: string; subtitle: string }> = {
+  "pipes": {
+    image: "https://images.unsplash.com/photo-1542013936693-884638332954?auto=format&fit=crop&w=800&q=80",
+    subtitle: "uPVC, CPVC, PVC, HDPE",
+  },
+  "bathroom": {
+    image: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80",
+    subtitle: "Wash Basins, CP Fittings, Accessories",
+  },
+  "tanks": {
+    image: "https://images.unsplash.com/photo-1590496793929-36417d3117de?auto=format&fit=crop&w=800&q=80",
+    subtitle: "Sintex, Supreme, 3 Layer & More",
+  },
+  "pumps": {
+    image: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=800&q=80",
+    subtitle: "Water Pumps, Pressure Pumps",
+  },
+  "hardware": {
+    image: "https://images.unsplash.com/photo-1581244277943-fe4a9c777189?auto=format&fit=crop&w=800&q=80",
+    subtitle: "Tools, Locks, Hinges, Fasteners",
+  },
+  "electrical": {
+    image: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=800&q=80",
+    subtitle: "Wires, Switches, MCB, Lights",
+  },
+}
 
-const applications = [
-  [
-    "Home Water Connection",
-    "Pipes, valves and fittings for dependable household supply",
-    Droplets,
-    "Water Connection Supplies",
-  ],
-  [
-    "Borewell & Boring",
-    "Casing pipes, cables and connection equipment",
-    Hammer,
-    "Boring Materials",
-  ],
-  [
-    "Overhead Tank Installation",
-    "Tanks, valves and connection accessories",
-    PackageCheck,
-    "Water Storage Tanks",
-  ],
-  [
-    "Bathroom Plumbing",
-    "Taps, faucets, waste pipes and fittings",
-    Wrench,
-    "Bathroom Fittings",
-  ],
-  [
-    "Agricultural Water Supply",
-    "HDPE pipes and robust flow control products",
-    Droplets,
-    "HDPE Pipes",
-  ],
-  [
-    "Electrical Installation",
-    "Modular sockets, switches and safe accessories",
-    ShieldCheck,
-    "Electrical",
-  ],
-  [
-    "Construction Projects",
-    "Project-ready quantities across core categories",
-    Building2,
-    "Tools & Accessories",
-  ],
-] as const
+// Default visual themes for storefront hero presentations matching reference
+const heroImagePresets = [
+  "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1600&q=85",
+  "https://images.unsplash.com/photo-1620626011761-996317b8d101?auto=format&fit=crop&w=1600&q=85",
+  "https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&w=1600&q=85",
+]
 
 export function HomePage() {
   const [slide, setSlide] = useState(0)
@@ -81,32 +64,31 @@ export function HomePage() {
   const [backendCategories, setBackendCategories] = useState<BackendCategory[]>([])
   const [loadingFeatured, setLoadingFeatured] = useState(true)
 
-  // Dynamically derive hero slides from live backend categories
+  // Dynamically derive hero slides matching reference design layout
   const heroSlides = useMemo(() => {
-    if (backendCategories.length === 0) {
-      return [
-        {
-          label: "PREMIUM SANITARY & HARDWARE",
-          title: "Stylish Spaces. Stronger Foundations.",
-          text: "Complete range of sanitaryware, bath fittings, hardware & more for your home and commercial spaces.",
-          image: heroImagePresets[0],
-        },
-      ]
-    }
-    return backendCategories.slice(0, 3).map((cat, idx) => ({
-      label: cat.name.toUpperCase(),
-      title: cat.name,
-      text: cat.description || `Explore our certified range of ${cat.name.toLowerCase()} products.`,
-      image: cat.image_url || heroImagePresets[idx % heroImagePresets.length],
-    }))
-  }, [backendCategories])
+    return [
+      {
+        label: "PREMIUM SANITARY & HARDWARE SOLUTIONS",
+        titlePrefix: "Built for ",
+        titleHighlight: "every project.",
+        text: "Trusted plumbing, sanitaryware and hardware from brands you know.",
+        image: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1600&q=85",
+      },
+      {
+        label: "DURABLE PIPES & INDUSTRIAL FITTINGS",
+        titlePrefix: "Strength for ",
+        titleHighlight: "every pipeline.",
+        text: "Authorized CPVC, UPVC, PVC and SWR systems direct from top manufacturers.",
+        image: "https://images.unsplash.com/photo-1620626011761-996317b8d101?auto=format&fit=crop&w=1600&q=85",
+      },
+    ]
+  }, [])
 
   const [loadingCategories, setLoadingCategories] = useState(true)
 
   useEffect(() => {
     let isMounted = true
 
-    // Fetch live categories from database API
     catalogueApi
       .getCategories()
       .then((cats) => {
@@ -119,7 +101,6 @@ export function HomePage() {
         if (isMounted) setLoadingCategories(false)
       })
 
-    // Fetch live featured products
     catalogueApi
       .getFeaturedProducts(8)
       .then((prods) => {
@@ -127,7 +108,6 @@ export function HomePage() {
           if (prods && prods.length) {
             setFeaturedProducts(prods.map(transformBackendProduct))
           } else {
-            // If no products flagged as featured, fetch first page of products
             catalogueApi.listProducts({ page: 1, limit: 8 }).then((res) => {
               if (isMounted && res.items.length) {
                 setFeaturedProducts(res.items.map(transformBackendProduct))
@@ -157,171 +137,234 @@ export function HomePage() {
 
   // Resolve display categories strictly from backend database categories
   const displayCategories = useMemo(() => {
-    return backendCategories.map((c, idx) => ({
-      id: c.id,
-      name: c.name,
-      slug: c.slug,
-      image:
-        c.image_url ||
-        heroImagePresets[idx % heroImagePresets.length],
-    }))
+    return backendCategories.map((c, idx) => {
+      const lower = c.name.toLowerCase()
+      let presetMatch = Object.entries(categoryImages).find(([key]) => lower.includes(key))
+
+      return {
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        subtitle:
+          presetMatch?.[1]?.subtitle ||
+          c.description ||
+          "Genuine plumbing & hardware solutions",
+        image:
+          c.image_url ||
+          presetMatch?.[1]?.image ||
+          heroImagePresets[idx % heroImagePresets.length],
+      }
+    })
   }, [backendCategories])
 
   return (
     <>
-      <section className="container-wide pt-5">
-        <div className="relative min-h-[500px] overflow-hidden rounded-2xl bg-[#0B0B0B] text-white shadow-2xl md:min-h-[480px]">
+      {/* Clean, Bright Hero Banner exactly matching Reference Screenshot */}
+      <section className="container-wide pt-4 sm:pt-6">
+        <div className="relative min-h-[420px] sm:min-h-[460px] md:min-h-[480px] overflow-hidden rounded-3xl border border-[#D4AF37]/30 bg-gradient-to-r from-[#0B0B0B] via-[#14120B] to-[#1F190B] shadow-xl">
           {heroSlides.map((item, index) => (
             <div
-              key={item.title}
+              key={index}
               className={`absolute inset-0 transition-opacity duration-700 ${
-                index === slide
-                  ? "opacity-100"
-                  : "pointer-events-none opacity-0"
+                index === slide ? "opacity-100" : "pointer-events-none opacity-0"
               }`}
             >
-              <img
-                src={item.image}
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#000000]/95 via-[#0B0B0B]/85 to-[#0B0B0B]/30" />
-              <div className="relative z-10 flex min-h-[500px] max-w-2xl flex-col justify-center px-7 py-14 sm:px-12 md:min-h-[480px] md:px-16">
-                <span className="inline-block text-xs font-bold uppercase tracking-[0.25em] text-[#D4AF37]">
-                  PREMIUM SANITARY & HARDWARE SOLUTIONS
+              {/* Right Hero Image with dark gold fade blend */}
+              <div className="absolute right-0 top-0 bottom-0 w-full md:w-3/5 lg:w-7/12">
+                <img
+                  src={item.image}
+                  alt="Modern bathroom and hardware fixture"
+                  className="h-full w-full object-cover object-center brightness-90 contrast-105"
+                />
+                {/* Left gradient overlay to seamlessly integrate dark gold/black text background */}
+                <div
+                  className="absolute inset-0 bg-gradient-to-r from-[#0B0B0B] via-[#0B0B0B]/85 to-transparent"
+                  style={{
+                    maskImage: "linear-gradient(to right, black 20%, transparent 100%)",
+                    WebkitMaskImage: "linear-gradient(to right, black 20%, transparent 100%)",
+                  }}
+                />
+                {/* Subtle gold ambient tint */}
+                <div className="absolute inset-0 bg-[#D4AF37]/10 mix-blend-color" />
+              </div>
+
+              {/* Full background base gradient for dark theme text legibility */}
+              <div className="absolute inset-0 bg-gradient-to-r from-[#0B0B0B] via-[#0B0B0B]/95 via-50% to-transparent w-full md:w-3/5" />
+
+              {/* Hero Content Left */}
+              <div className="relative z-10 flex min-h-[420px] sm:min-h-[460px] md:min-h-[480px] max-w-xl flex-col justify-center px-6 sm:px-12 md:px-16 py-10">
+                <span className="inline-block text-[11px] sm:text-xs font-black uppercase tracking-[0.25em] text-[#D4AF37]">
+                  {item.label}
                 </span>
-                <h1 className="mt-4 font-serif text-4xl font-black leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-6xl">
-                  Stylish Spaces.<br />
-                  <span className="text-[#D4AF37]">Stronger Foundations.</span>
+
+                <h1 className="mt-3.5 text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.08]">
+                  {item.titlePrefix}
+                  <span className="text-[#D4AF37]">{item.titleHighlight}</span>
                 </h1>
-                <p className="mt-4 max-w-xl text-sm leading-6 text-[#CCCCCC] sm:text-base">
-                  Complete range of sanitaryware, bath fittings, hardware & more for your home and commercial spaces.
+
+                <p className="mt-4 max-w-md text-sm sm:text-base text-slate-300 font-normal leading-relaxed">
+                  {item.text}
                 </p>
-                <div className="mt-8 flex flex-wrap gap-3">
-                  <Link to="/products">
-                    <Button variant="primary" className="px-6 py-3 text-sm">
-                      Shop Now <ArrowRight size={17} />
-                    </Button>
+
+                {/* Primary & Secondary Action Buttons */}
+                <div className="mt-7 flex flex-wrap items-center gap-3.5">
+                  <Link
+                    to="/products"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#D4AF37] hover:bg-[#B89124] px-6 py-3.5 text-xs sm:text-sm font-black text-[#0B0B0B] shadow-md transition hover:shadow-lg"
+                  >
+                    Shop Products <ArrowRight size={16} />
                   </Link>
-                  <a href="#categories">
-                    <Button
-                      variant="secondary"
-                      className="px-6 py-3 text-sm"
-                    >
-                      Explore Categories
-                    </Button>
-                  </a>
+                  <Link
+                    to="/brands"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D4AF37]/50 bg-black/60 hover:bg-black/90 px-6 py-3.5 text-xs sm:text-sm font-bold text-white shadow-sm transition hover:border-[#D4AF37]"
+                  >
+                    Browse Brands
+                  </Link>
                 </div>
               </div>
             </div>
           ))}
+
+          {/* Slider Prev / Next Navigation Controls */}
           <button
-            onClick={() =>
-              setSlide((slide + heroSlides.length - 1) % heroSlides.length)
-            }
+            onClick={() => setSlide((slide + heroSlides.length - 1) % heroSlides.length)}
             aria-label="Previous slide"
-            className="absolute left-4 top-1/2 z-20 hidden rounded-full bg-black/40 p-3 text-white backdrop-blur hover:bg-[#D4AF37] hover:text-[#0B0B0B] sm:block transition"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 z-20 hidden sm:flex h-10 w-10 items-center justify-center rounded-full bg-black/60 hover:bg-black/85 text-[#D4AF37] border border-[#D4AF37]/40 shadow-md backdrop-blur transition"
           >
-            <ChevronLeft />
+            <ChevronLeft size={20} />
           </button>
           <button
             onClick={() => setSlide((slide + 1) % heroSlides.length)}
             aria-label="Next slide"
-            className="absolute right-4 top-1/2 z-20 hidden rounded-full bg-black/40 p-3 text-white backdrop-blur hover:bg-[#D4AF37] hover:text-[#0B0B0B] sm:block transition"
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 z-20 hidden sm:flex h-10 w-10 items-center justify-center rounded-full bg-black/60 hover:bg-black/85 text-[#D4AF37] border border-[#D4AF37]/40 shadow-md backdrop-blur transition"
           >
-            <ChevronRight />
+            <ChevronRight size={20} />
           </button>
-          <div className="absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 gap-2">
+
+          {/* Slide Indicator Dots */}
+          <div className="absolute bottom-4 left-6 sm:left-16 z-20 flex gap-2">
             {heroSlides.map((_, index) => (
               <button
                 key={index}
                 onClick={() => setSlide(index)}
                 aria-label={`Go to slide ${index + 1}`}
                 className={`h-2 rounded-full transition-all ${
-                  slide === index ? "w-7 bg-[#D4AF37]" : "w-2 bg-white/40"
+                  slide === index ? "w-6 bg-[#D4AF37]" : "w-2 bg-white/40"
                 }`}
               />
             ))}
           </div>
         </div>
 
-        {/* 4 Feature Badges from Reference image */}
-        <div className="relative z-20 mx-4 -mt-6 grid grid-cols-2 overflow-hidden rounded-xl border border-[#222222] bg-[#0B0B0B] p-2 text-white shadow-xl md:grid-cols-4">
-          <div className="flex items-center gap-3 p-3.5 border-b border-[#1C1C1C] md:border-b-0 md:border-r border-[#1C1C1C]">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#D4AF37]/40 bg-[#1C1C1C] text-[#D4AF37]">
+        {/* 4 Feature Badges exactly like Reference Image: White Card with Clean Gold Icons */}
+        <div className="relative z-20 mt-4 rounded-2xl border border-slate-200/90 bg-white p-3 sm:p-4 shadow-xs grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+          <div className="flex items-center gap-3 p-2">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-50 text-[#D4AF37] border border-amber-200/60">
               <ShieldCheck size={20} />
             </span>
             <span className="text-xs">
-              <strong className="block text-white">Genuine Products</strong>
-              <small className="text-[#888888]">100% Brand Certified</small>
+              <strong className="block font-bold text-slate-900">Genuine Products</strong>
+              <small className="text-slate-500 font-medium">100% brand certified</small>
             </span>
           </div>
-          <div className="flex items-center gap-3 p-3.5 border-b border-[#1C1C1C] md:border-b-0 md:border-r border-[#1C1C1C]">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#D4AF37]/40 bg-[#1C1C1C] text-[#D4AF37]">
+
+          <div className="flex items-center gap-3 p-2 pt-3 sm:pt-2">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-50 text-[#D4AF37] border border-amber-200/60">
               <Star size={20} />
             </span>
             <span className="text-xs">
-              <strong className="block text-white">Best Price Guarantee</strong>
-              <small className="text-[#888888]">Wholesale & Retail</small>
+              <strong className="block font-bold text-slate-900">Best Price Promise</strong>
+              <small className="text-slate-500 font-medium">Wholesale & retail</small>
             </span>
           </div>
-          <div className="flex items-center gap-3 p-3.5 border-r border-[#1C1C1C]">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#D4AF37]/40 bg-[#1C1C1C] text-[#D4AF37]">
+
+          <div className="flex items-center gap-3 p-2 pt-3 sm:pt-2">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-50 text-[#D4AF37] border border-amber-200/60">
               <Users size={20} />
             </span>
             <span className="text-xs">
-              <strong className="block text-white">Expert Support</strong>
-              <small className="text-[#888888]">Product Guidance</small>
+              <strong className="block font-bold text-slate-900">Expert Support</strong>
+              <small className="text-slate-500 font-medium">Product guidance</small>
             </span>
           </div>
-          <div className="flex items-center gap-3 p-3.5">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#D4AF37]/40 bg-[#1C1C1C] text-[#D4AF37]">
+
+          <div className="flex items-center gap-3 p-2 pt-3 sm:pt-2">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-50 text-[#D4AF37] border border-amber-200/60">
               <Truck size={20} />
             </span>
             <span className="text-xs">
-              <strong className="block text-white">Pan India Delivery</strong>
-              <small className="text-[#888888]">Safe & Fast Logistics</small>
+              <strong className="block font-bold text-slate-900">Pan-India Delivery</strong>
+              <small className="text-slate-500 font-medium">Safe & fast logistics</small>
             </span>
           </div>
         </div>
       </section>
 
-      <BrandStrip className="section-space" />
+      {/* Shop by Brand Section */}
+      <BrandStrip className="mt-12 sm:mt-16" />
 
-      <section id="categories" className="section-space container-wide">
-        <SectionHeading
-          eyebrow="Browse the store"
-          title="Shop by category"
-          action={
-            <Link className="link-arrow" to="/products">
-              View all <ArrowRight size={16} />
-            </Link>
-          }
-        />
+      {/* Shop by Category Section matching Reference Image (Card with image, title, subtitle & chevron) */}
+      <section id="categories" className="container-wide mt-12 sm:mt-16">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6">
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-[#0B0B0B]">
+                Shop by Category
+              </h2>
+              <span className="hidden sm:inline-block text-xs text-slate-500 font-normal">
+                Find everything for your home, commercial or industrial project.
+              </span>
+            </div>
+            <p className="sm:hidden text-xs text-slate-500 mt-1">
+              Find everything for your home, commercial or industrial project.
+            </p>
+          </div>
+          <Link
+            to="/products"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D4AF37] hover:text-[#B89124] transition-colors shrink-0"
+          >
+            View All Categories <ArrowRight size={14} />
+          </Link>
+        </div>
+
         {loadingCategories ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-36 animate-pulse rounded-xl bg-slate-100" />
+              <div key={i} className="h-48 rounded-2xl bg-slate-100 animate-pulse border border-slate-200" />
             ))}
           </div>
         ) : displayCategories.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             {displayCategories.map((category) => (
               <Link
                 to={`/category/${category.slug}`}
                 key={category.slug}
-                className="group overflow-hidden rounded-xl border border-border bg-white p-3 text-center transition hover:-translate-y-1 hover:border-brand/40 hover:shadow-lg"
+                className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-2.5 transition-all duration-200 hover:-translate-y-1 hover:border-[#D4AF37]/60 hover:shadow-lg"
               >
-                <div className="aspect-square overflow-hidden rounded-lg bg-slate-100">
+                {/* Category Thumbnail Image */}
+                <div className="aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-100">
                   <img
                     src={category.image}
                     alt={category.name}
-                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
-                <h3 className="mt-3 text-sm font-extrabold leading-tight text-ink">
-                  {category.name}
-                </h3>
+
+                {/* Category Title, Subtitle and Chevron Arrow */}
+                <div className="flex items-start justify-between gap-1.5 pt-3 pb-1 px-1">
+                  <div className="min-w-0">
+                    <h3 className="text-xs sm:text-sm font-black text-slate-900 group-hover:text-[#0B0B0B] truncate">
+                      {category.name}
+                    </h3>
+                    <p className="mt-0.5 text-[10px] sm:text-[11px] text-slate-500 line-clamp-1">
+                      {category.subtitle}
+                    </p>
+                  </div>
+                  <ChevronRight
+                    size={14}
+                    className="text-amber-500 group-hover:translate-x-0.5 transition-transform shrink-0 mt-0.5"
+                  />
+                </div>
               </Link>
             ))}
           </div>
@@ -332,232 +375,161 @@ export function HomePage() {
         )}
       </section>
 
-      <section className="section-space bg-white py-14">
-        <div className="container-wide">
-          <SectionHeading
-            eyebrow="Customer favourites"
-            title="Best-selling hardware"
-            action={
-              <Link className="link-arrow text-sm font-bold text-brand" to="/products">
-                Browse Full Catalogue <ArrowRight size={16} />
-              </Link>
-            }
-          />
-          {loadingFeatured ? (
-            <div className="product-grid">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-72 animate-pulse rounded-xl bg-slate-100" />
-              ))}
+      {/* Customer Favourites / Best-Selling Hardware Section */}
+      <section className="container-wide mt-16 sm:mt-20">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6">
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-[#0B0B0B]">
+                Best-Selling Hardware
+              </h2>
+              <span className="hidden sm:inline-block text-xs text-slate-500 font-normal">
+                Customer favourites & top industrial hardware essentials.
+              </span>
             </div>
-          ) : featuredProducts.length > 0 ? (
-            <div className="product-grid">
-              {featuredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          ) : (
-            <p className="text-center text-sm text-slate-500 py-8">
+            <p className="sm:hidden text-xs text-slate-500 mt-1">
+              Customer favourites & top industrial hardware essentials.
+            </p>
+          </div>
+          <Link
+            to="/products"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D4AF37] hover:text-[#B89124] transition-colors shrink-0"
+          >
+            Browse Full Catalogue <ArrowRight size={14} />
+          </Link>
+        </div>
+
+        {loadingFeatured ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-80 animate-pulse rounded-2xl bg-white border border-slate-200 p-4" />
+            ))}
+          </div>
+        ) : featuredProducts.length > 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            {featuredProducts.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
+            <p className="text-sm font-medium text-slate-500">
               Catalogue products are currently being updated.
             </p>
-          )}
-        </div>
+          </div>
+        )}
       </section>
 
-      <section className="section-space container-wide">
-        <SectionHeading
-          eyebrow="Find the right setup"
-          title="Shop by application"
-        />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {applications.map(([title, text, Icon, query], index) => (
-            <Link
-              key={title}
-              to={`/products?q=${encodeURIComponent(query)}`}
-              className={`group rounded-xl p-6 transition hover:-translate-y-1 ${
-                index === 0
-                  ? "bg-brand text-white sm:col-span-2"
-                  : "border border-border bg-white text-ink"
-              }`}
-            >
-              <Icon
-                className={index === 0 ? "text-accent" : "text-brand"}
-                size={28}
-              />
-              <h3 className="mt-6 text-lg font-extrabold">{title}</h3>
-              <p
-                className={`mt-2 text-sm leading-6 ${
-                  index === 0 ? "text-blue-100" : "text-slate-500"
-                }`}
-              >
-                {text}
-              </p>
-              <span
-                className={`mt-5 inline-flex items-center gap-1 text-sm font-bold ${
-                  index === 0 ? "text-accent" : "text-brand"
-                }`}
-              >
-                Explore products <ArrowRight size={15} />
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* 3 Showcase Banners from Reference Image */}
-      <section className="section-space container-wide">
-        <div className="grid gap-5 md:grid-cols-3">
-          <div className="relative overflow-hidden rounded-2xl bg-[#0B0B0B] p-6 text-white shadow-lg border border-[#222222]">
-            <img
-              src="https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80"
-              alt="Modern Bathroom Solutions"
-              className="absolute inset-0 h-full w-full object-cover opacity-25"
-            />
-            <div className="relative z-10 flex flex-col justify-end min-h-[220px]">
-              <span className="text-xs font-bold text-[#D4AF37] uppercase tracking-wider">Luxury · Comfort · Durability</span>
-              <h3 className="mt-1 font-serif text-2xl font-black text-white">Modern Bathroom Solutions</h3>
-              <div className="mt-4">
-                <Link to="/products?q=Sanitaryware">
-                  <button className="rounded-lg bg-[#D4AF37] px-4 py-2 text-xs font-bold text-[#0B0B0B] hover:bg-[#B89124] transition">
-                    Shop Now →
-                  </button>
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative overflow-hidden rounded-2xl bg-[#0B0B0B] p-6 text-white shadow-lg border border-[#222222]">
-            <img
-              src="https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=800&q=80"
-              alt="Premium Faucets & Fittings"
-              className="absolute inset-0 h-full w-full object-cover opacity-25"
-            />
-            <div className="relative z-10 flex flex-col justify-end min-h-[220px]">
-              <span className="text-xs font-bold text-[#D4AF37] uppercase tracking-wider">Elegant Designs · Long Life</span>
-              <h3 className="mt-1 font-serif text-2xl font-black text-white">Premium Faucets & Fittings</h3>
-              <div className="mt-4">
-                <Link to="/products?q=Fittings">
-                  <button className="rounded-lg bg-[#D4AF37] px-4 py-2 text-xs font-bold text-[#0B0B0B] hover:bg-[#B89124] transition">
-                    Shop Now →
-                  </button>
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative overflow-hidden rounded-2xl bg-[#0B0B0B] p-6 text-white shadow-lg border border-[#222222]">
-            <img
-              src="https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&w=800&q=80"
-              alt="Hardware Tools for Every Project"
-              className="absolute inset-0 h-full w-full object-cover opacity-25"
-            />
-            <div className="relative z-10 flex flex-col justify-end min-h-[220px]">
-              <span className="text-xs font-bold text-[#D4AF37] uppercase tracking-wider">Build · Repair · Create</span>
-              <h3 className="mt-1 font-serif text-2xl font-black text-white">Hardware Tools for Every Project</h3>
-              <div className="mt-4">
-                <Link to="/products?q=Tools">
-                  <button className="rounded-lg bg-[#D4AF37] px-4 py-2 text-xs font-bold text-[#0B0B0B] hover:bg-[#B89124] transition">
-                    Shop Now →
-                  </button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Why Choose Hindustan Hardware dark strip from reference */}
-      <section className="bg-[#0B0B0B] py-10 text-white border-y border-[#1C1C1C]">
+      {/* Why Choose Hindustan Hardware - Sleek Dark & Gold Banner */}
+      <section className="mt-16 sm:mt-20 border-y border-[#222222] bg-gradient-to-r from-[#070707] via-[#0E0E0E] to-[#14120B] py-12 text-white">
         <div className="container-wide">
-          <div className="grid grid-cols-2 gap-6 md:grid-cols-4 items-center">
-            <div className="text-center md:text-left">
-              <span className="text-xs font-bold uppercase tracking-widest text-[#D4AF37]">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 items-center">
+            <div className="text-center md:text-left pr-0 md:pr-4">
+              <span className="inline-block text-[11px] font-black uppercase tracking-[0.25em] text-[#D4AF37]">
                 Trusted Quality
               </span>
-              <h2 className="mt-1 font-serif text-2xl font-black text-white">
+              <h2 className="mt-2 text-2xl sm:text-3xl font-black text-white leading-tight">
                 Why Choose Hindustan Hardware?
               </h2>
+              <p className="mt-2 text-xs text-slate-400">
+                Direct authorized sourcing, fair wholesale pricing, and community trust.
+              </p>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-[#D4AF37]/50 bg-[#1C1C1C] text-[#D4AF37]">
-                <ShieldCheck size={22} />
+
+            <div className="flex items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.03] p-4 transition hover:bg-white/[0.06] hover:border-[#D4AF37]/30">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#D4AF37]/40 bg-[#161616] text-[#D4AF37] shadow-sm">
+                <ShieldCheck size={24} />
               </span>
               <div>
-                <strong className="block text-sm text-white">100% Genuine</strong>
-                <small className="text-[#888888]">Brand Authorized</small>
+                <strong className="block text-sm font-bold text-white">100% Genuine</strong>
+                <span className="text-xs text-slate-400">Brand Authorized OEM Parts</span>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-[#D4AF37]/50 bg-[#1C1C1C] text-[#D4AF37]">
-                <PackageCheck size={22} />
+
+            <div className="flex items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.03] p-4 transition hover:bg-white/[0.06] hover:border-[#D4AF37]/30">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#D4AF37]/40 bg-[#161616] text-[#D4AF37] shadow-sm">
+                <PackageCheck size={24} />
               </span>
               <div>
-                <strong className="block text-sm text-white">Wide Range</strong>
-                <small className="text-[#888888]">Sanitary & Hardware</small>
+                <strong className="block text-sm font-bold text-white">Wide Range</strong>
+                <span className="text-xs text-slate-400">Sanitary, Pipes & Hardware</span>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-[#D4AF37]/50 bg-[#1C1C1C] text-[#D4AF37]">
-                <Phone size={22} />
+
+            <div className="flex items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.03] p-4 transition hover:bg-white/[0.06] hover:border-[#D4AF37]/30">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#D4AF37]/40 bg-[#161616] text-[#D4AF37] shadow-sm">
+                <Phone size={24} />
               </span>
               <div>
-                <strong className="block text-sm text-white">Expert Support</strong>
-                <small className="text-[#888888]">+91 98765 43210</small>
+                <strong className="block text-sm font-bold text-white">Expert Support</strong>
+                <span className="text-xs text-[#D4AF37] font-semibold">+91 98765 43210</span>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="section-space container-wide">
-        <SectionHeading
-          eyebrow="Local expertise, online convenience"
-          title="Why shop with Hindustan Hardware?"
-        />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Local Expertise, Online Convenience - Clean Modern 6-Card Grid */}
+      <section className="container-wide mt-16 sm:mt-20">
+        <div className="text-center max-w-2xl mx-auto mb-10">
+          <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#B89124]">
+            Local expertise, online convenience
+          </span>
+          <h2 className="mt-2 text-2xl sm:text-3xl lg:text-4xl font-black text-[#0B0B0B] tracking-tight">
+            Why shop with Hindustan Hardware?
+          </h2>
+          <p className="mt-3 text-xs sm:text-sm text-slate-600">
+            Engineered to provide homeowners, contractors, and builders with a reliable, straightforward hardware shopping experience.
+          </p>
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {[
             [
               PackageCheck,
               "Wide Product Selection",
-              "Core plumbing, electrical and construction essentials.",
+              "Core plumbing, pipes, tanks, pumps, electrical, and construction essentials in stock.",
             ],
             [
               Store,
               "Trusted Local Store",
-              "A practical local shopping experience in Jehanabad.",
+              "A practical local shopping experience in Jehanabad with verified factory direct items.",
             ],
             [
               Wrench,
               "Product Guidance",
-              "Help selecting compatible sizes, materials and fittings.",
+              "Expert help selecting compatible pipe diameters, fittings, valves, and water systems.",
             ],
             [
               ShoppingCart,
               "Convenient Ordering",
-              "Build your cart and place a simulated order online.",
+              "Effortlessly build your cart, get transparent tax invoices, and track orders online.",
             ],
             [
               Truck,
               "Local Delivery Support",
-              "Delivery availability is configurable by PIN code.",
+              "Fast, doorstep dispatch verified by PIN code directly to your project location.",
             ],
             [
               Users,
               "For Every Project",
-              "Support for contractors, homeowners and small businesses.",
+              "Tailored support for plumbers, contractors, homeowners, and commercial facilities.",
             ],
           ].map(([Icon, title, text]) => {
             const IconComponent = Icon as typeof Wrench
             return (
               <div
                 key={String(title)}
-                className="flex gap-4 rounded-xl border border-border bg-white p-5"
+                className="group flex gap-4 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-2xs transition-all duration-200 hover:-translate-y-1 hover:border-[#D4AF37]/50 hover:shadow-md"
               >
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-blue-50 text-brand">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-amber-50/80 text-[#B89124] border border-amber-200/60 transition-colors group-hover:bg-[#0B0B0B] group-hover:text-[#D4AF37] group-hover:border-[#0B0B0B]">
                   <IconComponent size={22} />
                 </span>
                 <div>
-                  <h3 className="font-extrabold text-ink">{String(title)}</h3>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                  <h3 className="text-sm font-extrabold text-slate-900 group-hover:text-[#0B0B0B]">
+                    {String(title)}
+                  </h3>
+                  <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
                     {String(text)}
                   </p>
                 </div>
@@ -567,28 +539,42 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="container-wide">
-        <div className="grid overflow-hidden rounded-2xl border border-border bg-white md:grid-cols-2">
-          <img
-            src="https://images.unsplash.com/photo-1789992085565-c9eaf815767b?auto=format&fit=crop&w=1200&q=80"
-            alt="Illustrative hardware store"
-            className="h-full min-h-72 w-full object-cover"
-          />
-          <div className="flex flex-col justify-center p-8 sm:p-12">
-            <p className="eyebrow">Serving Jehanabad</p>
-            <h2 className="mt-2 text-3xl font-black text-ink">
+      {/* Our Story Spotlight Banner */}
+      <section className="container-wide mt-16 sm:mt-20 mb-16">
+        <div className="grid overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-sm md:grid-cols-2">
+          <div className="relative min-h-72 sm:min-h-80 w-full overflow-hidden bg-slate-100">
+            <img
+              src="https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=80"
+              alt="Hindustan Hardware Showroom"
+              className="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent md:hidden" />
+          </div>
+
+          <div className="flex flex-col justify-center p-8 sm:p-12 lg:p-14">
+            <div className="inline-flex items-center gap-2 self-start rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-[#B89124] border border-amber-200/80 mb-3">
+              Serving Jehanabad & Bihar
+            </div>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#0B0B0B] tracking-tight leading-tight">
               Hardware knowledge rooted in the local community
             </h2>
-            <p className="mt-4 leading-7 text-slate-600">
-              Hindustan Hardware brings practical product discovery and ordering
-              to customers across Jehanabad and surrounding areas. Visit us on
-              P.G. Road, opposite Eidgah.
+            <p className="mt-4 text-xs sm:text-sm leading-relaxed text-slate-600">
+              Hindustan Hardware brings practical product discovery and seamless ordering to customers across Jehanabad and surrounding districts. Visit our authorized showroom on P.G. Road, opposite Eidgah for expert consultations and complete project supplies.
             </p>
-            <Link className="mt-6" to="/about">
-              <Button variant="outline">
-                Our story <ArrowRight size={16} />
-              </Button>
-            </Link>
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <Link
+                to="/about"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#0B0B0B] hover:bg-[#D4AF37] hover:text-[#0B0B0B] px-6 py-3 text-xs sm:text-sm font-bold text-white transition-all shadow-xs"
+              >
+                Our Story <ArrowRight size={15} />
+              </Link>
+              <Link
+                to="/contact"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-5 py-3 text-xs sm:text-sm font-bold text-slate-800 transition shadow-2xs"
+              >
+                Contact Store
+              </Link>
+            </div>
           </div>
         </div>
       </section>

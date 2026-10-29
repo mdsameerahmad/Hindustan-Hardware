@@ -68,11 +68,11 @@ export function AdminOrdersPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border p-3.5 sm:p-4">
           <div className="relative w-full sm:max-w-sm flex-1">
             <Search
-              className="absolute left-3 top-3 text-slate-400"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
               size={18}
             />
             <input
-              className="field pl-10 w-full text-xs sm:text-sm"
+              className="field !pl-10 w-full text-xs sm:text-sm"
               placeholder="Search by order number or ID"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}

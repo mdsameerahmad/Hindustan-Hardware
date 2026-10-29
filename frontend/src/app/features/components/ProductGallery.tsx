@@ -36,13 +36,13 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     : [{ id: 'main', url: mainImage, alt: productName }]
 
   return (
-    <div className="space-y-4">
-      {/* Main Image Display with Aspect Ratio Preservation */}
-      <div className="relative aspect-square overflow-hidden rounded-2xl border border-border bg-[#FBFBFB] shadow-sm">
+    <div className="space-y-3">
+      {/* Main Image Display: shows completely edge-to-edge with no side borders or padding */}
+      <div className="relative aspect-square max-h-[400px] w-full overflow-hidden rounded-2xl bg-slate-100 shadow-xs mx-auto">
         <ProductImage
           src={mainImage}
           alt={productName}
-          className="h-full w-full object-contain p-4 transition duration-300"
+          className="h-full w-full object-cover transition duration-300 hover:scale-105"
         />
       </div>
 

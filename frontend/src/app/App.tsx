@@ -1,5 +1,6 @@
 import { createBrowserRouter, RouterProvider } from "react-router"
 import { Button, EmptyState } from "./components"
+import { InstallPwaBanner } from "./components/InstallPwaBanner"
 import { StoreProvider } from "./store"
 import { AuthProvider } from "./authContext"
 import { CustomerRoute, AdminRoute, DeliveryPartnerRoute } from "./RouteGuards"
@@ -157,6 +158,7 @@ export default function App() {
     <AuthProvider>
       <StoreProvider>
         <RouterProvider router={router} />
+        <InstallPwaBanner />
       </StoreProvider>
     </AuthProvider>
   )

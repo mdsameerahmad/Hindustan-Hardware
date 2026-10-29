@@ -51,9 +51,9 @@ export function Customers() {
       <div className="overflow-hidden rounded-xl border border-border bg-white shadow-xs">
         <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <div className="relative max-w-sm flex-1">
-            <Search className="absolute left-3 top-3 text-slate-400" size={18} />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
             <input
-              className="field pl-10 w-full"
+              className="field !pl-10 w-full"
               placeholder="Search by customer name or phone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}

@@ -8,3 +8,18 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>,
 )
+
+// Register PWA service worker for installability and offline support
+if ("serviceWorker" in navigator && process.env.NODE_ENV !== "test") {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then((reg) => {
+        console.log("PWA Service Worker registered:", reg.scope)
+      })
+      .catch((err) => {
+        console.warn("PWA Service Worker registration failed:", err)
+      })
+  })
+}
+

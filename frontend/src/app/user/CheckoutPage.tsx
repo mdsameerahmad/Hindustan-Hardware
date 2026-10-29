@@ -222,9 +222,8 @@ export function CheckoutPage() {
             <>
               <h2 className="text-xl font-black">Delivery address</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Choose a saved address from your address book or enter a new delivery address below.
+                Choose a saved address or use "Locate on Map & Select" to pin your exact delivery location.
               </p>
-
               <div className="mt-6 space-y-6">
                 <AddressManager
                   addresses={addresses}
@@ -238,55 +237,10 @@ export function CheckoutPage() {
                   }}
                   onSetDefaultAddress={setDefaultAddress}
                   onDeleteAddress={deleteAddress}
+                  allowQuickForm={false}
                 />
 
-                {/* If no saved addresses and user hasn't opened map picker, show fallback manual form */}
-                {addresses.length === 0 && !selectedAddressId && (
-                  <div className="mt-4 rounded-xl border border-dashed border-border p-4 bg-slate-50/50">
-                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
-                      Or Enter Manual Address
-                    </p>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                    <Field
-                      label="Full name"
-                      value={manualAddress.recipientName}
-                      onChange={(val) => updateManualAddress("recipientName", val)}
-                    />
-                    <Field
-                      label="Phone number (10 digits)"
-                      value={manualAddress.phone}
-                      onChange={(val) => updateManualAddress("phone", val.replace(/\D/g, "").slice(0, 10))}
-                    />
-                    <Field
-                      label="PIN code (6 digits)"
-                      value={manualAddress.postalCode}
-                      onChange={(val) => updateManualAddress("postalCode", val.replace(/\D/g, "").slice(0, 6))}
-                    />
-                    <Field
-                      label="City"
-                      value={manualAddress.city}
-                      onChange={(val) => updateManualAddress("city", val)}
-                    />
-                    <div className="sm:col-span-2">
-                      <Field
-                        label="House / Street address"
-                        value={manualAddress.addressLine1}
-                        onChange={(val) => updateManualAddress("addressLine1", val)}
-                      />
-                    </div>
-                    <Field
-                      label="Landmark (optional)"
-                      value={manualAddress.landmark || ""}
-                      onChange={(val) => updateManualAddress("landmark", val)}
-                    />
-                    <Field
-                      label="State"
-                      value={manualAddress.state}
-                      onChange={(val) => updateManualAddress("state", val)}
-                    />
-                  </div>
-                </div>
-              )}
+
 
                 {validationError && (
                   <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">

@@ -4,6 +4,7 @@ import {
   Package,
   RefreshCcw,
   Trash2,
+  Upload,
 } from "lucide-react"
 import React, { useState } from "react"
 import {
@@ -13,6 +14,7 @@ import {
 } from "../components"
 import { useAdminBrands } from "../features/hooks/useAdminBrands"
 import { AdminField } from "./AdminSharedComponents"
+import { convertImageToWebP } from "../utils/imageConverter"
 
 export function BrandsAdminPage() {
   const {
@@ -23,6 +25,7 @@ export function BrandsAdminPage() {
     createBrand,
     updateBrand,
     deleteBrand,
+    uploadBrandLogo,
     refetch,
   } = useAdminBrands()
 
@@ -39,13 +42,46 @@ export function BrandsAdminPage() {
 
   const [form, setForm] = useState(emptyBrand)
   const [formError, setFormError] = useState<string | null>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingLogo(true)
+    setFormError(null)
+    try {
+      // Automatically convert any JPEG/PNG/JPG to WebP format
+      const webpFile = await convertImageToWebP(file)
+
+      if (form.id) {
+        // Brand already exists, upload directly to Supabase storage
+        const updated = await uploadBrandLogo(form.id, webpFile)
+        if (updated?.logoUrl) {
+          setForm((prev) => ({ ...prev, logoUrl: updated.logoUrl! }))
+        }
+      } else {
+        // Brand not created yet, convert to WebP data URL preview for seamless UX
+        const reader = new FileReader()
+        reader.onload = () => {
+          setForm((prev) => ({ ...prev, logoUrl: reader.result as string }))
+        }
+        reader.readAsDataURL(webpFile)
+      }
+    } catch (err: any) {
+      setFormError(err?.message || "Failed to convert and upload logo.")
+    } finally {
+      setUploadingLogo(false)
+      e.target.value = ""
+    }
+  }
 
   const edit = (brand: any) => {
     setForm({
       id: brand.id,
       name: brand.name,
       slug: brand.slug,
-      logoUrl: brand.logoUrl || "",
+      logoUrl: brand.logoUrl || brand.logo_url || "",
       description: brand.description || "",
       discountPercentage: brand.discountPercentage ?? brand.discount_percentage ?? 0,
       displayOrder: brand.displayOrder ?? 1,
@@ -186,17 +222,25 @@ export function BrandsAdminPage() {
                       <tr key={brand.id}>
                         <td>
                           <div className="flex items-center gap-3">
-                            {brand.logoUrl ? (
+                            {(brand.logoUrl || (brand as any).logo_url) ? (
                               <img
-                                src={brand.logoUrl}
-                                alt=""
-                                className="h-8 w-8 rounded object-contain bg-slate-50 p-1 border border-border shrink-0"
+                                src={brand.logoUrl || (brand as any).logo_url}
+                                alt={brand.name}
+                                className="h-10 w-10 rounded-lg object-contain bg-slate-50 p-1 border border-border shadow-2xs shrink-0"
+                                onError={(e) => {
+                                  // Fallback to placeholder if image link is broken
+                                  e.currentTarget.style.display = 'none';
+                                  const fallbackEl = e.currentTarget.nextElementSibling as HTMLElement;
+                                  if (fallbackEl) fallbackEl.style.display = 'grid';
+                                }}
                               />
-                            ) : (
-                              <div className="grid h-8 w-8 place-items-center rounded bg-slate-100 text-xs font-bold text-slate-500 uppercase shrink-0">
-                                {brand.name.slice(0, 2)}
-                              </div>
-                            )}
+                            ) : null}
+                            <div
+                              className="h-10 w-10 place-items-center rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 text-amber-900 font-black text-xs uppercase shrink-0 border border-amber-200/60"
+                              style={{ display: (brand.logoUrl || (brand as any).logo_url) ? 'none' : 'grid' }}
+                            >
+                              {brand.name.slice(0, 2)}
+                            </div>
                             <div className="min-w-0">
                               <b className="block font-semibold text-slate-900 truncate">{brand.name}</b>
                               {brand.description && (
@@ -259,17 +303,24 @@ export function BrandsAdminPage() {
                   <div key={brand.id} className="p-3.5 space-y-2.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        {brand.logoUrl ? (
+                        {(brand.logoUrl || (brand as any).logo_url) ? (
                           <img
-                            src={brand.logoUrl}
-                            alt=""
-                            className="h-8 w-8 rounded object-contain bg-slate-50 p-1 border border-border shrink-0"
+                            src={brand.logoUrl || (brand as any).logo_url}
+                            alt={brand.name}
+                            className="h-10 w-10 rounded-lg object-contain bg-slate-50 p-1 border border-border shadow-2xs shrink-0"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              const fallbackEl = e.currentTarget.nextElementSibling as HTMLElement;
+                              if (fallbackEl) fallbackEl.style.display = 'grid';
+                            }}
                           />
-                        ) : (
-                          <div className="grid h-8 w-8 place-items-center rounded bg-slate-100 text-xs font-bold text-slate-500 uppercase shrink-0">
-                            {brand.name.slice(0, 2)}
-                          </div>
-                        )}
+                        ) : null}
+                        <div
+                          className="h-10 w-10 place-items-center rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 text-amber-900 font-black text-xs uppercase shrink-0 border border-amber-200/60"
+                          style={{ display: (brand.logoUrl || (brand as any).logo_url) ? 'none' : 'grid' }}
+                        >
+                          {brand.name.slice(0, 2)}
+                        </div>
                         <div className="min-w-0">
                           <b className="block text-xs font-bold text-slate-900 truncate">{brand.name}</b>
                           <span className="block font-mono text-[10px] text-slate-400 truncate">/{brand.slug}</span>
@@ -344,11 +395,41 @@ export function BrandsAdminPage() {
               value={String(form.discountPercentage)}
               onChange={(value) => setForm({ ...form, discountPercentage: Number(value) })}
             />
-            <AdminField
-              label="Approved logo URL (optional)"
-              value={form.logoUrl}
-              onChange={(value) => setForm({ ...form, logoUrl: value })}
-            />
+            <div className="space-y-1.5">
+              <label className="field-label block text-xs font-bold uppercase tracking-wider text-slate-600">
+                Brand Logo (Auto-converted to WebP)
+              </label>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  placeholder="https://... or upload below"
+                  className="field flex-1"
+                  value={form.logoUrl}
+                  onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
+                />
+                <label className="relative inline-flex items-center gap-1.5 cursor-pointer rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 font-bold text-xs px-3 py-2 border border-amber-300 transition-colors shrink-0">
+                  <Upload size={14} />
+                  <span>{uploadingLogo ? "Converting to WebP..." : "Upload Logo"}</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/jpg"
+                    disabled={uploadingLogo}
+                    onChange={handleLogoUpload}
+                    className="sr-only"
+                  />
+                </label>
+              </div>
+              {form.logoUrl && (
+                <div className="mt-1.5 flex items-center gap-2">
+                  <img
+                    src={form.logoUrl}
+                    alt="Logo preview"
+                    className="h-9 w-9 rounded object-contain bg-slate-50 border border-slate-200 p-1"
+                  />
+                  <span className="text-[11px] text-slate-500">Logo preview (WebP optimized)</span>
+                </div>
+              )}
+            </div>
             <label className="field-label block text-xs font-bold uppercase tracking-wider text-slate-600">
               Short description
               <textarea

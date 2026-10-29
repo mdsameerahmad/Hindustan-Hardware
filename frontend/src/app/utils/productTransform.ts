@@ -15,12 +15,26 @@ export function transformBackendProduct(bp: BackendProduct): Product {
   const categoryName = bp.category?.name || 'General Hardware'
   const categoryId = bp.category_id || bp.category?.id || 'general'
 
-  // Image handling: Use specs or default neutral image
-  const image =
-    (bp.specs?.image_url as string) ||
-    (bp.specs?.imageUrl as string) ||
-    bp.brand?.logo_url ||
-    DEFAULT_PRODUCT_IMAGE
+  // Image handling: Strictly prioritize product-specific image uploaded by admin
+  // Do NOT show brand logo as product image since brand logo is distinct from product photo
+  let image: string = DEFAULT_PRODUCT_IMAGE
+
+  if (Array.isArray(bp.product_images) && bp.product_images.length > 0) {
+    const first = bp.product_images[0]
+    if (typeof first === 'string' && first.trim()) {
+      image = first.trim()
+    } else if (first?.public_url) {
+      image = first.public_url
+    } else if (first?.storage_path) {
+      image = first.storage_path
+    }
+  } else if (bp.image_url && typeof bp.image_url === 'string' && bp.image_url.trim()) {
+    image = bp.image_url.trim()
+  } else if (bp.specs?.image_url && typeof bp.specs.image_url === 'string') {
+    image = bp.specs.image_url.trim()
+  } else if (bp.specs?.imageUrl && typeof bp.specs.imageUrl === 'string') {
+    image = bp.specs.imageUrl.trim()
+  }
 
   // Stock handling:
   // If inventory record exists and is non-negative, use quantity_available.
@@ -51,8 +65,9 @@ export function transformBackendProduct(bp: BackendProduct): Product {
     intendedApplication: bp.intended_application || (bp.specs?.intended_application as string) || '',
     comparisonGroupId: bp.comparison_group_id || undefined,
     variantAttributes: {},
-    image,
-    images: [image],
+    images: (Array.isArray(bp.product_images) && bp.product_images.length > 0)
+      ? bp.product_images.map((img: any) => typeof img === 'string' ? img : (img?.public_url || img?.storage_path || image))
+      : [image],
     description: bp.description || `${bp.name} - Quality hardware product available at Hindustan Hardware.`,
     featured: bp.is_featured,
     active: bp.is_active,

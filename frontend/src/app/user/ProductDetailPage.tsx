@@ -1,4 +1,4 @@
-import { GitCompareArrows, Heart, ShoppingCart, Star } from "lucide-react"
+import { Heart, ShoppingCart, Star } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router"
 import { catalogueApi } from "../api/catalogueApi"
@@ -17,8 +17,6 @@ export function ProductDetailPage() {
     addToCart,
     toggleWishlist,
     wishlist,
-    compareIds,
-    toggleCompare,
   } = useStore()
   const navigate = useNavigate()
 
@@ -135,12 +133,20 @@ export function ProductDetailPage() {
   }
 
   return (
-    <div className="container-wide py-7 pb-28 md:pb-7">
-      <p className="mb-5 text-xs font-bold text-slate-500 truncate">
-        Home / {product.category} / {product.name}
-      </p>
-      <div className="grid gap-8 rounded-2xl border border-border bg-white p-5 md:p-8 lg:grid-cols-[1fr_1fr]">
-        <div>
+    <div className="container-wide max-w-6xl py-5 sm:py-6 pb-28 md:pb-8">
+      {/* Breadcrumb line */}
+      <div className="mb-4 flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+        <Link to="/" className="hover:text-slate-800">Home</Link>
+        <span>&gt;</span>
+        <Link to="/products" className="hover:text-slate-800">Products</Link>
+        <span>&gt;</span>
+        <span className="text-slate-800 font-bold truncate max-w-md">{product.name}</span>
+      </div>
+
+      {/* Main Product Showcase Card */}
+      <div className="grid gap-6 md:gap-8 rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 lg:grid-cols-[420px_1fr] shadow-xs items-start">
+        {/* Left Column: Product Gallery with constrained max-height */}
+        <div className="w-full max-w-md mx-auto">
           <ProductGallery
             mainImage={selectedImage || product.image}
             images={galleryImages}
@@ -149,100 +155,101 @@ export function ProductDetailPage() {
             loading={loadingGallery}
           />
         </div>
-        <div className="flex flex-col">
+
+        {/* Right Column: Product Info & Actions */}
+        <div className="flex flex-col min-w-0">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-bold uppercase tracking-wide text-brand">
-                {product.brandName}
-              </p>
-              <h1 className="mt-2 text-3xl font-black leading-tight text-ink">
+              <span className="inline-block text-[11px] font-black uppercase tracking-wider text-[#B89124]">
+                {product.brandName || "AUTHENTIC PRODUCT"}
+              </span>
+              <h1 className="mt-1 text-xl sm:text-2xl font-black leading-snug text-slate-900">
                 {product.name}
               </h1>
             </div>
             <button
               onClick={() => toggleWishlist(product.id)}
-              className="rounded-full border border-border p-3"
+              aria-label="Toggle Wishlist"
+              className="rounded-full border border-slate-200 p-2.5 hover:bg-slate-50 transition shrink-0"
             >
               <Heart
+                size={18}
                 className={
                   wishlist.includes(product.id)
                     ? "fill-red-500 text-red-500"
-                    : ""
+                    : "text-slate-400"
                 }
               />
             </button>
           </div>
-          <p className="mt-3 text-sm text-slate-500">
-            SKU: HH-{product.id.substring(0, 8).toUpperCase()} · Verified catalogue item
+
+          <p className="mt-1.5 text-xs text-slate-400 font-medium">
+            SKU: HH-{product.id.substring(0, 8).toUpperCase()} · Verified Original Item
           </p>
-          <div className="mt-6 flex flex-wrap items-baseline gap-3">
-            <span className="text-4xl font-black text-ink">
+
+          {/* Pricing Row */}
+          <div className="mt-4 flex flex-wrap items-baseline gap-2.5">
+            <span className="text-2xl sm:text-3xl font-black text-slate-900">
               {formatPrice(product.price)}
             </span>
             {product.mrp && product.mrp > product.price && (
-              <span className="text-lg text-slate-400 line-through">
+              <span className="text-sm sm:text-base text-slate-400 line-through">
                 {formatPrice(product.mrp)}
               </span>
             )}
             {(product.discountPercentage || (product.mrp && product.mrp > product.price)) && (
-              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+              <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-black text-emerald-700 border border-emerald-200/50">
                 {product.discountPercentage ?? Math.round(((product.mrp! - product.price) / product.mrp!) * 100)}% OFF
               </span>
             )}
           </div>
-          <p className="mt-2 text-xs text-slate-500">
-            Authoritative catalogue pricing. GST invoice provided with order.
+          <p className="mt-1 text-[11px] text-slate-400">
+            GST invoice included with every order. Includes all applicable taxes.
           </p>
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            <div className="spec-pill">
-              <small>Material</small>
-              <b>{product.material || "Standard"}</b>
+
+          {/* Key Technical Specs Grid */}
+          <div className="mt-4 grid grid-cols-2 gap-2.5">
+            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Material</span>
+              <span className="text-xs font-extrabold text-slate-800">{product.material || "Industrial Grade"}</span>
             </div>
-            <div className="spec-pill">
-              <small>Size / capacity</small>
-              <b>{product.size || product.diameter || "Standard"}</b>
+            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Size / Capacity</span>
+              <span className="text-xs font-extrabold text-slate-800">{product.size || product.diameter || "Standard Size"}</span>
             </div>
-            <div className="spec-pill">
-              <small>Unit of sale</small>
-              <b>{product.unitOfSale || product.unit}</b>
+            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Unit of Sale</span>
+              <span className="text-xs font-extrabold text-slate-800">{product.unitOfSale || product.unit || "Piece"}</span>
             </div>
-            <div className="spec-pill">
-              <small>Stock Status</small>
+            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Stock Status</span>
               {product.stock > 0 ? (
-                <b className="text-emerald-700">{product.stock} units available</b>
+                <span className="text-xs font-extrabold text-emerald-600">{product.stock} units in stock</span>
               ) : (
-                <b className="text-amber-700">Awaiting stock verification</b>
+                <span className="text-xs font-extrabold text-amber-600">Awaiting restock</span>
               )}
             </div>
           </div>
-          <div className="mt-7 flex flex-wrap items-center gap-3">
+
+          {/* Action Buttons: Quantity, Add to Cart, Buy Now */}
+          <div className="mt-5 flex flex-wrap items-center gap-3">
             <Quantity value={quantity} onChange={setQuantity} />
             <Button
               onClick={() => addToCart(product.id, quantity)}
-              className="flex-1"
+              className="flex-1 py-2.5 text-xs font-bold"
             >
-              <ShoppingCart size={18} />
+              <ShoppingCart size={16} />
               Add to Cart
             </Button>
-            <Button onClick={buyNow} variant="secondary" className="flex-1">
+            <Button onClick={buyNow} variant="secondary" className="flex-1 py-2.5 text-xs font-bold">
               Buy Now
             </Button>
           </div>
-          {product.comparisonGroupId && (
-            <Button
-              variant="outline"
-              className="mt-3"
-              onClick={() => toggleCompare(product.id)}
-            >
-              <GitCompareArrows size={17} />
-              {compareIds.includes(product.id)
-                ? "Remove from Comparison"
-                : "Add to Comparison"}
-            </Button>
-          )}
-          <div className="mt-7 rounded-xl border border-border p-4">
-            <p className="font-bold">Check local delivery availability</p>
-            <div className="mt-3 flex gap-2">
+
+          {/* PIN Delivery Checker */}
+          <div className="mt-5 rounded-xl border border-slate-200/90 bg-slate-50/50 p-3.5">
+            <p className="text-xs font-extrabold text-slate-800">Check Local Delivery Availability</p>
+            <div className="mt-2.5 flex gap-2">
               <input
                 maxLength={6}
                 value={pin}
@@ -250,21 +257,21 @@ export function ProductDetailPage() {
                   setPin(event.target.value.replace(/\D/g, ""))
                   setChecked(false)
                 }}
-                className="field"
+                className="w-full rounded-lg border border-slate-200 bg-white py-1.5 px-3 text-xs font-medium text-slate-800 outline-none focus:border-[#D4AF37]"
                 placeholder="Enter 6-digit PIN code"
               />
               <Button
                 variant="outline"
                 disabled={pin.length !== 6}
                 onClick={() => setChecked(true)}
+                className="py-1.5 px-4 text-xs font-bold shrink-0 border-[#D4AF37] text-slate-900 hover:bg-[#D4AF37]"
               >
                 Check
               </Button>
             </div>
             {checked && (
-              <p className="mt-3 text-sm font-semibold text-emerald-700">
-                Delivery check complete. Delivery scheduling will be confirmed by
-                the store.
+              <p className="mt-2 text-xs font-semibold text-emerald-700">
+                ✓ Delivery available for PIN {pin}. Standard dispatch within 24-48 hours.
               </p>
             )}
           </div>
@@ -341,11 +348,6 @@ export function ProductDetailPage() {
               Cross-brand alternatives sharing the same category and technical specifications.
             </p>
           </div>
-          <Link to="/compare">
-            <Button variant="outline">
-              <GitCompareArrows size={17} /> Open side-by-side comparison
-            </Button>
-          </Link>
         </div>
 
         <AlternativeProducts
@@ -353,8 +355,6 @@ export function ProductDetailPage() {
           currentProduct={product}
           loading={loadingAlternatives}
           onAddToCart={(altId) => addToCart(altId, 1)}
-          onToggleCompare={toggleCompare}
-          isCompared={(altId) => compareIds.includes(altId)}
         />
       </section>
       {moreFromBrand.length > 0 && (

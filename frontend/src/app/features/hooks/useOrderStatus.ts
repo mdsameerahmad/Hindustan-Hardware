@@ -41,9 +41,17 @@ export function useOrderStatus(orderId: string | undefined, isAuthenticated: boo
       (payload: OrderStatusBroadcastPayload) => {
         setTracking((prev) => {
           if (!prev) return prev
+          // Verify matching either by orderId or orderNumber
+          const matches =
+            payload.orderId === orderId ||
+            payload.orderId === prev.orderId ||
+            (payload.orderNumber && payload.orderNumber === prev.orderNumber)
+          if (!matches) return prev
+
           return {
             ...prev,
             currentStatus: payload.status,
+            canCancel: payload.status === "pending" || payload.status === "confirmed",
             updatedAt: payload.timestamp || new Date().toISOString(),
             history: [
               ...(prev.history || []),

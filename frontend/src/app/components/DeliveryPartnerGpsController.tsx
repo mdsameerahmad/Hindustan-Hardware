@@ -193,90 +193,102 @@ export const DeliveryPartnerGpsController: React.FC<DeliveryPartnerGpsController
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs min-w-0 transition-all">
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs min-w-0 transition-all">
       {statusError && (
-        <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-red-800">
-          {statusError}
+        <div className="mb-3.5 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800 font-semibold flex items-center gap-2">
+          <AlertTriangle size={15} className="text-red-600 shrink-0" />
+          <span>{statusError}</span>
         </div>
       )}
 
-      {/* GPS & Order Progression Buttons */}
+      {/* GPS & Order Progression Buttons — Exact Brand Theme */}
       {!isTerminal ? (
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* 1. Start Ride / Pause Ride */}
-          {!isTracking ? (
-            <button
-              type="button"
-              disabled={isRequesting}
-              onClick={startTracking}
-              className="btn-gold-gradient flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl text-[#0B0B0B] font-bold px-5 py-3 text-xs transition shadow-sm disabled:opacity-50"
-            >
-              {isRequesting ? (
-                <>
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#0B0B0B] border-t-transparent" />
-                  <span>Connecting GPS...</span>
-                </>
-              ) : (
-                <>
-                  <Play size={15} className="fill-current text-[#0B0B0B]" />
-                  <span>Start Ride</span>
-                </>
-              )}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={stopTracking}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-bold px-4 py-3 text-xs transition shadow-xs"
-            >
-              <Square size={13} className="fill-current text-slate-700" />
-              <span>Pause Ride</span>
-            </button>
-          )}
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* 1. Start Ride / Pause Ride */}
+            {!isTracking ? (
+              <button
+                type="button"
+                disabled={isRequesting}
+                onClick={startTracking}
+                className="btn-gold-gradient flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl text-[#0B0B0B] font-black px-5 py-3.5 text-xs transition shadow-md active:scale-[0.98] disabled:opacity-50"
+              >
+                {isRequesting ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#0B0B0B] border-t-transparent" />
+                    <span>Connecting GPS...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play size={16} className="fill-current text-[#0B0B0B] stroke-none" />
+                    <span>START GPS RIDE</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={stopTracking}
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-black px-4 py-3.5 text-xs transition shadow-xs"
+              >
+                <Square size={13} className="fill-current text-slate-700" />
+                <span>Pause Ride</span>
+              </button>
+            )}
 
-          {/* 2. Order Picked Up Button */}
-          {currentStatus === "assigned" && (
-            <button
-              type="button"
-              disabled={statusUpdating}
-              onClick={() => handleStatusTransition("picked_up")}
-              className="btn-cart-gradient flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl px-5 py-3 text-xs font-bold transition shadow-xs disabled:opacity-50"
-            >
-              {statusUpdating ? "Updating..." : "Order Picked Up"}
-            </button>
-          )}
+            {/* 2. Order Picked Up Button */}
+            {currentStatus === "assigned" && (
+              <button
+                type="button"
+                disabled={statusUpdating}
+                onClick={() => handleStatusTransition("picked_up")}
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl bg-[#0B0B0B] hover:bg-black text-[#D4AF37] border border-[#D4AF37]/40 font-black px-6 py-3.5 text-xs transition shadow-md active:scale-[0.98] disabled:opacity-50"
+              >
+                <CheckCircle2 size={16} />
+                <span>{statusUpdating ? "Updating..." : "Order Picked Up"}</span>
+              </button>
+            )}
 
-          {/* 3. Start Delivery / Out for Delivery */}
-          {currentStatus === "picked_up" && (
-            <button
-              type="button"
-              disabled={statusUpdating}
-              onClick={() => handleStatusTransition("out_for_delivery")}
-              className="btn-gold-gradient flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl text-[#0B0B0B] font-bold px-5 py-3 text-xs transition shadow-sm disabled:opacity-50"
-            >
-              {statusUpdating ? "Updating..." : "Out for Delivery"}
-            </button>
-          )}
+            {/* 3. Start Delivery / Out for Delivery */}
+            {currentStatus === "picked_up" && (
+              <button
+                type="button"
+                disabled={statusUpdating}
+                onClick={() => handleStatusTransition("out_for_delivery")}
+                className="btn-gold-gradient flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl text-[#0B0B0B] font-black px-6 py-3.5 text-xs transition shadow-md active:scale-[0.98] disabled:opacity-50"
+              >
+                <Navigation size={16} />
+                <span>{statusUpdating ? "Updating..." : "Out for Delivery"}</span>
+              </button>
+            )}
 
-          {/* 4. At Destination Button (Updates Map with Exact Partner Location at Customer Destination) */}
-          {(currentStatus === "out_for_delivery" || currentStatus === "picked_up") && (
-            <button
-              type="button"
-              disabled={statusUpdating}
-              onClick={handleAtDestination}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-3 text-xs transition shadow-xs disabled:opacity-50"
-            >
-              <MapPin size={14} className="text-white" />
-              <span>{statusUpdating ? "Updating..." : "At Destination"}</span>
-            </button>
-          )}
+            {/* 4. At Destination Button */}
+            {(currentStatus === "out_for_delivery" || currentStatus === "picked_up") && (
+              <button
+                type="button"
+                disabled={statusUpdating}
+                onClick={handleAtDestination}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-black px-5 py-3.5 text-xs transition shadow-xs active:scale-[0.98] disabled:opacity-50 border border-slate-700"
+              >
+                <MapPin size={15} className="text-[#D4AF37]" />
+                <span>{statusUpdating ? "Updating..." : "At Destination"}</span>
+              </button>
+            )}
+          </div>
 
+          {/* OTP Verification Form — Brand Gold Palette */}
           {currentStatus === "out_for_delivery" && (
-            <form onSubmit={handleVerifyDeliveryOtp} className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3">
-              <label htmlFor="delivery-otp" className="block text-xs font-bold text-amber-950">
-                Enter customer&apos;s 6-digit OTP to complete delivery
-              </label>
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <form onSubmit={handleVerifyDeliveryOtp} className="w-full rounded-2xl border-2 border-[#D4AF37] bg-[#FFFDF5] p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle2 size={18} className="text-[#B89124] shrink-0" />
+                <label htmlFor="delivery-otp" className="text-xs font-black uppercase tracking-wider text-[#0B0B0B]">
+                  Customer Delivery OTP
+                </label>
+              </div>
+              <p className="text-xs text-slate-600 mb-3 font-medium">
+                Ask the customer for their 6-digit confirmation code:
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2.5">
                 <input
                   id="delivery-otp"
                   type="text"
@@ -284,23 +296,24 @@ export const DeliveryPartnerGpsController: React.FC<DeliveryPartnerGpsController
                   autoComplete="one-time-code"
                   pattern="[0-9]{6}"
                   maxLength={6}
+                  placeholder="••••••"
                   value={deliveryOtp}
                   onChange={(event) => setDeliveryOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
                   disabled={statusUpdating}
-                  className="min-w-0 flex-1 rounded-lg border border-amber-300 bg-white px-3 py-2 font-mono text-lg tracking-[0.35em] text-slate-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200 disabled:opacity-60"
+                  className="min-w-0 flex-1 rounded-xl border-2 border-[#D4AF37]/50 bg-white px-4 py-3 font-mono text-xl tracking-[0.4em] text-slate-900 text-center font-black outline-none focus:border-[#D4AF37] focus:ring-4 focus:ring-[#D4AF37]/20 disabled:opacity-60 shadow-inner"
                   aria-describedby="delivery-otp-help"
                 />
                 <button
                   type="submit"
                   disabled={statusUpdating || deliveryOtp.length !== 6}
-                  className="btn-cart-gradient inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-xs font-black shadow-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  className="btn-gold-gradient inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-xs font-black shadow-md transition disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]"
                 >
-                  <CheckCircle2 size={16} className="text-[#D4AF37]" />
-                  {statusUpdating ? "Verifying..." : "Verify & Mark Delivered"}
+                  <CheckCircle2 size={16} />
+                  <span>{statusUpdating ? "Verifying..." : "Verify & Complete Delivery"}</span>
                 </button>
               </div>
-              <p id="delivery-otp-help" className="mt-1.5 text-[11px] text-amber-800">
-                The order status changes only after the code is verified.
+              <p id="delivery-otp-help" className="mt-2 text-[11px] font-bold text-slate-500">
+                Delivered status activates once verified.
               </p>
             </form>
           )}
@@ -313,17 +326,17 @@ export const DeliveryPartnerGpsController: React.FC<DeliveryPartnerGpsController
                 stopTracking()
                 setRideEnded(true)
               }}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black px-6 py-3 text-xs transition shadow-md"
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black px-6 py-3.5 text-xs transition shadow-md"
             >
-              <Square size={13} className="fill-current" />
-              <span>End Ride &amp; Conclude</span>
+              <Square size={14} className="fill-current" />
+              <span>Conclude Trip &amp; Go Next</span>
             </button>
           )}
         </div>
       ) : (
-        <div className="flex items-center gap-2.5 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800">
-          <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-          <span className="font-semibold">Ride concluded &amp; order delivered successfully.</span>
+        <div className="flex items-center gap-2.5 rounded-xl bg-emerald-50 border border-emerald-200 p-3.5 text-xs text-emerald-900 font-bold">
+          <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+          <span>Trip finished! Order delivered to customer doorstep successfully.</span>
         </div>
       )}
     </div>

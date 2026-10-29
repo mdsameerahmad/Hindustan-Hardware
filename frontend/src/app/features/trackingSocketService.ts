@@ -93,6 +93,7 @@ const SOCKET_BASE_URL: string = getSocketBaseUrl()
 class TrackingSocketService {
   private socket: Socket | null = null
   private activeSubscriptions = new Set<string>()
+  private activeOrderSubscriptions = new Set<string>()
   private listenersCount = 0
 
   /**
@@ -127,10 +128,16 @@ class TrackingSocketService {
 
     this.socket.on("connect", () => {
       this.notifyConnectionState("connected")
-      // On reconnect, re-subscribe to all active deliveries
+      // On connect or reconnect, re-subscribe to all active deliveries
       if (this.activeSubscriptions.size > 0 && this.socket) {
         this.activeSubscriptions.forEach((deliveryId) => {
           this.socket!.emit("delivery:subscribe", { deliveryId })
+        })
+      }
+      // Re-subscribe to all active orders
+      if (this.activeOrderSubscriptions.size > 0 && this.socket) {
+        this.activeOrderSubscriptions.forEach((orderId) => {
+          this.socket!.emit("order:subscribe", { orderId })
         })
       }
     })
@@ -274,6 +281,7 @@ class TrackingSocketService {
   ): () => void {
     const s = this.connect()
     this.listenersCount++
+    this.activeOrderSubscriptions.add(orderId)
 
     const handleOrderStatusUpdate = (payload: OrderStatusBroadcastPayload) => {
       if (payload && payload.orderId === orderId) {
@@ -296,6 +304,7 @@ class TrackingSocketService {
 
     return () => {
       this.listenersCount = Math.max(0, this.listenersCount - 1)
+      this.activeOrderSubscriptions.delete(orderId)
 
       if (this.socket) {
         this.socket.off("order:status_update", handleOrderStatusUpdate)
@@ -320,6 +329,7 @@ class TrackingSocketService {
       this.socket.disconnect()
       this.socket = null
       this.activeSubscriptions.clear()
+      this.activeOrderSubscriptions.clear()
       this.listenersCount = 0
       this.notifyConnectionState("disconnected")
     }

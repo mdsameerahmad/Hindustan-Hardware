@@ -3,6 +3,7 @@ import { Upload, Trash2, CheckCircle2, Image as ImageIcon, AlertCircle } from 'l
 import { Button } from '../../components'
 import { productImagesApi } from '../api'
 import { ProductImage } from './ProductImage'
+import { convertImageToWebP } from '../../utils/imageConverter'
 import type { BackendProductImage } from '../types'
 
 interface AdminImageManagerProps {
@@ -44,12 +45,15 @@ export const AdminImageManager: React.FC<AdminImageManagerProps> = ({
     setSuccess(null)
 
     try {
-      await productImagesApi.uploadProductImage(productId, file, {
+      // Automatically convert any JPEG / PNG / JPG image into WebP format before upload
+      const webpFile = await convertImageToWebP(file)
+
+      await productImagesApi.uploadProductImage(productId, webpFile, {
         altText: altText.trim() || undefined,
         isPrimary,
         displayOrder: images.length,
       })
-      setSuccess('Image successfully uploaded and added to the gallery.')
+      setSuccess('Image successfully converted to WebP and added to the gallery.')
       setAltText('')
       setIsPrimary(false)
       onImagesUpdated()

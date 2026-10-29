@@ -7,6 +7,7 @@ export type Brand = {
   supportedCategories: string[]
   active: boolean
   displayOrder: number
+  discountPercentage?: number | null
 }
 
 export type Product = {

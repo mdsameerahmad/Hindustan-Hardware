@@ -101,18 +101,21 @@ export function TrackingPage() {
         }
       },
       (deliveryStatus) => {
+        const newAssignmentStatus = deliveryStatus.status
         setLiveTracking((prev) => {
           if (!prev || !prev.assignment) return prev
           return {
             ...prev,
             assignment: {
               ...prev.assignment,
-              status: deliveryStatus.currentStatus as any,
-              pickedUpAt: deliveryStatus.pickedUpAt || prev.assignment.pickedUpAt,
-              deliveredAt: deliveryStatus.deliveredAt || prev.assignment.deliveredAt,
+              status: newAssignmentStatus,
+              pickedUpAt: newAssignmentStatus === "picked_up" ? deliveryStatus.timestamp : prev.assignment.pickedUpAt,
+              deliveredAt: newAssignmentStatus === "delivered" ? deliveryStatus.timestamp : prev.assignment.deliveredAt,
             },
           }
         })
+        // Trigger a background refresh to synchronize server-side milestones
+        refetch()
       },
       (err) => {
         console.warn("[TrackingPage] Delivery socket error:", err)
@@ -122,7 +125,7 @@ export function TrackingPage() {
     return () => {
       unsubscribe()
     }
-  }, [liveTracking?.assignment?.id])
+  }, [liveTracking?.assignment?.id, refetch])
 
   const formatDateTime = (isoStr?: string) => {
     if (!isoStr) return ""
@@ -345,13 +348,13 @@ export function TrackingPage() {
     : canonicalStages[activeIndex].label
 
   return (
-    <div className="container-wide py-8">
+    <div className="container-wide py-4 sm:py-8 pb-24 md:pb-8 px-3 sm:px-6">
       <PageHeader
         breadcrumbs={`My Orders / ${tracking.orderNumber}`}
         title="Delivery Tracking"
         description="Authentic order milestones recorded in the Hindustan Hardware database."
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
               onClick={() => {
@@ -360,24 +363,24 @@ export function TrackingPage() {
                   deliveryTrackingApi.getOrderTracking(id).then(setLiveTracking).catch(() => {})
                 }
               }}
-              className="flex items-center gap-1.5"
+              className="flex items-center gap-1.5 flex-1 sm:flex-initial justify-center text-xs sm:text-sm"
             >
               <RefreshCcw size={15} /> Refresh Status
             </Button>
-            <Link to={`/my-orders/${tracking.orderId}`}>
-              <Button variant="outline">Order Details</Button>
+            <Link to={`/my-orders/${tracking.orderId}`} className="flex-1 sm:flex-initial">
+              <Button variant="outline" className="w-full text-xs sm:text-sm">Order Details</Button>
             </Link>
           </div>
         }
       />
 
-      <div className="mb-6 grid gap-4 rounded-xl border border-border bg-white p-5 sm:grid-cols-5 shadow-sm">
-        <Info label="Order Reference" value={tracking.orderNumber} />
-        <Info label="Placed Date" value={formatDateTime(tracking.createdAt)} />
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 rounded-xl border border-border bg-white p-4 sm:p-5 sm:grid-cols-5 shadow-sm">
+        <Info label="Order Reference" value={<span className="font-semibold break-all text-xs sm:text-sm">{tracking.orderNumber}</span>} />
+        <Info label="Placed Date" value={<span className="text-xs sm:text-sm">{formatDateTime(tracking.createdAt)}</span>} />
         <Info
           label="Current Status"
           value={
-            <span className="font-bold text-ink">
+            <span className="font-bold text-ink text-xs sm:text-sm">
               {displayStatusLabel}
             </span>
           }
@@ -386,7 +389,7 @@ export function TrackingPage() {
           label="Estimated Arrival"
           value={
             liveEta?.etaSeconds != null || liveEta?.estimatedArrivalTimestamp ? (
-              <span className="font-bold text-emerald-700 flex items-center gap-1.5">
+              <span className="font-bold text-emerald-700 flex flex-wrap items-center gap-1.5 text-xs sm:text-sm">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping inline-block" />
                 <span>
                   {liveEta.etaSeconds != null
@@ -394,49 +397,51 @@ export function TrackingPage() {
                     : "In transit"}
                 </span>
                 {liveEta.distanceRemainingMeters != null && (
-                  <span className="text-[11px] font-normal text-slate-500">
+                  <span className="text-[10px] sm:text-[11px] font-normal text-slate-500">
                     ({(liveEta.distanceRemainingMeters / 1000).toFixed(1)} km)
                   </span>
                 )}
               </span>
             ) : isDelivered ? (
-              <span className="text-emerald-700 font-bold">Delivered</span>
+              <span className="text-emerald-700 font-bold text-xs sm:text-sm">Delivered</span>
             ) : (
-              <span className="text-slate-500 font-medium">Standard delivery (24-48h)</span>
+              <span className="text-slate-500 font-medium text-xs sm:text-sm">Standard delivery (24-48h)</span>
             )
           }
         />
-        <Info
-          label="Payment Status"
-          value={
-            <span className="capitalize text-amber-700 font-bold">
-              Cash on Delivery ({tracking.paymentStatus})
-            </span>
-          }
-        />
+        <div className="col-span-2 sm:col-span-1">
+          <Info
+            label="Payment Status"
+            value={
+              <span className="capitalize text-amber-700 font-bold text-xs sm:text-sm">
+                Cash on Delivery ({tracking.paymentStatus})
+              </span>
+            }
+          />
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <section className="rounded-2xl border border-border bg-white p-6 sm:p-8 shadow-sm">
+        <section className="rounded-2xl border border-border bg-white p-4 sm:p-6 md:p-8 shadow-sm">
           {/* Header row with status and Delivered to badge */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-slate-100">
-            <div className="flex items-start gap-3.5">
-              <span className={`grid h-12 w-12 place-items-center rounded-full shrink-0 ${
+          <div className="flex flex-col gap-4 pb-6 border-b border-slate-100">
+            <div className="flex items-start gap-3 sm:gap-3.5">
+              <span className={`grid h-10 w-10 sm:h-12 sm:w-12 place-items-center rounded-full shrink-0 ${
                 isDelivered ? "bg-emerald-100 text-emerald-600" : isCancelled ? "bg-red-100 text-red-600" : "bg-emerald-50 text-emerald-600"
               }`}>
                 {isDelivered ? (
-                  <CheckCircle2 size={28} className="stroke-[2.5]" />
+                  <CheckCircle2 size={24} className="stroke-[2.5] sm:w-7 sm:h-7" />
                 ) : isCancelled ? (
-                  <AlertCircle size={26} />
+                  <AlertCircle size={22} className="sm:w-6 sm:h-6" />
                 ) : (
-                  <Check size={26} className="stroke-[2.5]" />
+                  <Check size={22} className="stroke-[2.5] sm:w-6 sm:h-6" />
                 )}
               </span>
-              <div>
-                <span className="inline-block rounded-md bg-emerald-50 px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wider text-emerald-700">
+              <div className="min-w-0 flex-1">
+                <span className="inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-emerald-700">
                   {isCancelled ? "CANCELLED" : isDelivered ? "DELIVERED" : displayStatusLabel.toUpperCase()}
                 </span>
-                <h2 className="mt-1 text-2xl font-black text-slate-900 tracking-tight">
+                <h2 className="mt-1 text-lg sm:text-2xl font-black text-slate-900 tracking-tight leading-snug break-words">
                   {isCancelled
                     ? "Order Cancelled"
                     : isDelivered
@@ -449,7 +454,7 @@ export function TrackingPage() {
                             ? "Dispatched from Store warehouse"
                             : "Your order is confirmed"}
                 </h2>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5">
                   {isDelivered && (getStageTimestamp("delivered", 4) || tracking.updatedAt)
                     ? `Delivered on ${formatDateTime(getStageTimestamp("delivered", 4) || tracking.updatedAt)}`
                     : `Last updated: ${formatDateTime(tracking.updatedAt || tracking.createdAt)}`}
@@ -457,11 +462,11 @@ export function TrackingPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+            <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5">
               {/* Live ETA Chip if active and not delivered */}
               {!isDelivered && (liveEta?.etaSeconds != null || liveEta?.estimatedArrivalTimestamp) && (
                 <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3.5 py-2">
-                  <Clock className="h-5 w-5 text-emerald-600 animate-pulse" />
+                  <Clock className="h-5 w-5 text-emerald-600 animate-pulse shrink-0" />
                   <div className="text-left">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block">
                       Estimated Arrival
@@ -479,18 +484,18 @@ export function TrackingPage() {
               )}
 
               {/* Delivered to Home Address pill */}
-              <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-2.5">
-                <div className="relative">
-                  <Truck className="h-6 w-6 text-slate-700" />
+              <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 sm:px-4 py-2 sm:py-2.5">
+                <div className="relative shrink-0">
+                  <Truck className="h-5 w-5 sm:h-6 sm:w-6 text-slate-700" />
                   <span className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-600 text-white">
                     <Check size={9} className="stroke-[3]" />
                   </span>
                 </div>
-                <div className="text-left">
+                <div className="text-left min-w-0 flex-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
                     Delivered to
                   </span>
-                  <span className="text-xs font-bold text-slate-800 block truncate max-w-[140px]" title={destinationAddress}>
+                  <span className="text-xs font-bold text-slate-800 block truncate max-w-[200px] sm:max-w-[240px]" title={destinationAddress}>
                     {destinationAddress}
                   </span>
                   <Link
@@ -505,22 +510,96 @@ export function TrackingPage() {
             </div>
           </div>
 
-          {/* Stepper Timeline: Horizontal 5 Steps with Green Check Circles & connecting lines */}
+          {/* Stepper Timeline */}
           {!isCancelled ? (
-            <div className="py-8">
-              <div className="relative">
-                {/* Connecting background track positioned at exactly 18px (center of 36px node) */}
-                <div className="absolute left-[10%] right-[10%] top-[18px] h-[3px] -translate-y-1/2 bg-slate-200 z-0" />
+            <div className="py-6 sm:py-8">
+              {/* Desktop / Tablet Stepper (Horizontal) */}
+              <div className="hidden md:block">
+                <div className="relative">
+                  {/* Connecting background track positioned at exactly 18px (center of 36px node) */}
+                  <div className="absolute left-[10%] right-[10%] top-[18px] h-[3px] -translate-y-1/2 bg-slate-200 z-0" />
 
-                {/* Filled completed green track */}
-                <div
-                  className="absolute left-[10%] top-[18px] h-[3px] -translate-y-1/2 bg-emerald-600 transition-all duration-500 z-0"
-                  style={{
-                    width: `${(activeIndex / (canonicalStages.length - 1)) * 80}%`,
-                  }}
-                />
+                  {/* Filled completed green track */}
+                  <div
+                    className="absolute left-[10%] top-[18px] h-[3px] -translate-y-1/2 bg-emerald-600 transition-all duration-500 z-0"
+                    style={{
+                      width: `${(activeIndex / (canonicalStages.length - 1)) * 80}%`,
+                    }}
+                  />
 
-                <div className="relative z-10 flex items-start justify-between">
+                  <div className="relative z-10 flex items-start justify-between">
+                    {canonicalStages.map((stage, index) => {
+                      const completed = index <= activeIndex
+                      const isCurrent = index === activeIndex
+                      const Icon = stageIcons[index]
+                      const timestamp = getStageTimestamp(stage.key, index)
+                      const dateParts = formatStepDateParts(timestamp)
+
+                      return (
+                        <div
+                          key={stage.key}
+                          className="flex flex-1 flex-col items-center text-center px-1"
+                        >
+                          {/* Check Circle Node */}
+                          <div
+                            className={`flex h-9 w-9 items-center justify-center rounded-full text-white transition-all shadow-xs shrink-0 ${
+                              completed
+                                ? "bg-emerald-600 ring-4 ring-emerald-50"
+                                : "border-2 border-slate-300 bg-white text-slate-500"
+                            }`}
+                          >
+                            {completed ? (
+                              <Check size={18} className="stroke-[3]" />
+                            ) : (
+                              <span className="text-xs font-black text-slate-500 leading-none flex items-center justify-center">
+                                {index + 1}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Icon Pill Under Checkmark */}
+                          <div className="mt-3 flex h-8 w-8 items-center justify-center rounded-full bg-slate-50 border border-slate-100 text-slate-600">
+                            <Icon size={15} />
+                          </div>
+
+                          {/* Milestone Title */}
+                          <b className="mt-2 text-xs sm:text-sm font-extrabold text-slate-900 leading-tight">
+                            {stage.label}
+                          </b>
+
+                          {/* Date & Time from Database */}
+                          {dateParts ? (
+                            <div className="mt-1 text-[11px] leading-snug">
+                              <span className="block font-medium text-slate-600">{dateParts.datePart}</span>
+                              <span className="block font-bold text-slate-800">{dateParts.timePart}</span>
+                            </div>
+                          ) : (
+                            <div className="mt-1 text-[11px] leading-snug">
+                              <span className={`block font-semibold ${isCurrent ? "text-emerald-700" : "text-slate-400"}`}>
+                                {isCurrent ? "In Progress" : "Pending"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile Stepper (Vertical Timeline - perfectly fitted for all screen sizes) */}
+              <div className="block md:hidden">
+                <div className="relative space-y-5">
+                  {/* Vertical connecting line aligned to node center (node width is 2rem = 32px, center is 16px) */}
+                  <div className="absolute left-[15px] top-4 bottom-4 w-[2px] bg-slate-200" />
+                  {/* Active line progress */}
+                  <div
+                    className="absolute left-[15px] top-4 w-[2px] bg-emerald-600 transition-all duration-500"
+                    style={{
+                      height: `${(activeIndex / (canonicalStages.length - 1)) * 100}%`,
+                    }}
+                  />
+
                   {canonicalStages.map((stage, index) => {
                     const completed = index <= activeIndex
                     const isCurrent = index === activeIndex
@@ -529,53 +608,64 @@ export function TrackingPage() {
                     const dateParts = formatStepDateParts(timestamp)
 
                     return (
-                      <div
-                        key={stage.key}
-                        className="flex flex-1 flex-col items-center text-center"
-                      >
-                        {/* Check Circle Node with exact centering */}
+                      <div key={stage.key} className="relative flex items-start gap-3">
+                        {/* Circle node centered over connecting line */}
                         <div
-                          className={`flex h-9 w-9 items-center justify-center rounded-full text-white transition-all shadow-xs shrink-0 ${
+                          className={`relative flex h-8 w-8 items-center justify-center rounded-full text-white transition-all shadow-xs shrink-0 z-10 ${
                             completed
                               ? "bg-emerald-600 ring-4 ring-emerald-50"
                               : "border-2 border-slate-300 bg-white text-slate-500"
                           }`}
                         >
                           {completed ? (
-                            <Check size={18} className="stroke-[3]" />
+                            <Check size={16} className="stroke-[3]" />
                           ) : (
-                            <span className="text-xs font-black text-slate-500 leading-none flex items-center justify-center">
+                            <span className="text-xs font-black text-slate-500 leading-none">
                               {index + 1}
                             </span>
                           )}
                         </div>
 
-                      {/* Icon Pill Under Checkmark */}
-                      <div className="mt-3 flex h-8 w-8 items-center justify-center rounded-full bg-slate-50 border border-slate-100 text-slate-600">
-                        <Icon size={15} />
+                        {/* Step Details */}
+                        <div className="flex-1 min-w-0 bg-slate-50/80 border border-slate-100 rounded-xl p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-white border border-slate-200 text-slate-600 shrink-0">
+                                <Icon size={13} />
+                              </span>
+                              <b className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
+                                {stage.label}
+                              </b>
+                            </div>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                                completed
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : isCurrent
+                                    ? "bg-amber-100 text-amber-800 animate-pulse"
+                                    : "bg-slate-200 text-slate-600"
+                              }`}
+                            >
+                              {completed ? "Completed" : isCurrent ? "In Progress" : "Pending"}
+                            </span>
+                          </div>
+
+                          {/* Timestamp info */}
+                          {dateParts ? (
+                            <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-600">
+                              <span className="font-medium">{dateParts.datePart}</span>
+                              <span className="text-slate-300">•</span>
+                              <span className="font-bold text-slate-900">{dateParts.timePart}</span>
+                            </div>
+                          ) : (
+                            <p className="mt-1 text-[11px] text-slate-400">
+                              {isCurrent ? "Status will update shortly" : "Awaiting previous steps"}
+                            </p>
+                          )}
+                        </div>
                       </div>
-
-                      {/* Milestone Title */}
-                      <b className="mt-2 text-xs sm:text-sm font-extrabold text-slate-900 leading-tight">
-                        {stage.label}
-                      </b>
-
-                      {/* Date & Time from Database */}
-                      {dateParts ? (
-                        <div className="mt-1 text-[11px] leading-snug">
-                          <span className="block font-medium text-slate-600">{dateParts.datePart}</span>
-                          <span className="block font-bold text-slate-800">{dateParts.timePart}</span>
-                        </div>
-                      ) : (
-                        <div className="mt-1 text-[11px] leading-snug">
-                          <span className={`block font-semibold ${isCurrent ? "text-emerald-700" : "text-slate-400"}`}>
-                            {isCurrent ? "In Progress" : "Pending"}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -626,12 +716,12 @@ export function TrackingPage() {
               <h3 className="text-base font-black text-ink mb-4">Event Log</h3>
               <div className="space-y-3">
                 {tracking.history.map((event, idx) => (
-                  <div key={event.id || idx} className="rounded-lg bg-slate-50 p-3 text-xs text-slate-700 flex justify-between items-center">
-                    <div>
+                  <div key={event.id || idx} className="rounded-lg bg-slate-50 p-3 text-xs text-slate-700 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1.5 sm:gap-4">
+                    <div className="min-w-0">
                       <b className="capitalize text-ink">{event.newStatus}</b>
-                      {event.reason && <span className="text-slate-500"> — {event.reason}</span>}
+                      {event.reason && <span className="text-slate-500 break-words"> — {event.reason}</span>}
                     </div>
-                    <span className="font-mono text-slate-400">
+                    <span className="font-mono text-[11px] text-slate-400 shrink-0 self-start sm:self-auto">
                       {formatDateTime(event.createdAt)}
                     </span>
                   </div>

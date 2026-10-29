@@ -77,6 +77,22 @@ export function useAdminBrands() {
     [fetchBrands],
   )
 
+  const uploadBrandLogo = useCallback(
+    async (id: string, file: File): Promise<AdminBrand | null> => {
+      setActionLoading(true)
+      try {
+        const updated = await adminApi.uploadBrandLogo(id, file)
+        await fetchBrands()
+        return updated
+      } catch (err: any) {
+        throw new Error(err?.message || "Failed to upload brand logo.")
+      } finally {
+        setActionLoading(false)
+      }
+    },
+    [fetchBrands],
+  )
+
   return {
     brands,
     loading,
@@ -86,5 +102,7 @@ export function useAdminBrands() {
     createBrand,
     updateBrand,
     deleteBrand,
+    uploadBrandLogo,
   }
 }
+

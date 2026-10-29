@@ -337,87 +337,175 @@ export function AccountPage() {
   }
 
   return (
-    <div className="container-wide py-8">
-      <PageHeader
-        title="My Account"
-        description="Authoritative customer profile and account information."
-        action={
-          <div className="flex items-center gap-3">
-            <Badge tone="success">Verified {role}</Badge>
-            <Button variant="outline" onClick={handleLogout}>
-              Logout
-            </Button>
-          </div>
-        }
-      />
-      <div className="grid gap-6 lg:grid-cols-[270px_1fr]">
-        <aside className="rounded-xl border border-border bg-white p-5">
-          <div className="flex items-center gap-3 border-b border-border pb-5">
-            <span className="grid h-12 w-12 place-items-center rounded-full bg-brand text-white">
-              <UserRound />
+    <div className="container-wide py-6 sm:py-8">
+      {/* Premium Account Header Banner with Black & Gold Theme */}
+      <div className="mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 rounded-2xl bg-gradient-to-r from-[#0B0B0B] via-[#14120B] to-[#1F190B] p-6 sm:p-7 border border-[#D4AF37]/35 shadow-lg relative overflow-hidden">
+        <div className="flex items-center gap-4 z-10">
+          <div className="relative">
+            <span className="grid h-14 w-14 sm:h-16 sm:w-16 place-items-center rounded-2xl bg-gradient-to-br from-[#1C1C1C] to-[#0A0A0A] border-2 border-[#D4AF37] text-[#D4AF37] shadow-md">
+              <UserRound size={28} />
             </span>
-            <div>
-              <b className="block truncate max-w-[170px]">{displayName}</b>
-              <small className="block text-slate-500 truncate max-w-[170px]">{phone}</small>
-            </div>
+            <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-black text-[9px] font-black text-white">
+              ✓
+            </span>
           </div>
-          <nav className="mt-4 space-y-1">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-black text-white">{displayName}</h1>
+              <span className="rounded-md bg-[#D4AF37]/20 border border-[#D4AF37]/40 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#D4AF37]">
+                {role}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-slate-300 font-medium flex flex-wrap items-center gap-3">
+              <span>{email}</span>
+              {phone !== "Not specified" && (
+                <>
+                  <span className="text-[#D4AF37]/60">·</span>
+                  <span>{phone}</span>
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 z-10 self-end md:self-auto">
+          {role === "admin" && (
+            <Link to="/admin">
+              <Button className="btn-gold-gradient py-2 px-4 text-xs font-bold text-[#0B0B0B]">
+                Admin Console
+              </Button>
+            </Link>
+          )}
+          <Button
+            variant="outline"
+            onClick={handleLogout}
+            className="border-slate-700 bg-black/40 text-slate-300 hover:border-[#D4AF37] hover:text-[#D4AF37] text-xs py-2 px-4"
+          >
+            Sign Out
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[260px_1fr] items-start">
+        {/* Left Sidebar Navigation */}
+        <aside className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs sticky top-20">
+          <p className="px-3 pb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+            Account Menu
+          </p>
+          <nav className="space-y-1">
             {[
-              ["Personal details", UserRound, "/account"],
-              ["My Orders", Package, "/my-orders"],
-              ["Wishlist", Heart, "/wishlist"],
-              ["Cart", ShoppingCart, "/cart"],
-              ["Support requests", HelpCircle, "/contact"],
-            ].map(([label, Icon, path]) => {
+              ["Personal Details", UserRound, "/account", true],
+              ["My Orders", Package, "/my-orders", false],
+              ["Wishlist", Heart, "/wishlist", false],
+              ["Shopping Cart", ShoppingCart, "/cart", false],
+              ["Customer Support", HelpCircle, "/contact", false],
+            ].map(([label, Icon, path, isActive]) => {
               const IconComponent = Icon as typeof UserRound
               return (
                 <Link
                   key={String(label)}
                   to={String(path)}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold text-slate-600 hover:bg-slate-50 hover:text-brand"
+                  className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-xs font-bold transition ${
+                    isActive
+                      ? "bg-[#0B0B0B] text-[#D4AF37] shadow-xs"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
                 >
-                  <IconComponent size={18} />
+                  <IconComponent size={16} className={isActive ? "text-[#D4AF37]" : "text-slate-400"} />
                   {String(label)}
                 </Link>
               )
             })}
           </nav>
         </aside>
-        <section>
+
+        {/* Right Content Area */}
+        <div className="space-y-6">
+          {/* Quick Metrics Cards */}
           <div className="grid gap-4 sm:grid-cols-3">
-            <Stat
-              label="Total orders"
-              value={String(ordersCount)}
-              icon={<History />}
-            />
-            <Stat
-              label="Wishlist items"
-              value={String(wishlist.length)}
-              icon={<Heart />}
-            />
-            <Stat
-              label="Items in cart"
-              value={String(cartCount)}
-              icon={<ShoppingCart />}
-            />
-          </div>
-          <div className="mt-6 rounded-xl border border-border bg-white p-6">
-            <h2 className="text-xl font-black">Personal details</h2>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <DisplayField label="Full name" value={displayName} />
-              <DisplayField label="Phone" value={phone} />
-              <DisplayField label="Email" value={email} />
-              <DisplayField label="Account Role" value={role.toUpperCase()} />
-            </div>
-            {role === "admin" && (
-              <div className="mt-6">
-                <Link to="/admin">
-                  <Button>Access Admin Console</Button>
-                </Link>
+            <Link to="/my-orders" className="block group">
+              <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-br from-white to-[#FCFAF5] p-5 shadow-xs transition group-hover:border-[#D4AF37]/50 group-hover:shadow-md">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Orders</span>
+                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-amber-50 text-[#B89124] border border-amber-200/40">
+                    <Package size={18} />
+                  </span>
+                </div>
+                <b className="mt-3 block text-2xl sm:text-3xl font-black text-slate-900">{ordersCount}</b>
+                <span className="mt-1 block text-[11px] font-semibold text-[#B89124] group-hover:underline">
+                  View order history &rarr;
+                </span>
               </div>
-            )}
+            </Link>
+
+            <Link to="/wishlist" className="block group">
+              <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-br from-white to-[#FCFAF5] p-5 shadow-xs transition group-hover:border-[#D4AF37]/50 group-hover:shadow-md">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Wishlist</span>
+                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-red-50 text-red-500 border border-red-200/40">
+                    <Heart size={18} />
+                  </span>
+                </div>
+                <b className="mt-3 block text-2xl sm:text-3xl font-black text-slate-900">{wishlist.length}</b>
+                <span className="mt-1 block text-[11px] font-semibold text-slate-500 group-hover:text-slate-900">
+                  Saved hardware items &rarr;
+                </span>
+              </div>
+            </Link>
+
+            <Link to="/cart" className="block group">
+              <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-br from-white to-[#FCFAF5] p-5 shadow-xs transition group-hover:border-[#D4AF37]/50 group-hover:shadow-md">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Cart Items</span>
+                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/40">
+                    <ShoppingCart size={18} />
+                  </span>
+                </div>
+                <b className="mt-3 block text-2xl sm:text-3xl font-black text-slate-900">{cartCount}</b>
+                <span className="mt-1 block text-[11px] font-semibold text-slate-500 group-hover:text-slate-900">
+                  Proceed to checkout &rarr;
+                </span>
+              </div>
+            </Link>
           </div>
-          <div className="mt-6 rounded-xl border border-border bg-white p-6">
+
+          {/* Personal Profile Details Card */}
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xs">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-base sm:text-lg font-black text-slate-900">Profile Information</h2>
+                <p className="text-xs text-slate-500">Your personal details registered with Hindustan Hardware</p>
+              </div>
+              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-extrabold text-emerald-700 border border-emerald-200/60">
+                Verified Account
+              </span>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5">
+                <small className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Full Name</small>
+                <p className="mt-1 text-sm font-bold text-slate-800">{displayName}</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5">
+                <small className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Phone Number</small>
+                <p className="mt-1 text-sm font-bold text-slate-800">{phone}</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5">
+                <small className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Email Address</small>
+                <p className="mt-1 text-sm font-bold text-slate-800 break-all">{email}</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5">
+                <small className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Account Type</small>
+                <p className="mt-1 text-sm font-bold text-[#B89124] uppercase">{role} Customer</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Saved Addresses Section */}
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xs">
             <AddressManager
               addresses={addresses}
               loading={loadingAddresses}
@@ -426,19 +514,26 @@ export function AccountPage() {
               onDeleteAddress={deleteAddress}
             />
           </div>
-          <div className="mt-6 rounded-xl border border-border bg-white p-6">
-            <h2 className="text-xl font-black">Account Security & Session</h2>
-            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg bg-slate-50 p-4">
+
+          {/* Account Security & Session Card */}
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xs">
+            <h2 className="text-base sm:text-lg font-black text-slate-900">Account Security & Session</h2>
+            <p className="text-xs text-slate-500">Manage your active authentication session and security settings</p>
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
               <div>
-                <p className="text-sm font-bold text-ink">Active Session</p>
-                <p className="text-xs text-slate-500">Connected to Hindustan Hardware Supabase Auth</p>
+                <p className="text-xs font-bold text-slate-900">Active Secure Session</p>
+                <p className="text-[11px] text-slate-500">Authenticated via Hindustan Hardware database</p>
               </div>
-              <Button variant="danger" onClick={handleLogout}>
+              <Button
+                variant="outline"
+                onClick={handleLogout}
+                className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 text-xs py-2 px-4 font-bold"
+              >
                 Sign Out
               </Button>
             </div>
           </div>
-        </section>
+        </div>
       </div>
     </div>
   )

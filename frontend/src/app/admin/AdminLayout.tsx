@@ -130,14 +130,6 @@ export function AdminLayout() {
             ))}
           </nav>
         </div>
-        <div className="border-t border-[#1C1C1C] p-4">
-          <Link
-            to="/"
-            className="flex items-center justify-center gap-2 rounded-lg bg-[#1C1C1C] py-2 text-xs font-bold text-[#D4AF37] hover:bg-[#D4AF37] hover:text-[#0B0B0B] transition"
-          >
-            ← View Live Storefront
-          </Link>
-        </div>
       </aside>
       <div className="flex-1 min-w-0">
         <header className="flex h-14 sm:h-16 md:h-20 items-center justify-between border-b border-[#E8E8E8] bg-white px-3 sm:px-6 gap-3">

@@ -136,15 +136,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .getBrands()
       .then((backendBrands) => {
         if (!isMounted || !backendBrands || !backendBrands.length) return
-        const mappedBrands: Brand[] = backendBrands.map((b: BackendBrand) => ({
+        const mappedBrands: Brand[] = backendBrands.map((b: any) => ({
           id: b.id,
           name: b.name,
           slug: b.slug,
-          logo: b.logo_url || undefined,
+          logo: b.logo_url || b.logoUrl || undefined,
           description: b.description || `${b.name} genuine plumbing and hardware products.`,
           supportedCategories: [],
-          active: b.is_active,
-          displayOrder: b.display_order ?? 0,
+          active: b.is_active ?? b.isActive ?? true,
+          displayOrder: b.display_order ?? b.displayOrder ?? 0,
+          discountPercentage: b.discount_percentage ?? b.discountPercentage ?? null,
         }))
         setBrands(mappedBrands)
       })

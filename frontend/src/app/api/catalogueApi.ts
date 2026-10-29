@@ -79,6 +79,8 @@ export interface BackendProduct {
     slug: string
   } | null
   inventory?: BackendInventory | null
+  image_url?: string | null
+  product_images?: string[] | any[] | null
 }
 
 export interface ProductListParams {

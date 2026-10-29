@@ -12,6 +12,7 @@ interface AddressManagerProps {
   onCreateAddress: (payload: CreateAddressPayload) => Promise<any>
   onSetDefaultAddress?: (addressId: string) => Promise<any>
   onDeleteAddress?: (addressId: string) => Promise<any>
+  allowQuickForm?: boolean
 }
 
 export function AddressManager({
@@ -22,6 +23,7 @@ export function AddressManager({
   onCreateAddress,
   onSetDefaultAddress,
   onDeleteAddress,
+  allowQuickForm = true,
 }: AddressManagerProps) {
   const [showAddForm, setShowAddForm] = useState(false)
   const [isPickerOpen, setIsPickerOpen] = useState(false)
@@ -180,15 +182,6 @@ export function AddressManager({
           >
             <Map size={14} className="mr-1.5" /> Locate on Map & Select
           </Button>
-          {!showAddForm && (
-            <Button
-              variant="outline"
-              className="text-xs"
-              onClick={() => setShowAddForm(true)}
-            >
-              <Plus size={15} /> Quick Form
-            </Button>
-          )}
         </div>
       </div>
 
@@ -203,7 +196,7 @@ export function AddressManager({
         }}
       />
 
-      {showAddForm && (
+      {allowQuickForm && showAddForm && (
         <form
           onSubmit={handleSubmit}
           className="rounded-xl border border-brand/30 bg-blue-50/20 p-5 space-y-4"
