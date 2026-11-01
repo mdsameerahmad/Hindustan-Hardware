@@ -45,15 +45,16 @@ export class ProductService {
     // Product-level discount takes precedence over brand-level discount
     const effectiveDiscount = productDiscount != null ? productDiscount : brandDiscount;
 
-    let originalPrice = Number(row.base_price || 0);
+    let storedBasePrice = Number(row.base_price || 0);
     let compareAtPrice = row.compare_at_price ? Number(row.compare_at_price) : null;
-    let basePrice = originalPrice;
+    let mrp = compareAtPrice && compareAtPrice > 0 ? compareAtPrice : storedBasePrice;
+    let basePrice = storedBasePrice;
 
     if (effectiveDiscount && effectiveDiscount > 0) {
-      if (!compareAtPrice || compareAtPrice <= originalPrice) {
-        compareAtPrice = originalPrice;
+      if (!compareAtPrice || compareAtPrice <= storedBasePrice) {
+        compareAtPrice = mrp;
       }
-      basePrice = Math.round(originalPrice * (1 - effectiveDiscount / 100) * 100) / 100;
+      basePrice = Math.round(mrp * (1 - effectiveDiscount / 100) * 100) / 100;
     }
 
     // Resolve genuine product image uploaded by admin
@@ -390,6 +391,18 @@ export class ProductService {
       if (!brand.data) throw new BadRequestError('Referenced brand does not exist.');
     }
 
+    // If compareAtPrice (MRP) is provided and discountPercentage > 0, auto-calculate selling price (base_price)
+    let finalBasePrice = Number(payload.basePrice || 0);
+    const finalCompareAt = payload.compareAtPrice != null && Number(payload.compareAtPrice) > 0
+      ? Number(payload.compareAtPrice)
+      : null;
+    const mrp = finalCompareAt || finalBasePrice;
+    const discPct = payload.discountPercentage != null ? Number(payload.discountPercentage) : 0;
+
+    if (discPct > 0 && mrp > 0) {
+      finalBasePrice = Math.round(mrp * (1 - discPct / 100) * 100) / 100;
+    }
+
     // 1. Insert product
     const { data: product, error: prodError } = await adminClient
       .from('products')
@@ -401,8 +414,8 @@ export class ProductService {
         brand_id: payload.brandId || null,
         category_id: payload.categoryId,
         product_type: payload.productType || null,
-        base_price: payload.basePrice,
-        compare_at_price: payload.compareAtPrice || null,
+        base_price: finalBasePrice,
+        compare_at_price: finalCompareAt || (discPct > 0 ? mrp : null),
         unit: payload.unit || 'piece',
         unit_of_sale: payload.unitOfSale || 'piece',
         material: payload.material || null,
@@ -471,6 +484,42 @@ export class ProductService {
     if (payload.comparisonGroupId !== undefined) updateData.comparison_group_id = payload.comparisonGroupId;
     if (payload.imageUrl !== undefined) updateData.image_url = payload.imageUrl;
     if (payload.images !== undefined) updateData.images = payload.images;
+
+    // If discountPercentage or compareAtPrice is provided, recalculate and persist selling price (base_price)
+    if (payload.discountPercentage !== undefined || payload.compareAtPrice !== undefined) {
+      const { data: currentProd } = await adminClient.from('products').select('base_price, compare_at_price, brand_id, specs').eq('id', id).single();
+      const currentCompareAt = currentProd?.compare_at_price ? Number(currentProd.compare_at_price) : null;
+      const currentBasePrice = Number(currentProd?.base_price || 0);
+
+      const effectiveCompareAt = payload.compareAtPrice !== undefined
+        ? (payload.compareAtPrice != null && Number(payload.compareAtPrice) > 0 ? Number(payload.compareAtPrice) : null)
+        : currentCompareAt;
+
+      const mrp = effectiveCompareAt || (payload.basePrice !== undefined ? Number(payload.basePrice) : currentBasePrice);
+
+      let effectiveDisc = 0;
+      if (payload.discountPercentage !== undefined) {
+        effectiveDisc = payload.discountPercentage != null && Number(payload.discountPercentage) > 0
+          ? Number(payload.discountPercentage)
+          : 0;
+      } else {
+        // Check if existing product had discount in specs
+        const rawExistingDisc = currentProd?.specs?.discount_percentage ?? currentProd?.specs?.discountPercentage;
+        if (rawExistingDisc != null && !isNaN(Number(rawExistingDisc))) {
+          effectiveDisc = Number(rawExistingDisc);
+        }
+      }
+
+      if (effectiveDisc > 0 && mrp > 0) {
+        updateData.base_price = Math.round(mrp * (1 - effectiveDisc / 100) * 100) / 100;
+        updateData.compare_at_price = mrp;
+      } else if (payload.discountPercentage !== undefined && effectiveDisc === 0 && effectiveCompareAt) {
+        // If discount explicitly cleared to 0, selling price equals MRP unless basePrice was explicitly provided
+        if (payload.basePrice === undefined) {
+          updateData.base_price = effectiveCompareAt;
+        }
+      }
+    }
 
     // Merge discountPercentage into specs if provided
     if (payload.specs !== undefined || payload.discountPercentage !== undefined) {

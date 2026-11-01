@@ -212,7 +212,76 @@ export class BrandService {
     }
     if (!data) throw new NotFoundError('Brand not found');
 
+    // If discountPercentage was updated, re-calculate and persist selling price (base_price)
+    // for all products of this brand using their stored MRP (compare_at_price)
+    if (payload.discountPercentage !== undefined) {
+      const newDiscount = payload.discountPercentage != null && payload.discountPercentage > 0
+        ? Number(payload.discountPercentage)
+        : 0;
+      await this.updateBrandProductPrices(id, newDiscount);
+    }
+
     return this.parseBrandRow(data);
+  }
+
+  /**
+   * Recalculates and updates the selling price (base_price) of all products belonging
+   * to a brand based on their MRP (compare_at_price) and the newly configured brand discount percentage.
+   */
+  public static async updateBrandProductPrices(brandId: string, discountPercentage: number): Promise<void> {
+    const adminClient = getSupabaseAdminClient();
+    if (!adminClient) return;
+
+    try {
+      // Fetch all products under this brand
+      const { data: products, error } = await adminClient
+        .from('products')
+        .select('id, base_price, compare_at_price, specs')
+        .eq('brand_id', brandId);
+
+      if (error || !products || products.length === 0) return;
+
+      const updates = products.map((prod) => {
+        // Effective MRP is compare_at_price if available and > 0, otherwise existing base_price
+        const mrp = Number(prod.compare_at_price) > 0 ? Number(prod.compare_at_price) : Number(prod.base_price || 0);
+        let newSellingPrice = mrp;
+
+        // If product has an individual discount override in specs, respect that; otherwise use brand discount
+        const rawOverride = prod.specs?.discount_percentage ?? prod.specs?.discountPercentage;
+        const hasOverride = rawOverride != null && !isNaN(Number(rawOverride));
+        const effectiveDisc = hasOverride ? Number(rawOverride) : discountPercentage;
+
+        if (effectiveDisc > 0) {
+          newSellingPrice = Math.round(mrp * (1 - effectiveDisc / 100) * 100) / 100;
+        }
+
+        return adminClient
+          .from('products')
+          .update({
+            base_price: newSellingPrice,
+            compare_at_price: mrp,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', prod.id);
+      });
+
+      // Execute in parallel batches of 25 for fast database throughput
+      const batchSize = 25;
+      for (let i = 0; i < updates.length; i += batchSize) {
+        await Promise.all(updates.slice(i, i + batchSize));
+      }
+
+      logger.info('Updated product selling prices for brand', {
+        brandId,
+        discountPercentage,
+        productCount: products.length,
+      });
+    } catch (err: any) {
+      logger.error('Failed to update product selling prices for brand discount change', {
+        brandId,
+        error: err?.message,
+      });
+    }
   }
 
   /**

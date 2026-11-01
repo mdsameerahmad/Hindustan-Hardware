@@ -987,4 +987,60 @@ npx vitest run tests/delivery_tracking.test.ts tests/socket_tracking.test.ts tes
 - OSRM route parsing, caching, and fallback: 12 tests.
 - Full E2E delivery tracking lifecycle & Phase 2 partner portal APIs: 11 tests.
 
+---
+
+## 13. Catalogue Seeding System, Cross-Batch Idempotency & Rollback Safety
+
+The backend includes a catalogue seeding and idempotency engine located in `scripts/catalogue/` designed to ingest 1,944 hardware products from `Combined_Product_Price_List .xlsx` and `catalogue_import_clean.csv`.
+
+### 1. Opening Movement Idempotency
+- **Stable Reference Pattern**: `OPENING-STOCK-SKU-{product_sku}`.
+- **Cross-Batch Deduplication**: Independent of `batch_id` and invariant to row reordering or Excel sheet sorting.
+- **Database Uniqueness Constraint**:
+  ```sql
+  CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_movements_opening_identity
+    ON public.inventory_movements (reference_id)
+    WHERE (reference_id IS NOT NULL AND reference_id LIKE 'OPENING-STOCK-%');
+  ```
+- **Preservation of Subsequent Movements**: Ordinary restocks (`movement_type = 'restock'`), manual adjustments, order allocations, cancellations, and returns use non-opening reference formats and remain fully supported.
+- **Inventory Row Protection**: Insertion targets product-level inventory uniqueness via:
+  ```sql
+  ON CONFLICT (product_id) WHERE (variant_id IS NULL) DO NOTHING;
+  ```
+
+### 2. Post-Commit Rollback Safety & Batch Ownership Isolation
+Implemented in [catalogue-rollback.ts](file:///d:/Dowbloads/Hardware%20E-Commerce%20Website%20Prototype/backend/scripts/catalogue/catalogue-rollback.ts):
+- **Explicit Batch Ownership Tracking**:
+  - `catalogue_import_mappings` tracks `product_created_by_this_batch`, `opening_movement_created_by_this_batch`, and `opening_movement_reference` determined directly from atomic `INSERT ... RETURNING` database execution.
+- **Rollback Isolation Rules**:
+  - **Shared Product Protection**: A product is only deactivated if the revoking batch created it AND no other active import batches reference it. If another active batch references the product, it remains active.
+  - **Opening Stock Protection**: Rollback only compensates an opening movement if the target batch owns it (`opening_movement_created_by_this_batch === true`). Batches that merely updated or resolved an existing product cannot reverse an earlier batch's opening stock.
+  - **Ledger-Based Inventory Compensation**: Chronologically audits `inventory_movements`, isolates remaining opening stock, and preserves subsequent legitimate restocks, adjustments, and orders.
+  - **Reservation & Floor Protection**: Never decrements `quantity_reserved` and never reduces available stock below 0 or below reserved stock.
+  - **Integrity Validation**: Verifies ledger chain arithmetic (`before + change === after` and continuity). Incomplete, inconsistent, or unowned records halt with zero inventory mutations.
+  - **Idempotency**: Repeated or concurrent rollbacks create 0 duplicate compensation movements (`ROLLBACK-COMP-BATCH-{batch_id}-SKU-{sku}`).
+  - **Admin Confirmation**: Explicit confirmation (`adminDecisionConfirmed: true`) is mandatory.
+
+### 3. Verification Test Suites
+- `tests/catalogue-importer.test.ts` (9 tests)
+- `tests/reorder-stability.test.ts` (4 tests)
+- `tests/price-independent-identity.test.ts` (3 tests)
+- `tests/transaction-runner.test.ts` (9 integration tests in isolated schema `test_catalogue_phase_g` covering batch ownership tracking, cross-batch protection, shared product deactivation prevention, concurrency, and rollback isolation)
+
+### 4. Production Seeding Execution Procedure
+Production catalogue seeding employs a dual-key safety mechanism:
+1. **Default Mode (Dry-Run)**: Running `npm run catalogue:seed` performs a read-only preflight and report generation without database mutations.
+2. **Authorized Commit Mode**: Requires both the CLI argument `--commit` AND the explicit environment authorization flag `CATALOGUE_IMPORT_APPROVED=true`.
+
+Command for authorized execution:
+```powershell
+$env:CATALOGUE_IMPORT_APPROVED="true"; npm run catalogue:seed -- --commit
+```
+or in Bash/sh:
+```bash
+CATALOGUE_IMPORT_APPROVED=true npm run catalogue:seed -- --commit
+```
+
+
+
 

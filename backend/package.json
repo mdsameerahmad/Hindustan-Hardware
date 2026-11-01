@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "simulate:delivery": "tsx scripts/simulate-delivery.ts"
+    "simulate:delivery": "tsx scripts/simulate-delivery.ts",
+    "catalogue:validate": "tsx scripts/catalogue/validate-catalogue.ts",
+    "catalogue:seed": "tsx scripts/catalogue/seed-catalogue.ts"
   },
   "keywords": [
     "ecommerce",
