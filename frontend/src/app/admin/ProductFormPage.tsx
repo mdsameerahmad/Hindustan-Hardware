@@ -324,7 +324,7 @@ export function ProductFormPage() {
           <FormCard title="Pricing & unit">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <AdminField
-                label="Base price (₹)"
+                label="Base / Selling price (₹)"
                 required
                 type="number"
                 value={String(formData.basePrice)}
@@ -334,17 +334,42 @@ export function ProductFormPage() {
                 label="MRP / Compare price (₹)"
                 type="number"
                 value={String(formData.compareAtPrice || "")}
-                onChange={(value) =>
-                  set("compareAtPrice", value ? Number(value) : 0)
-                }
+                onChange={(value) => {
+                  const mrp = value ? Number(value) : 0
+                  const disc = Number(formData.discountPercentage) || 0
+                  if (disc > 0 && mrp > 0) {
+                    const calculated = Math.round(mrp * (1 - disc / 100) * 100) / 100
+                    setFormData((prev) => ({ ...prev, compareAtPrice: mrp, basePrice: calculated }))
+                  } else {
+                    set("compareAtPrice", mrp)
+                  }
+                }}
               />
               <AdminField
                 label="Discount % (Product specific)"
                 type="number"
                 value={String(formData.discountPercentage || "")}
-                onChange={(value) =>
-                  set("discountPercentage", value ? Number(value) : 0)
-                }
+                onChange={(value) => {
+                  const disc = value ? Number(value) : 0
+                  const mrp = Number(formData.compareAtPrice) > 0 ? Number(formData.compareAtPrice) : Number(formData.basePrice)
+                  if (disc > 0 && mrp > 0) {
+                    const calculated = Math.round(mrp * (1 - disc / 100) * 100) / 100
+                    setFormData((prev) => ({
+                      ...prev,
+                      discountPercentage: disc,
+                      compareAtPrice: mrp,
+                      basePrice: calculated,
+                    }))
+                  } else if (disc === 0 && Number(formData.compareAtPrice) > 0) {
+                    setFormData((prev) => ({
+                      ...prev,
+                      discountPercentage: 0,
+                      basePrice: Number(prev.compareAtPrice),
+                    }))
+                  } else {
+                    set("discountPercentage", disc)
+                  }
+                }}
               />
               <AdminField
                 label="Unit of sale"

@@ -1,17 +1,22 @@
 import {
+  AlertCircle,
   Boxes,
+  Edit3,
   Loader2,
+  Package,
   Plus,
   RefreshCcw,
+  Search,
   Trash2,
 } from "lucide-react"
-import { useState } from "react"
+import React, { useMemo, useState } from "react"
 import {
   Badge,
   Button,
   PageHeader,
 } from "../components"
 import { useAdminCategories } from "../features/hooks/useAdminCategories"
+import { AdminField, FormCard } from "./AdminSharedComponents"
 
 export function CategoriesPage() {
   const {
@@ -25,39 +30,126 @@ export function CategoriesPage() {
     refetch,
   } = useAdminCategories()
 
-  const [name, setName] = useState("")
-  const [slug, setSlug] = useState("")
-  const [description, setDescription] = useState("")
-  const [formError, setFormError] = useState<string | null>(null)
+  const emptyCategory = {
+    id: "",
+    name: "",
+    slug: "",
+    description: "",
+    parentId: "",
+    sortOrder: 0,
+    isActive: true,
+  }
 
-  const handleCreate = async () => {
-    if (!name.trim()) return
+  // Active view: "list" (matches AdminProductsPage table/cards) or "editor" (matches ProductFormPage layout)
+  const [viewState, setViewState] = useState<"list" | "editor">("list")
+  const [form, setForm] = useState(emptyCategory)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all")
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 15
+
+  // Filtered categories matching AdminProductsPage style
+  const filteredCategories = useMemo(() => {
+    return [...items]
+      .filter((cat) => {
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase().trim()
+          const matchName = cat.name.toLowerCase().includes(q)
+          const matchSlug = cat.slug.toLowerCase().includes(q)
+          const matchDesc = (cat.description || "").toLowerCase().includes(q)
+          if (!matchName && !matchSlug && !matchDesc) return false
+        }
+        if (filterStatus === "active" && !cat.isActive) return false
+        if (filterStatus === "inactive" && cat.isActive) return false
+
+        return true
+      })
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+  }, [items, searchQuery, filterStatus])
+
+  const totalPages = Math.max(1, Math.ceil(filteredCategories.length / pageSize))
+  const safePage = Math.min(currentPage, totalPages)
+
+  const paginatedCategories = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return filteredCategories.slice(start, start + pageSize)
+  }, [filteredCategories, safePage, pageSize])
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages) return
+    setCurrentPage(newPage)
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  const openCreateModal = () => {
+    setForm(emptyCategory)
+    setFormError(null)
+    setViewState("editor")
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  const openEditModal = (cat: any) => {
+    setForm({
+      id: cat.id,
+      name: cat.name,
+      slug: cat.slug,
+      description: cat.description || "",
+      parentId: cat.parentId || cat.parent_id || "",
+      sortOrder: cat.sortOrder ?? cat.sort_order ?? 0,
+      isActive: cat.isActive !== false,
+    })
+    setFormError(null)
+    setViewState("editor")
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
     setFormError(null)
 
-    // Normalize slug to valid lowercase alphanumeric with dashes
-    const rawSlug = slug.trim() || name.trim()
-    const categorySlug = rawSlug
+    if (!form.name.trim()) {
+      setFormError("Category name is required.")
+      return
+    }
+
+    const rawSlug = form.slug.trim() || form.name.trim()
+    const slug = rawSlug
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
 
-    if (!categorySlug) {
+    if (!slug) {
       setFormError("A valid slug could not be generated. Please enter letters or numbers.")
       return
     }
 
     try {
-      await createCategory({
-        name: name.trim(),
-        slug: categorySlug,
-        description: description.trim() || undefined,
-        isActive: true,
-      })
-      setName("")
-      setSlug("")
-      setDescription("")
+      if (form.id) {
+        await updateCategory(form.id, {
+          name: form.name.trim(),
+          slug,
+          description: form.description.trim() || undefined,
+          parentId: form.parentId.trim() || null,
+          sortOrder: Number(form.sortOrder) || 0,
+          isActive: form.isActive,
+        })
+      } else {
+        await createCategory({
+          name: form.name.trim(),
+          slug,
+          description: form.description.trim() || undefined,
+          parentId: form.parentId.trim() || null,
+          sortOrder: Number(form.sortOrder) || 0,
+          isActive: form.isActive,
+        })
+      }
+      setViewState("list")
+      setForm(emptyCategory)
     } catch (err: any) {
-      setFormError(err?.message || "Failed to create category.")
+      setFormError(err?.message || "Failed to persist category.")
     }
   }
 
@@ -71,102 +163,283 @@ export function CategoriesPage() {
     }
   }
 
-  const handleDelete = async (id: string, catName: string) => {
-    if (!confirm(`Are you sure you want to delete category "${catName}"? This cannot be undone if products reference it.`)) {
-      return
-    }
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    setDeleteError(null)
     try {
-      await deleteCategory(id)
+      await deleteCategory(pendingDelete.id)
+      setPendingDelete(null)
     } catch (err: any) {
-      alert(err?.message || "Failed to delete category.")
+      setDeleteError(err?.message || "Failed to delete category from database.")
     }
   }
 
+  // --------------------------------------------------------------------------
+  // RENDER 1: Dedicated Category Edit / Create Page (matching ProductFormPage UX)
+  // --------------------------------------------------------------------------
+  if (viewState === "editor") {
+    // Possible parent categories (cannot be self)
+    const availableParents = items.filter((c) => c.id !== form.id)
+
+    return (
+      <>
+        <PageHeader
+          title={form.id ? `Edit Category: ${form.name}` : "Add New Category"}
+          description="Configure catalog category hierarchy, parent relationships, display sequencing, and active visibility."
+        />
+
+        {formError && (
+          <div className="mb-6 rounded-lg bg-red-50 p-4 border border-red-200 text-sm text-red-700 flex items-center gap-2">
+            <AlertCircle size={18} className="text-red-600 shrink-0" />
+            <span>{formError}</span>
+          </div>
+        )}
+
+        <form onSubmit={submit} className="grid gap-6 xl:grid-cols-[1fr_360px]">
+          <div className="space-y-6">
+            <FormCard title="Category details">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <AdminField
+                  label="Category Name"
+                  required
+                  value={form.name}
+                  onChange={(value) => setForm({ ...form, name: value })}
+                  placeholder="e.g. CPVC Pipes & Fittings"
+                />
+                <AdminField
+                  label="Catalog Slug (URL identifier)"
+                  value={form.slug}
+                  onChange={(value) => setForm({ ...form, slug: value })}
+                  placeholder="e.g. cpvc-pipes-fittings"
+                />
+                <div className="sm:col-span-2">
+                  <label className="field-label block text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Parent Category (Optional)
+                    <select
+                      className="field mt-2 w-full"
+                      value={form.parentId}
+                      onChange={(e) => setForm({ ...form, parentId: e.target.value })}
+                    >
+                      <option value="">None (Top-level Root Category)</option>
+                      {availableParents.map((parent) => (
+                        <option key={parent.id} value={parent.id}>
+                          {parent.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <p className="mt-1.5 text-xs text-slate-400">
+                    Assigning a parent category establishes a category tree hierarchy for navigation and filtering.
+                  </p>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="field-label block text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Description & Catalog Scope
+                    <textarea
+                      rows={4}
+                      className="field mt-2 w-full resize-none"
+                      value={form.description}
+                      onChange={(event) =>
+                        setForm({ ...form, description: event.target.value })
+                      }
+                      placeholder="e.g. Professional-grade CPVC piping, elbows, tees, unions, and industrial hardware supplies..."
+                    />
+                  </label>
+                </div>
+              </div>
+            </FormCard>
+          </div>
+
+          <aside className="space-y-6">
+            <FormCard title="Catalog Ordering">
+              <AdminField
+                label="Sort Order (Catalog Priority)"
+                type="number"
+                value={String(form.sortOrder)}
+                onChange={(value) => setForm({ ...form, sortOrder: Number(value) || 0 })}
+              />
+              <p className="text-xs text-slate-500 leading-normal">
+                Lower sort order numbers appear first in customer navigation, header menus, and product filter lists.
+              </p>
+            </FormCard>
+
+            <FormCard title="Visibility">
+              <label className="toggle-row flex items-center justify-between py-2">
+                <span>
+                  <b className="block text-sm text-slate-800">Active Category</b>
+                  <small className="text-xs text-slate-500">Visible to customers in storefront catalog</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={form.isActive}
+                  onChange={(event) => setForm({ ...form, isActive: event.target.checked })}
+                />
+              </label>
+            </FormCard>
+
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                disabled={actionLoading}
+                onClick={() => {
+                  setViewState("list")
+                  setForm(emptyCategory)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" className="flex-1" disabled={actionLoading}>
+                {actionLoading ? <Loader2 size={16} className="animate-spin" /> : null}
+                {form.id ? "Update Category" : "Create Category"}
+              </Button>
+            </div>
+          </aside>
+        </form>
+      </>
+    )
+  }
+
+  // --------------------------------------------------------------------------
+  // RENDER 2: Main Category Catalog View (exact structure matching AdminProductsPage)
+  // --------------------------------------------------------------------------
   return (
     <>
       <PageHeader
-        title="Category management"
-        description="Persisted catalog categories, active status, hierarchy, and product relationships."
+        title="Category catalog"
+        description="Authoritative database product categories, hierarchical classification, sorting, and storefront visibility."
         action={
-          <Button variant="ghost" onClick={refetch} title="Refresh categories">
-            <RefreshCcw size={15} />
+          <Button onClick={openCreateModal}>
+            <Plus size={16} />
+            Add Category
           </Button>
         }
       />
 
-      {error && (
-        <div className="mb-6 rounded-lg bg-red-50 p-4 border border-red-200 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+      <div className="rounded-xl border border-border bg-white shadow-xs">
+        {/* Top Control Bar matching AdminProductsPage */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border p-3.5 sm:p-4">
+          <div className="relative w-full sm:max-w-md flex-1">
+            <Search
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+              size={18}
+            />
+            <input
+              className="field !pl-10 w-full text-xs sm:text-sm"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search categories by name, slug or description..."
+            />
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_360px] gap-6 items-start">
-        <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-white shadow-xs">
-          {loading ? (
-            <div className="flex h-56 flex-col items-center justify-center gap-3">
-              <Loader2 className="h-7 w-7 animate-spin text-brand" />
-              <p className="text-sm font-medium text-slate-500">Loading catalog categories...</p>
-            </div>
-          ) : items.length === 0 ? (
-            <div className="py-16 text-center">
-              <Boxes className="mx-auto h-10 w-10 text-slate-300" />
-              <h3 className="mt-2 text-base font-bold text-slate-700">No categories found</h3>
-              <p className="text-xs text-slate-500 mt-1">Create your first category using the panel on the right.</p>
-            </div>
-          ) : (
+          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            <select
+              className="field flex-1 sm:w-auto text-xs sm:text-sm"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as any)}
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active Only</option>
+              <option value="inactive">Inactive Only</option>
+            </select>
+
+            <Button variant="ghost" onClick={refetch} title="Refresh categories" className="p-2 shrink-0">
+              <RefreshCcw size={15} />
+            </Button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="m-4 rounded-lg bg-red-50 p-4 border border-red-200 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex h-56 flex-col items-center justify-center gap-3">
+            <Loader2 className="h-7 w-7 animate-spin text-brand" />
+            <p className="text-sm font-medium text-slate-500">Loading catalog categories...</p>
+          </div>
+        ) : filteredCategories.length === 0 ? (
+          <div className="py-16 text-center">
+            <Boxes className="mx-auto h-10 w-10 text-slate-300" />
+            <h3 className="mt-2 text-base font-bold text-slate-700">No categories found</h3>
+            <p className="text-xs text-slate-500 mt-1">Try adjusting your search query or status filter.</p>
+          </div>
+        ) : (
           <>
-            {/* Desktop & Tablet Table */}
+            {/* Desktop Table matching AdminProductsPage */}
             <div className="hidden md:block overflow-x-auto">
               <table className="data-table w-full">
                 <thead>
                   <tr>
-                    <th>Category</th>
-                    <th>Slug</th>
+                    <th>Category & Scope</th>
+                    <th>Catalog Slug</th>
                     <th>Sort Order</th>
-                    <th>Visibility</th>
+                    <th>Storefront Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item) => (
+                  {paginatedCategories.map((item) => (
                     <tr key={item.id}>
                       <td>
-                        <div className="flex items-center gap-3 min-w-0">
-                          <img
-                            src={item.imageUrl || "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80"}
-                            alt=""
-                            className="h-10 w-10 sm:h-11 sm:w-11 rounded-lg object-cover bg-slate-100 shrink-0"
-                          />
-                          <div className="min-w-0 flex-1">
+                        <div className="flex min-w-56 items-center gap-3">
+                          <div className="h-11 w-11 place-items-center rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 text-amber-900 font-black text-xs uppercase shrink-0 border border-amber-200/60 grid">
+                            {item.name.slice(0, 2)}
+                          </div>
+                          <div className="min-w-0">
                             <b className="block font-semibold text-slate-900 truncate">{item.name}</b>
-                            {item.description && (
-                              <small className="line-clamp-1 text-slate-500 max-w-xs">{item.description}</small>
+                            {item.description ? (
+                              <small className="text-slate-500 truncate block max-w-xs">{item.description}</small>
+                            ) : (
+                              <small className="text-slate-400 italic block">No description</small>
                             )}
                           </div>
                         </div>
                       </td>
-                      <td className="font-mono text-xs text-slate-600">/{item.slug}</td>
-                      <td>{item.sortOrder ?? 0}</td>
+                      <td className="font-mono text-xs text-slate-600">
+                        /{item.slug}
+                      </td>
+                      <td>
+                        <span className="font-mono text-xs text-slate-700 font-semibold">
+                          #{item.sortOrder ?? 0}
+                        </span>
+                      </td>
                       <td>
                         <button
+                          type="button"
                           disabled={actionLoading}
                           onClick={() => handleToggleVisibility(item)}
-                          className="cursor-pointer hover:opacity-80"
+                          className="cursor-pointer hover:opacity-85 transition"
+                          title="Click to toggle visibility"
                         >
                           <Badge tone={item.isActive ? "success" : "neutral"}>
-                            {item.isActive ? "Visible" : "Hidden"}
+                            {item.isActive ? "Active" : "Inactive"}
                           </Badge>
                         </button>
                       </td>
                       <td>
-                        <button
-                          disabled={actionLoading}
-                          onClick={() => handleDelete(item.id, item.name)}
-                          className="table-action text-red-600 hover:bg-red-50"
-                          title="Delete Category"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="flex gap-1">
+                          <button
+                            className="table-action"
+                            onClick={() => openEditModal(item)}
+                            title="Edit Category"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setDeleteError(null)
+                              setPendingDelete({ id: item.id, name: item.name })
+                            }}
+                            className="table-action text-red-600 hover:bg-red-50"
+                            title="Delete Category"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -174,35 +447,46 @@ export function CategoriesPage() {
               </table>
             </div>
 
-            {/* Mobile Card List */}
+            {/* Mobile Card List matching AdminProductsPage */}
             <div className="block md:hidden divide-y divide-border">
-              {items.map((item) => (
-                <div key={item.id} className="p-3.5 space-y-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <img
-                        src={item.imageUrl || "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80"}
-                        alt=""
-                        className="h-10 w-10 rounded-lg object-cover bg-slate-100 shrink-0"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <b className="block text-xs sm:text-sm font-bold text-slate-900 truncate">{item.name}</b>
-                        <span className="block font-mono text-[10px] sm:text-xs text-slate-400 truncate">/{item.slug}</span>
+              {paginatedCategories.map((item) => (
+                <div key={item.id} className="p-3.5 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="h-12 w-12 place-items-center rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 text-amber-900 font-black text-xs uppercase shrink-0 border border-amber-200/60 grid">
+                      {item.name.slice(0, 2)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <b className="block text-xs font-bold text-slate-900 leading-snug">{item.name}</b>
+                      <span className="block font-mono text-[11px] text-slate-400 mt-0.5">/{item.slug}</span>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <Badge tone={item.isActive ? "success" : "neutral"}>
+                          {item.isActive ? "Active" : "Inactive"}
+                        </Badge>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                  </div>
+
+                  {item.description && (
+                    <p className="text-[11px] text-slate-500 line-clamp-2">{item.description}</p>
+                  )}
+
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                    <span className="text-slate-500 font-mono text-[11px]">
+                      Sort #{item.sortOrder ?? 0}
+                    </span>
+                    <div className="flex gap-2">
                       <button
-                        disabled={actionLoading}
-                        onClick={() => handleToggleVisibility(item)}
-                        className="cursor-pointer hover:opacity-80"
+                        className="table-action"
+                        onClick={() => openEditModal(item)}
+                        title="Edit Category"
                       >
-                        <Badge tone={item.isActive ? "success" : "neutral"}>
-                          {item.isActive ? "Visible" : "Hidden"}
-                        </Badge>
+                        <Edit3 size={15} />
                       </button>
                       <button
-                        disabled={actionLoading}
-                        onClick={() => handleDelete(item.id, item.name)}
+                        onClick={() => {
+                          setDeleteError(null)
+                          setPendingDelete({ id: item.id, name: item.name })
+                        }}
                         className="table-action text-red-600 hover:bg-red-50"
                         title="Delete Category"
                       >
@@ -210,67 +494,97 @@ export function CategoriesPage() {
                       </button>
                     </div>
                   </div>
-                  {item.description && (
-                    <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-2">{item.description}</p>
-                  )}
                 </div>
               ))}
             </div>
           </>
         )}
+
+        {/* Footer Pagination Bar matching AdminOrdersPage */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border px-4 py-3 sm:px-5 sm:py-4 text-xs text-slate-500">
+          <div className="flex items-center gap-3">
+            <span>
+              Showing <b className="text-slate-800">{paginatedCategories.length}</b> of{" "}
+              <b className="text-slate-800">{filteredCategories.length}</b> categories
+              {filteredCategories.length !== items.length ? ` (filtered from ${items.length})` : ""}
+            </span>
+            {searchQuery || filterStatus !== "all" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("")
+                  setFilterStatus("all")
+                  setCurrentPage(1)
+                }}
+                className="text-xs font-bold text-amber-700 hover:underline"
+              >
+                Reset filters
+              </button>
+            ) : null}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage <= 1 || loading}
+              onClick={() => handlePageChange(safePage - 1)}
+            >
+              Previous
+            </Button>
+            <span className="font-semibold text-slate-700">
+              Page {safePage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage >= totalPages || loading}
+              onClick={() => handlePageChange(safePage + 1)}
+            >
+              Next
+            </Button>
+          </div>
         </div>
-
-        <aside className="h-fit min-w-0 rounded-xl border border-border bg-white p-4 sm:p-5 shadow-xs">
-          <h2 className="text-base sm:text-lg font-black text-slate-900">Add category</h2>
-          <p className="text-xs text-slate-500 mt-1">Create an authoritative category in the database.</p>
-
-          {formError && (
-            <div className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-red-700 border border-red-200">
-              {formError}
-            </div>
-          )}
-
-          <label className="field-label mt-4 block text-xs font-bold uppercase tracking-wider text-slate-600">
-            Category name
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              className="field mt-1.5 w-full"
-              placeholder="e.g. CPVC Pipes"
-            />
-          </label>
-
-          <label className="field-label mt-3 block text-xs font-bold uppercase tracking-wider text-slate-600">
-            Slug (optional)
-            <input
-              value={slug}
-              onChange={(event) => setSlug(event.target.value)}
-              className="field mt-1.5 w-full font-mono text-sm"
-              placeholder="e.g. cpvc-pipes"
-            />
-          </label>
-
-          <label className="field-label mt-3 block text-xs font-bold uppercase tracking-wider text-slate-600">
-            Description (optional)
-            <textarea
-              className="field mt-1.5 w-full resize-none"
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Category overview and standards..."
-            />
-          </label>
-
-          <Button
-            disabled={!name.trim() || actionLoading}
-            onClick={handleCreate}
-            className="mt-5 w-full"
-          >
-            {actionLoading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-            Create Category
-          </Button>
-        </aside>
       </div>
+
+      {/* Delete Confirmation Modal matching AdminProductsPage style */}
+      {pendingDelete && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <span className="grid h-12 w-12 place-items-center rounded-full bg-red-50 text-red-600">
+              <Trash2 />
+            </span>
+            <h2 className="mt-4 text-xl font-black">Delete this category?</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              <strong className="text-slate-800">{pendingDelete.name}</strong> will be permanently deleted from the database. This action cannot be undone if products reference it.
+            </p>
+            {deleteError && (
+              <div className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-red-700 border border-red-200">
+                {deleteError}
+              </div>
+            )}
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                variant="ghost"
+                disabled={actionLoading}
+                onClick={() => {
+                  setPendingDelete(null)
+                  setDeleteError(null)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                disabled={actionLoading}
+                onClick={confirmDelete}
+              >
+                {actionLoading ? "Deleting..." : "Delete Category"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

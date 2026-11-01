@@ -6,9 +6,7 @@ import {
   Badge,
   Button,
   EmptyState,
-  PageHeader,
-  ProductCard,
-  formatPrice,
+  ProductCard
 } from "../components"
 import { type Product } from "../data"
 import { useStore } from "../store"
@@ -185,21 +183,6 @@ export function ProductsPage() {
   const [stockAvailability, setStockAvailability] = useState<"all" | "inStock" | "outOfStock">("all")
   const [showAllBrands, setShowAllBrands] = useState(false)
 
-  // Popular quick category pills like reference image
-  const quickCategories = useMemo(() => {
-    return [
-      { name: "All", slug: "" },
-      { name: "PVC Fittings", slug: "pvc-fittings" },
-      { name: "CPVC Fittings", slug: "cpvc-fittings" },
-      { name: "Pipes", slug: "pipes-hoses" },
-      { name: "Valves", slug: "valves" },
-      { name: "Tanks", slug: "water-storage" },
-      { name: "Bathroom Fittings", slug: "bathroom-plumbing-fittings" },
-      { name: "Sanitaryware", slug: "sanitaryware-bath" },
-      { name: "Adhesives", slug: "adhesives-chemicals" },
-      { name: "Hardware", slug: "hardware-plumbing-accessories" },
-    ]
-  }, [])
 
   const applyPriceInputs = () => {
     const next = new URLSearchParams(params)
@@ -483,25 +466,6 @@ export function ProductsPage() {
             </div>
           </div>
 
-          {/* Quick Category Filter Pills horizontal scroll strip matching Reference */}
-          <div className="mb-5 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {quickCategories.map((item) => {
-              const active = item.slug ? categoryParam === item.slug : !categoryParam
-              return (
-                <button
-                  key={item.name}
-                  onClick={() => setCategoryFilter(item.slug)}
-                  className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold transition ${
-                    active
-                      ? "bg-[#0B0B0B] text-white shadow-xs"
-                      : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-                  }`}
-                >
-                  {item.name}
-                </button>
-              )
-            })}
-          </div>
 
           {/* Active Filter Badges */}
           {(categoryParam || brandParam || query) && (

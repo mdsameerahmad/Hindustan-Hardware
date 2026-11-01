@@ -1,19 +1,27 @@
 import {
+  AlertCircle,
+  Building2,
   Edit3,
+  Eye,
   Loader2,
   Package,
+  Percent,
+  Plus,
   RefreshCcw,
+  Search,
+  Sparkles,
   Trash2,
   Upload,
+  X,
 } from "lucide-react"
-import React, { useState } from "react"
+import React, { useMemo, useState } from "react"
 import {
   Badge,
   Button,
   PageHeader,
 } from "../components"
 import { useAdminBrands } from "../features/hooks/useAdminBrands"
-import { AdminField } from "./AdminSharedComponents"
+import { AdminField, FormCard } from "./AdminSharedComponents"
 import { convertImageToWebP } from "../utils/imageConverter"
 
 export function BrandsAdminPage() {
@@ -40,9 +48,78 @@ export function BrandsAdminPage() {
     isActive: true,
   }
 
+  // Active view: "list" (matches AdminProductsPage table/cards) or "editor" (matches ProductFormPage layout)
+  const [viewState, setViewState] = useState<"list" | "editor">("list")
   const [form, setForm] = useState(emptyBrand)
   const [formError, setFormError] = useState<string | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filterDiscount, setFilterDiscount] = useState<"all" | "discounted" | "no-discount">("all")
+  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all")
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 15
+
+  // Filtered brands matching AdminProductsPage style
+  const filteredBrands = useMemo(() => {
+    return [...brands]
+      .filter((b) => {
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase().trim()
+          const matchName = b.name.toLowerCase().includes(q)
+          const matchSlug = b.slug.toLowerCase().includes(q)
+          const matchDesc = (b.description || "").toLowerCase().includes(q)
+          if (!matchName && !matchSlug && !matchDesc) return false
+        }
+        const disc = Number((b as any).discountPercentage ?? (b as any).discount_percentage ?? 0)
+        if (filterDiscount === "discounted" && disc <= 0) return false
+        if (filterDiscount === "no-discount" && disc > 0) return false
+
+        if (filterStatus === "active" && !b.isActive) return false
+        if (filterStatus === "inactive" && b.isActive) return false
+
+        return true
+      })
+      .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+  }, [brands, searchQuery, filterDiscount, filterStatus])
+
+  const totalPages = Math.max(1, Math.ceil(filteredBrands.length / pageSize))
+  const safePage = Math.min(currentPage, totalPages)
+
+  const paginatedBrands = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return filteredBrands.slice(start, start + pageSize)
+  }, [filteredBrands, safePage, pageSize])
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages) return
+    setCurrentPage(newPage)
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  const openCreateModal = () => {
+    setForm(emptyBrand)
+    setFormError(null)
+    setViewState("editor")
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  const openEditModal = (brand: any) => {
+    setForm({
+      id: brand.id,
+      name: brand.name,
+      slug: brand.slug,
+      logoUrl: brand.logoUrl || brand.logo_url || "",
+      description: brand.description || "",
+      discountPercentage: Number((brand as any).discountPercentage ?? (brand as any).discount_percentage ?? 0),
+      displayOrder: brand.displayOrder ?? 1,
+      isActive: brand.isActive !== false,
+    })
+    setFormError(null)
+    setViewState("editor")
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -51,17 +128,14 @@ export function BrandsAdminPage() {
     setUploadingLogo(true)
     setFormError(null)
     try {
-      // Automatically convert any JPEG/PNG/JPG to WebP format
       const webpFile = await convertImageToWebP(file)
 
       if (form.id) {
-        // Brand already exists, upload directly to Supabase storage
         const updated = await uploadBrandLogo(form.id, webpFile)
         if (updated?.logoUrl) {
           setForm((prev) => ({ ...prev, logoUrl: updated.logoUrl! }))
         }
       } else {
-        // Brand not created yet, convert to WebP data URL preview for seamless UX
         const reader = new FileReader()
         reader.onload = () => {
           setForm((prev) => ({ ...prev, logoUrl: reader.result as string }))
@@ -74,20 +148,6 @@ export function BrandsAdminPage() {
       setUploadingLogo(false)
       e.target.value = ""
     }
-  }
-
-  const edit = (brand: any) => {
-    setForm({
-      id: brand.id,
-      name: brand.name,
-      slug: brand.slug,
-      logoUrl: brand.logoUrl || brand.logo_url || "",
-      description: brand.description || "",
-      discountPercentage: brand.discountPercentage ?? brand.discount_percentage ?? 0,
-      displayOrder: brand.displayOrder ?? 1,
-      isActive: brand.isActive !== false,
-    })
-    setFormError(null)
   }
 
   const submit = async (event: React.FormEvent) => {
@@ -142,6 +202,7 @@ export function BrandsAdminPage() {
           isActive: form.isActive,
         })
       }
+      setViewState("list")
       setForm(emptyBrand)
     } catch (err: any) {
       setFormError(err?.message || "Failed to persist brand.")
@@ -158,116 +219,370 @@ export function BrandsAdminPage() {
     }
   }
 
-  const handleDelete = async (id: string, brandName: string) => {
-    if (!confirm(`Are you sure you want to delete brand "${brandName}"? This cannot be undone if products reference it.`)) {
-      return
-    }
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    setDeleteError(null)
     try {
-      await deleteBrand(id)
+      await deleteBrand(pendingDelete.id)
+      setPendingDelete(null)
     } catch (err: any) {
-      alert(err?.message || "Failed to delete brand.")
+      setDeleteError(err?.message || "Failed to delete brand.")
     }
   }
 
+  // --------------------------------------------------------------------------
+  // RENDER 1: Dedicated Brand Edit / Create Page (matching ProductFormPage UX)
+  // --------------------------------------------------------------------------
+  if (viewState === "editor") {
+    return (
+      <>
+        <PageHeader
+          title={form.id ? `Edit Brand: ${form.name}` : "Add New Brand"}
+          description="Configure manufacturer identity, automated bulk discount rates, catalog ordering, and logos."
+        />
+
+        {formError && (
+          <div className="mb-6 rounded-lg bg-red-50 p-4 border border-red-200 text-sm text-red-700 flex items-center gap-2">
+            <AlertCircle size={18} className="text-red-600 shrink-0" />
+            <span>{formError}</span>
+          </div>
+        )}
+
+        <form onSubmit={submit} className="grid gap-6 xl:grid-cols-[1fr_360px]">
+          <div className="space-y-6">
+            <FormCard title="Brand details">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <AdminField
+                  label="Brand Name"
+                  required
+                  value={form.name}
+                  onChange={(value) => setForm({ ...form, name: value })}
+                  placeholder="e.g. Ashirvad, Astral, Supreme"
+                />
+                <AdminField
+                  label="Catalog Slug (URL identifier)"
+                  value={form.slug}
+                  onChange={(value) => setForm({ ...form, slug: value })}
+                  placeholder="e.g. ashirvad"
+                />
+                <div className="sm:col-span-2">
+                  <label className="field-label block text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Description / Brand Legacy
+                    <textarea
+                      rows={3}
+                      className="field mt-2 w-full resize-none"
+                      value={form.description}
+                      onChange={(event) =>
+                        setForm({ ...form, description: event.target.value })
+                      }
+                      placeholder="e.g. Authentic CPVC, PVC and fittings plumbing supplies portfolio..."
+                    />
+                  </label>
+                </div>
+              </div>
+            </FormCard>
+
+            <FormCard title="Bulk Brand Discount Rate">
+              <div className="grid gap-4 sm:grid-cols-2 items-center">
+                <div>
+                  <AdminField
+                    label="Discount % (Applied to all products of this brand)"
+                    type="number"
+                    value={String(form.discountPercentage)}
+                    onChange={(value) => setForm({ ...form, discountPercentage: Number(value) })}
+                  />
+                  <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-slate-500 mr-1">Quick presets:</span>
+                    {[0, 10, 20, 25, 30, 35, 40].map((preset) => (
+                      <button
+                        type="button"
+                        key={preset}
+                        onClick={() => setForm({ ...form, discountPercentage: preset })}
+                        className={`rounded-lg px-2.5 py-1 text-xs font-bold transition border ${
+                          form.discountPercentage === preset
+                            ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        {preset === 0 ? "None" : `${preset}%`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-4">
+                  <div className="flex items-center gap-2 text-amber-900 font-extrabold text-xs uppercase tracking-wider">
+                    <Sparkles size={15} className="text-amber-600 shrink-0" />
+                    <span>Automated Selling Price Sync</span>
+                  </div>
+                  <p className="mt-1 text-xs text-amber-800/90 leading-relaxed font-medium">
+                    Saving this brand will automatically recalculate and persist the <b>selling price</b> (base price) of every product belonging to this brand in the database against its recorded <b>MRP</b>.
+                  </p>
+                </div>
+              </div>
+            </FormCard>
+
+            <FormCard title="Brand Logo & Imagery">
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                  <div className="flex-1 w-full">
+                    <AdminField
+                      label="Logo image URL"
+                      value={form.logoUrl}
+                      onChange={(value) => setForm({ ...form, logoUrl: value })}
+                      placeholder="https://... or upload from your device below"
+                    />
+                  </div>
+                  <div className="sm:pt-5">
+                    <label className="inline-flex items-center gap-2 cursor-pointer rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 font-bold text-xs px-4 py-2.5 border border-amber-300 transition-colors shrink-0">
+                      <Upload size={15} />
+                      <span>{uploadingLogo ? "Converting to WebP..." : "Upload & Convert to WebP"}</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/jpg"
+                        disabled={uploadingLogo}
+                        onChange={handleLogoUpload}
+                        className="sr-only"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {form.logoUrl ? (
+                  <div className="flex items-center gap-4 rounded-xl border border-border bg-slate-50 p-3.5">
+                    <img
+                      src={form.logoUrl}
+                      alt="Brand Logo Preview"
+                      className="h-14 w-14 rounded-lg object-contain bg-white border border-border p-1.5 shadow-2xs"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <b className="block text-xs font-bold text-slate-900">Logo preview</b>
+                      <span className="block text-[11px] text-slate-500 mt-0.5 truncate">{form.logoUrl}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setForm({ ...form, logoUrl: "" })}
+                      className="text-xs text-red-600 hover:bg-red-50"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400">
+                    No logo uploaded yet. Upload a JPG or PNG, and it will be converted automatically to WebP format.
+                  </p>
+                )}
+              </div>
+            </FormCard>
+          </div>
+
+          <aside className="space-y-6">
+            <FormCard title="Catalog Ordering">
+              <AdminField
+                label="Display Order (Catalog Sequence)"
+                type="number"
+                value={String(form.displayOrder)}
+                onChange={(value) => setForm({ ...form, displayOrder: Number(value) || 0 })}
+              />
+              <p className="text-xs text-slate-500 leading-normal">
+                Lower display order numbers appear first in customer filters and navigation strips.
+              </p>
+            </FormCard>
+
+            <FormCard title="Visibility">
+              <label className="toggle-row flex items-center justify-between py-2">
+                <span>
+                  <b className="block text-sm text-slate-800">Active Brand</b>
+                  <small className="text-xs text-slate-500">Visible to customers in storefront filters</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={form.isActive}
+                  onChange={(event) => setForm({ ...form, isActive: event.target.checked })}
+                />
+              </label>
+            </FormCard>
+
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                disabled={actionLoading}
+                onClick={() => {
+                  setViewState("list")
+                  setForm(emptyBrand)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" className="flex-1" disabled={actionLoading}>
+                {actionLoading ? <Loader2 size={16} className="animate-spin" /> : null}
+                {form.id ? "Update Brand" : "Create Brand"}
+              </Button>
+            </div>
+          </aside>
+        </form>
+      </>
+    )
+  }
+
+  // --------------------------------------------------------------------------
+  // RENDER 2: Main Brand Catalog View (exact structure matching AdminProductsPage)
+  // --------------------------------------------------------------------------
   return (
     <>
       <PageHeader
-        title="Brand management"
-        description="Persisted manufacturer identity, brand logos, active status, and catalog order."
+        title="Brand catalog"
+        description="Authoritative database manufacturer records, bulk discount controls, active catalog status, and logos."
         action={
-          <Button variant="ghost" onClick={refetch} title="Refresh brands">
-            <RefreshCcw size={15} />
+          <Button onClick={openCreateModal}>
+            <Plus size={16} />
+            Add Brand
           </Button>
         }
       />
 
-      {error && (
-        <div className="mb-6 rounded-lg bg-red-50 p-4 border border-red-200 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+      <div className="rounded-xl border border-border bg-white shadow-xs">
+        {/* Top Control Bar matching AdminProductsPage */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border p-3.5 sm:p-4">
+          <div className="relative w-full sm:max-w-md flex-1">
+            <Search
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+              size={18}
+            />
+            <input
+              className="field !pl-10 w-full text-xs sm:text-sm"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search brands by name, slug or description..."
+            />
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_380px] gap-6 items-start">
-        <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-white shadow-xs">
-          {loading ? (
-            <div className="flex h-56 flex-col items-center justify-center gap-3">
-              <Loader2 className="h-7 w-7 animate-spin text-brand" />
-              <p className="text-sm font-medium text-slate-500">Loading catalog brands...</p>
-            </div>
-          ) : brands.length === 0 ? (
-            <div className="py-16 text-center">
-              <Package className="mx-auto h-10 w-10 text-slate-300" />
-              <h3 className="mt-2 text-base font-bold text-slate-700">No brands found</h3>
-              <p className="text-xs text-slate-500 mt-1">Create your first brand using the panel on the right.</p>
-            </div>
-          ) : (
+          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto flex-wrap">
+            <select
+              className="field flex-1 sm:w-auto text-xs sm:text-sm"
+              value={filterDiscount}
+              onChange={(e) => setFilterDiscount(e.target.value as any)}
+            >
+              <option value="all">All Discounts</option>
+              <option value="discounted">Discounted Brands Only</option>
+              <option value="no-discount">Standard MRP (No Discount)</option>
+            </select>
+
+            <select
+              className="field flex-1 sm:w-auto text-xs sm:text-sm"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as any)}
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active Only</option>
+              <option value="inactive">Inactive Only</option>
+            </select>
+
+            <Button variant="ghost" onClick={refetch} title="Refresh brands" className="p-2 shrink-0">
+              <RefreshCcw size={15} />
+            </Button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="m-4 rounded-lg bg-red-50 p-4 border border-red-200 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex h-56 flex-col items-center justify-center gap-3">
+            <Loader2 className="h-7 w-7 animate-spin text-brand" />
+            <p className="text-sm font-medium text-slate-500">Loading catalog brands...</p>
+          </div>
+        ) : filteredBrands.length === 0 ? (
+          <div className="py-16 text-center">
+            <Package className="mx-auto h-10 w-10 text-slate-300" />
+            <h3 className="mt-2 text-base font-bold text-slate-700">No brands found</h3>
+            <p className="text-xs text-slate-500 mt-1">Try adjusting your search query or discount filter.</p>
+          </div>
+        ) : (
           <>
-            {/* Desktop & Tablet Table */}
-            <div className="hidden sm:block overflow-x-auto">
+            {/* Desktop Table matching AdminProductsPage */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="data-table w-full">
                 <thead>
                   <tr>
-                    <th>Brand</th>
-                    <th>Slug</th>
-                    <th>Discount</th>
-                    <th>Display order</th>
-                    <th>Visibility</th>
+                    <th>Brand & Identity</th>
+                    <th>Catalog Slug</th>
+                    <th>Bulk Discount %</th>
+                    <th>Display Order</th>
+                    <th>Storefront Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {[...brands]
-                    .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
-                    .map((brand) => (
+                  {paginatedBrands.map((brand) => {
+                    const disc = Number((brand as any).discountPercentage ?? (brand as any).discount_percentage ?? 0)
+
+                    return (
                       <tr key={brand.id}>
                         <td>
-                          <div className="flex items-center gap-3">
+                          <div className="flex min-w-56 items-center gap-3">
                             {(brand.logoUrl || (brand as any).logo_url) ? (
                               <img
                                 src={brand.logoUrl || (brand as any).logo_url}
                                 alt={brand.name}
-                                className="h-10 w-10 rounded-lg object-contain bg-slate-50 p-1 border border-border shadow-2xs shrink-0"
+                                className="h-11 w-11 rounded-lg object-contain bg-slate-50 p-1 border border-border shadow-2xs shrink-0"
                                 onError={(e) => {
-                                  // Fallback to placeholder if image link is broken
-                                  e.currentTarget.style.display = 'none';
-                                  const fallbackEl = e.currentTarget.nextElementSibling as HTMLElement;
-                                  if (fallbackEl) fallbackEl.style.display = 'grid';
+                                  e.currentTarget.style.display = "none"
+                                  const fallback = e.currentTarget.nextElementSibling as HTMLElement
+                                  if (fallback) fallback.style.display = "grid"
                                 }}
                               />
                             ) : null}
                             <div
-                              className="h-10 w-10 place-items-center rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 text-amber-900 font-black text-xs uppercase shrink-0 border border-amber-200/60"
-                              style={{ display: (brand.logoUrl || (brand as any).logo_url) ? 'none' : 'grid' }}
+                              className="h-11 w-11 place-items-center rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 text-amber-900 font-black text-xs uppercase shrink-0 border border-amber-200/60"
+                              style={{ display: (brand.logoUrl || (brand as any).logo_url) ? "none" : "grid" }}
                             >
                               {brand.name.slice(0, 2)}
                             </div>
                             <div className="min-w-0">
                               <b className="block font-semibold text-slate-900 truncate">{brand.name}</b>
-                              {brand.description && (
-                                <small className="line-clamp-1 text-slate-500 max-w-xs">{brand.description}</small>
+                              {brand.description ? (
+                                <small className="text-slate-500 truncate block max-w-xs">{brand.description}</small>
+                              ) : (
+                                <small className="text-slate-400 italic block">No description</small>
                               )}
                             </div>
                           </div>
                         </td>
-                        <td className="font-mono text-xs text-slate-600">/{brand.slug}</td>
+                        <td className="font-mono text-xs text-slate-600">
+                          /{brand.slug}
+                        </td>
                         <td>
-                          {((brand as any).discountPercentage ?? (brand as any).discount_percentage) ? (
+                          {disc > 0 ? (
                             <Badge tone="success">
-                              {((brand as any).discountPercentage ?? (brand as any).discount_percentage)}% OFF
+                              <Percent size={11} className="mr-1 inline" />
+                              {disc}% OFF
                             </Badge>
                           ) : (
-                            <span className="text-xs text-slate-400">None</span>
+                            <span className="text-xs text-slate-400">None (MRP)</span>
                           )}
                         </td>
-                        <td>{brand.displayOrder ?? 1}</td>
+                        <td>
+                          <span className="font-mono text-xs text-slate-700 font-semibold">
+                            #{brand.displayOrder ?? 0}
+                          </span>
+                        </td>
                         <td>
                           <button
+                            type="button"
                             disabled={actionLoading}
                             onClick={() => handleToggleVisibility(brand)}
-                            className="cursor-pointer hover:opacity-80"
+                            className="cursor-pointer hover:opacity-85 transition"
+                            title="Click to toggle visibility"
                           >
                             <Badge tone={brand.isActive ? "success" : "neutral"}>
-                              {brand.isActive ? "Visible" : "Hidden"}
+                              {brand.isActive ? "Active" : "Inactive"}
                             </Badge>
                           </button>
                         </td>
@@ -275,14 +590,17 @@ export function BrandsAdminPage() {
                           <div className="flex gap-1">
                             <button
                               className="table-action"
-                              onClick={() => edit(brand)}
+                              onClick={() => openEditModal(brand)}
                               title="Edit Brand"
                             >
                               <Edit3 size={16} />
                             </button>
                             <button
+                              onClick={() => {
+                                setDeleteError(null)
+                                setPendingDelete({ id: brand.id, name: brand.name })
+                              }}
                               className="table-action text-red-600 hover:bg-red-50"
-                              onClick={() => handleDelete(brand.id, brand.name)}
                               title="Delete Brand"
                             >
                               <Trash2 size={16} />
@@ -290,195 +608,173 @@ export function BrandsAdminPage() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
 
-            {/* Mobile Card List */}
-            <div className="block sm:hidden divide-y divide-border">
-              {[...brands]
-                .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
-                .map((brand) => (
-                  <div key={brand.id} className="p-3.5 space-y-2.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        {(brand.logoUrl || (brand as any).logo_url) ? (
-                          <img
-                            src={brand.logoUrl || (brand as any).logo_url}
-                            alt={brand.name}
-                            className="h-10 w-10 rounded-lg object-contain bg-slate-50 p-1 border border-border shadow-2xs shrink-0"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                              const fallbackEl = e.currentTarget.nextElementSibling as HTMLElement;
-                              if (fallbackEl) fallbackEl.style.display = 'grid';
-                            }}
-                          />
-                        ) : null}
-                        <div
-                          className="h-10 w-10 place-items-center rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 text-amber-900 font-black text-xs uppercase shrink-0 border border-amber-200/60"
-                          style={{ display: (brand.logoUrl || (brand as any).logo_url) ? 'none' : 'grid' }}
-                        >
-                          {brand.name.slice(0, 2)}
-                        </div>
-                        <div className="min-w-0">
-                          <b className="block text-xs font-bold text-slate-900 truncate">{brand.name}</b>
-                          <span className="block font-mono text-[10px] text-slate-400 truncate">/{brand.slug}</span>
+            {/* Mobile Card List matching AdminProductsPage */}
+            <div className="block md:hidden divide-y divide-border">
+              {paginatedBrands.map((brand) => {
+                const disc = Number((brand as any).discountPercentage ?? (brand as any).discount_percentage ?? 0)
+
+                return (
+                  <div key={brand.id} className="p-3.5 space-y-3">
+                    <div className="flex items-start gap-3">
+                      {(brand.logoUrl || (brand as any).logo_url) ? (
+                        <img
+                          src={brand.logoUrl || (brand as any).logo_url}
+                          alt={brand.name}
+                          className="h-12 w-12 rounded-lg object-contain bg-slate-50 p-1 border border-border shrink-0"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none"
+                            const fallback = e.currentTarget.nextElementSibling as HTMLElement
+                            if (fallback) fallback.style.display = "grid"
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className="h-12 w-12 place-items-center rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 text-amber-900 font-black text-xs uppercase shrink-0 border border-amber-200/60"
+                        style={{ display: (brand.logoUrl || (brand as any).logo_url) ? "none" : "grid" }}
+                      >
+                        {brand.name.slice(0, 2)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <b className="block text-xs font-bold text-slate-900 leading-snug">{brand.name}</b>
+                        <span className="block font-mono text-[11px] text-slate-400 mt-0.5">/{brand.slug}</span>
+                        <div className="mt-1.5 flex items-center gap-2">
+                          {disc > 0 ? (
+                            <Badge tone="success">
+                              {disc}% OFF
+                            </Badge>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">Standard MRP</span>
+                          )}
+                          <Badge tone={brand.isActive ? "success" : "neutral"}>
+                            {brand.isActive ? "Active" : "Inactive"}
+                          </Badge>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          disabled={actionLoading}
-                          onClick={() => handleToggleVisibility(brand)}
-                          className="cursor-pointer hover:opacity-80"
-                        >
-                          <Badge tone={brand.isActive ? "success" : "neutral"}>
-                            {brand.isActive ? "Visible" : "Hidden"}
-                          </Badge>
-                        </button>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                      <span className="text-slate-500 font-mono text-[11px]">
+                        Order #{brand.displayOrder ?? 0}
+                      </span>
+                      <div className="flex gap-2">
                         <button
                           className="table-action"
-                          onClick={() => edit(brand)}
+                          onClick={() => openEditModal(brand)}
                           title="Edit Brand"
                         >
                           <Edit3 size={15} />
                         </button>
                         <button
+                          onClick={() => {
+                            setDeleteError(null)
+                            setPendingDelete({ id: brand.id, name: brand.name })
+                          }}
                           className="table-action text-red-600 hover:bg-red-50"
-                          onClick={() => handleDelete(brand.id, brand.name)}
                           title="Delete Brand"
                         >
                           <Trash2 size={15} />
                         </button>
                       </div>
                     </div>
-                    {brand.description && (
-                      <p className="text-[11px] text-slate-500 line-clamp-2">{brand.description}</p>
-                    )}
                   </div>
-                ))}
+                )
+              })}
             </div>
           </>
         )}
+
+        {/* Footer Pagination Bar matching AdminOrdersPage */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border px-4 py-3 sm:px-5 sm:py-4 text-xs text-slate-500">
+          <div className="flex items-center gap-3">
+            <span>
+              Showing <b className="text-slate-800">{paginatedBrands.length}</b> of{" "}
+              <b className="text-slate-800">{filteredBrands.length}</b> brands
+              {filteredBrands.length !== brands.length ? ` (filtered from ${brands.length})` : ""}
+            </span>
+            {searchQuery || filterDiscount !== "all" || filterStatus !== "all" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("")
+                  setFilterDiscount("all")
+                  setFilterStatus("all")
+                  setCurrentPage(1)
+                }}
+                className="text-xs font-bold text-amber-700 hover:underline"
+              >
+                Reset filters
+              </button>
+            ) : null}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage <= 1 || loading}
+              onClick={() => handlePageChange(safePage - 1)}
+            >
+              Previous
+            </Button>
+            <span className="font-semibold text-slate-700">
+              Page {safePage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage >= totalPages || loading}
+              onClick={() => handlePageChange(safePage + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </div>
 
-        <form
-          onSubmit={submit}
-          className="h-fit rounded-xl border border-border bg-white p-6 shadow-xs"
-        >
-          <h2 className="text-lg font-black text-slate-900">
-            {form.id ? "Edit brand" : "Add brand"}
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">Authoritative brand records stored in database.</p>
-
-          {formError && (
-            <div className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-red-700 border border-red-200">
-              {formError}
-            </div>
-          )}
-
-          <div className="mt-5 space-y-4">
-            <AdminField
-              required
-              label="Brand name"
-              value={form.name}
-              onChange={(value) => setForm({ ...form, name: value })}
-            />
-            <AdminField
-              label="Slug (optional)"
-              value={form.slug}
-              onChange={(value) => setForm({ ...form, slug: value })}
-            />
-            <AdminField
-              label="Discount % (Applied to all products of this brand)"
-              type="number"
-              value={String(form.discountPercentage)}
-              onChange={(value) => setForm({ ...form, discountPercentage: Number(value) })}
-            />
-            <div className="space-y-1.5">
-              <label className="field-label block text-xs font-bold uppercase tracking-wider text-slate-600">
-                Brand Logo (Auto-converted to WebP)
-              </label>
-              <div className="flex gap-2 items-center">
-                <input
-                  type="text"
-                  placeholder="https://... or upload below"
-                  className="field flex-1"
-                  value={form.logoUrl}
-                  onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
-                />
-                <label className="relative inline-flex items-center gap-1.5 cursor-pointer rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 font-bold text-xs px-3 py-2 border border-amber-300 transition-colors shrink-0">
-                  <Upload size={14} />
-                  <span>{uploadingLogo ? "Converting to WebP..." : "Upload Logo"}</span>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/jpg"
-                    disabled={uploadingLogo}
-                    onChange={handleLogoUpload}
-                    className="sr-only"
-                  />
-                </label>
+      {/* Delete Confirmation Modal matching AdminProductsPage style */}
+      {pendingDelete && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <span className="grid h-12 w-12 place-items-center rounded-full bg-red-50 text-red-600">
+              <Trash2 />
+            </span>
+            <h2 className="mt-4 text-xl font-black">Delete this brand?</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              <strong className="text-slate-800">{pendingDelete.name}</strong> will be permanently deleted from the database. This action cannot be undone if products reference it.
+            </p>
+            {deleteError && (
+              <div className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-red-700 border border-red-200">
+                {deleteError}
               </div>
-              {form.logoUrl && (
-                <div className="mt-1.5 flex items-center gap-2">
-                  <img
-                    src={form.logoUrl}
-                    alt="Logo preview"
-                    className="h-9 w-9 rounded object-contain bg-slate-50 border border-slate-200 p-1"
-                  />
-                  <span className="text-[11px] text-slate-500">Logo preview (WebP optimized)</span>
-                </div>
-              )}
-            </div>
-            <label className="field-label block text-xs font-bold uppercase tracking-wider text-slate-600">
-              Short description
-              <textarea
-                rows={3}
-                className="field mt-2 w-full resize-none"
-                value={form.description}
-                onChange={(event) =>
-                  setForm({ ...form, description: event.target.value })
-                }
-                placeholder="Brand legacy and catalog portfolio..."
-              />
-            </label>
-            <AdminField
-              label="Display order"
-              type="number"
-              value={String(form.displayOrder)}
-              onChange={(value) =>
-                setForm({ ...form, displayOrder: Number(value) })
-              }
-            />
-            <label className="toggle-row flex items-center justify-between py-2">
-              <span>
-                <b className="block text-sm text-slate-800">Active brand</b>
-                <small className="text-xs text-slate-500">Visible in storefront catalog filters</small>
-              </span>
-              <input
-                type="checkbox"
-                checked={form.isActive}
-                onChange={(event) => setForm({ ...form, isActive: event.target.checked })}
-              />
-            </label>
-          </div>
-          <div className="mt-6 flex gap-2">
-            <Button type="submit" className="flex-1" disabled={actionLoading}>
-              {actionLoading ? <Loader2 size={16} className="animate-spin" /> : null}
-              {form.id ? "Save Changes" : "Add Brand"}
-            </Button>
-            {form.id && (
+            )}
+            <div className="mt-6 flex justify-end gap-3">
               <Button
-                type="button"
                 variant="ghost"
-                onClick={() => setForm(emptyBrand)}
+                disabled={actionLoading}
+                onClick={() => {
+                  setPendingDelete(null)
+                  setDeleteError(null)
+                }}
               >
                 Cancel
               </Button>
-            )}
+              <Button
+                variant="danger"
+                disabled={actionLoading}
+                onClick={confirmDelete}
+              >
+                {actionLoading ? "Deleting..." : "Delete Brand"}
+              </Button>
+            </div>
           </div>
-        </form>
-      </div>
+        </div>
+      )}
     </>
   )
 }
