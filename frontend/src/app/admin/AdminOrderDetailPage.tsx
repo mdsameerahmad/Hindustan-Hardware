@@ -237,23 +237,29 @@ export function AdminOrderDetailPage() {
 
   useEffect(() => {
     fetchTracking()
-    // Fetch verified delivery partners
+    // Fetch verified delivery partners from Delivery Partner Registry
     import("../features/commerceApi").then(({ adminApi }) => {
       adminApi
-        .listCustomers({ role: "delivery_partner" as any, limit: 50 })
-        .then((res: any) => {
-          const items = res?.items || []
-          if (items.length > 0) {
+        .listDeliveryPartners()
+        .then((items: any) => {
+          if (Array.isArray(items) && items.length > 0) {
             setPartnersList(items)
           } else {
-            // Also include driver default if list empty
-            setPartnersList([
-              {
-                id: "f191b19b-58ae-4d03-a41c-6564ab022ad2",
-                fullName: "Ramesh Driver (driver@hindustanhardware.com)",
-                phone: "+919876543210",
-              },
-            ])
+            // Fallback to customer query or driver default
+            adminApi.listCustomers({ role: "delivery_partner" as any, limit: 50 }).then((res: any) => {
+              const custItems = res?.items || []
+              if (custItems.length > 0) {
+                setPartnersList(custItems)
+              } else {
+                setPartnersList([
+                  {
+                    id: "f191b19b-58ae-4d03-a41c-6564ab022ad2",
+                    fullName: "Ramesh Driver (driver@hindustanhardware.com)",
+                    phone: "+919876543210",
+                  },
+                ])
+              }
+            })
           }
         })
         .catch(() => {
@@ -850,12 +856,25 @@ export function AdminOrderDetailPage() {
             </div>
 
             {trackingInfo?.assignment ? (
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3.5 text-xs space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Assigned Driver:</span>
-                  <b className="text-slate-900 font-bold text-sm">
-                    {trackingInfo.assignment.deliveryPartner?.fullName || "Assigned Partner"}
-                  </b>
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3.5 text-xs space-y-2.5">
+                <div className="flex items-center gap-3 pb-2 border-b border-slate-200">
+                  {trackingInfo.assignment.deliveryPartner?.avatarUrl ? (
+                    <img
+                      src={trackingInfo.assignment.deliveryPartner.avatarUrl}
+                      alt={trackingInfo.assignment.deliveryPartner.fullName}
+                      className="h-10 w-10 rounded-full object-cover border-2 border-amber-500 shrink-0 shadow-xs"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded-full bg-amber-100 border border-amber-400 flex items-center justify-center text-amber-800 font-black text-sm shrink-0">
+                      {trackingInfo.assignment.deliveryPartner?.fullName?.charAt(0)?.toUpperCase() || "P"}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-medium">Assigned Partner</span>
+                    <b className="text-slate-900 font-bold text-sm block truncate">
+                      {trackingInfo.assignment.deliveryPartner?.fullName || "Assigned Partner"}
+                    </b>
+                  </div>
                 </div>
                 {trackingInfo.assignment.deliveryPartner?.phone && (
                   <div className="flex justify-between items-center">

@@ -12,6 +12,7 @@ import { apiRequest } from "../api/client"
 export interface DeliveryPartnerSummary {
   fullName: string
   phone: string | null
+  avatarUrl?: string | null
 }
 
 export interface DeliveryAssignmentInfo {

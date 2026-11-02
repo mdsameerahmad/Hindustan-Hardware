@@ -1,4 +1,5 @@
 import {
+  Bike,
   Boxes,
   Building2,
   ClipboardList,
@@ -60,7 +61,8 @@ const adminNav = [
   ["Inventory", "/admin/inventory", Gauge],
   ["Orders", "/admin/orders", ClipboardList],
   ["Customers", "/admin/customers", Users],
-  ["Delivery Management", "/admin/deliveries", Truck],
+  ["Delivery Orders", "/admin/deliveries", Truck],
+  ["Delivery Partner Management", "/admin/delivery-partners", Bike],
   ["Bulk Inquiries", "/admin/inquiries", Building2],
   ["Store Settings", "/admin/settings", Settings],
 ] as const
@@ -84,15 +86,17 @@ export function AdminLayout() {
         }`}
       >
         <div className="flex h-20 items-center justify-between border-b border-[#1C1C1C] px-6">
-          <Link to="/admin" className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-full border border-[#D4AF37] text-[#D4AF37]">
-              <Wrench size={18} />
-            </span>
+          <Link to="/admin" className="flex items-center gap-3 group">
+            <img
+              src="/logo.webp"
+              alt="Hindustan Hardware Admin"
+              className="h-10 w-10 rounded-full object-cover border-2 border-[#D4AF37] shadow-md shadow-[#D4AF37]/20 group-hover:scale-105 transition-transform"
+            />
             <div>
               <p className="font-serif text-sm font-bold tracking-wider text-white">
                 HINDUSTAN
               </p>
-              <p className="text-[10px] tracking-widest text-[#D4AF37] uppercase">
+              <p className="text-[10px] tracking-widest text-[#D4AF37] uppercase font-bold">
                 ADMIN PORTAL
               </p>
             </div>

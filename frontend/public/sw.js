@@ -4,6 +4,7 @@ const URLS_TO_CACHE = [
   '/index.html',
   '/manifest.json',
   '/favicon.svg',
+  '/logo.webp',
   '/icon-192.png',
   '/icon-512.png',
 ]

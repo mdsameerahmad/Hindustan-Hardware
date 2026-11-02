@@ -302,9 +302,19 @@ export function DeliveryPartnerPortalPage() {
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
           {/* Brand & Partner Profile */}
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-[#E5C158] via-[#D4AF37] to-[#AA841E] text-[#0B0B0B] flex items-center justify-center font-black shadow-md shadow-[#D4AF37]/20 border border-[#E5C158] shrink-0">
-              <Truck size={22} className="stroke-[2.5]" />
-            </div>
+            {user?.profile?.avatar_url ? (
+              <img
+                src={user.profile.avatar_url}
+                alt={user?.profile?.full_name || "Partner"}
+                className="h-10 w-10 rounded-full object-cover border-2 border-[#D4AF37] shadow-md shadow-[#D4AF37]/20 shrink-0"
+              />
+            ) : (
+              <img
+                src="/logo.webp"
+                alt="Hindustan Hardware"
+                className="h-10 w-10 rounded-full object-cover border-2 border-[#D4AF37] shadow-md shadow-[#D4AF37]/20 shrink-0"
+              />
+            )}
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] font-black uppercase tracking-wider text-[#D4AF37] bg-white/5 border border-[#D4AF37]/30 px-1.5 py-0.5 rounded">

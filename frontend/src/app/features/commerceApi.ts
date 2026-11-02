@@ -627,7 +627,49 @@ export const adminApi = {
       body: JSON.stringify(payload),
     })
   },
+
+  // ----------------- Delivery Partner Management (CRUD) -----------------
+  listDeliveryPartners: async (params?: { search?: string }) => {
+    const query = params?.search ? `?search=${encodeURIComponent(params.search)}` : ""
+    return apiRequest<any[]>(`/admin/delivery-partners${query}`, {
+      method: "GET",
+      requiresAuth: true,
+    })
+  },
+
+  createDeliveryPartner: async (payload: {
+    fullName: string
+    phone: string
+    avatarUrl?: string | null
+    email?: string
+    password?: string
+  }) => {
+    return apiRequest<any>("/admin/delivery-partners", {
+      method: "POST",
+      requiresAuth: true,
+      body: JSON.stringify(payload),
+    })
+  },
+
+  updateDeliveryPartner: async (
+    id: string,
+    payload: { fullName?: string; phone?: string; avatarUrl?: string | null }
+  ) => {
+    return apiRequest<any>(`/admin/delivery-partners/${id}`, {
+      method: "PATCH",
+      requiresAuth: true,
+      body: JSON.stringify(payload),
+    })
+  },
+
+  deleteDeliveryPartner: async (id: string) => {
+    return apiRequest<{ success: boolean }>(`/admin/delivery-partners/${id}`, {
+      method: "DELETE",
+      requiresAuth: true,
+    })
+  },
 }
+
 
 
 

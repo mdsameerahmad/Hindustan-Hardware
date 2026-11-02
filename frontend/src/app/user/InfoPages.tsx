@@ -133,9 +133,13 @@ export function AuthPage() {
             className="absolute inset-0 h-full w-full object-cover opacity-25"
           />
           <div className="relative">
-            <span className="grid h-12 w-12 place-items-center rounded-xl bg-accent text-ink">
-              <Wrench />
-            </span>
+            <Link to="/" className="inline-block group">
+              <img
+                src="/logo.webp"
+                alt="Hindustan Hardware"
+                className="h-16 w-16 rounded-full object-cover border-2 border-[#D4AF37] shadow-xl shadow-black/40 group-hover:scale-105 transition-transform"
+              />
+            </Link>
             <h1 className="mt-8 text-4xl font-black">
               {signup
                 ? "Create your customer account"
@@ -177,6 +181,25 @@ export function AuthPage() {
             </div>
           ) : (
             <>
+              {/* Mobile / Form Top Logo */}
+              <div className="flex items-center gap-3 mb-5">
+                <Link to="/" className="flex items-center gap-3">
+                  <img
+                    src="/logo.webp"
+                    alt="Hindustan Hardware"
+                    className="h-12 w-12 rounded-full object-cover border-2 border-[#D4AF37] shadow-md shadow-[#D4AF37]/20 shrink-0"
+                  />
+                  <div>
+                    <span className="block font-serif text-base font-black tracking-wider text-[#0B0B0B] leading-tight">
+                      HINDUSTAN HARDWARE
+                    </span>
+                    <span className="block text-[9px] font-bold tracking-[0.2em] text-[#D4AF37] uppercase">
+                      EST. 1993 · TRUSTED QUALITY
+                    </span>
+                  </div>
+                </Link>
+              </div>
+
               <Badge tone="blue">Secure Account Access</Badge>
               <h2 className="mt-4 text-3xl font-black">
                 {signup ? "Create an account" : "Login to your account"}

@@ -324,9 +324,11 @@ export function Footer() {
       <div className="container-wide grid gap-10 py-14 md:grid-cols-2 lg:grid-cols-5">
         <div className="lg:col-span-2">
           <div className="mb-4 flex items-center gap-3 text-white">
-            <span className="grid h-11 w-11 place-items-center rounded-full border-2 border-[#D4AF37] text-[#D4AF37]">
-              <Wrench size={22} />
-            </span>
+            <img
+              src="/logo.webp"
+              alt="Hindustan Hardware & Sanitary Logo"
+              className="h-12 w-12 rounded-full object-cover border-2 border-[#D4AF37] shadow-md shadow-[#D4AF37]/20 shrink-0"
+            />
             <div>
               <strong className="block font-serif text-lg font-black tracking-wider text-white">
                 HINDUSTAN HARDWARE
@@ -478,11 +480,12 @@ export function StorefrontLayout() {
         {/* Main Navbar */}
         <div className="container-wide flex items-center gap-2 sm:gap-5 py-2.5 sm:py-3">
           {/* Logo with gold seal mark from reference */}
-          <Link to="/" className="flex shrink-0 items-center gap-2 sm:gap-3 min-w-0">
-            <span className="grid h-9 w-9 sm:h-11 sm:w-11 place-items-center rounded-full border-2 border-[#D4AF37] bg-transparent text-[#D4AF37] shadow-sm shrink-0">
-              <Wrench size={18} className="sm:hidden" />
-              <Wrench size={20} className="hidden sm:block" />
-            </span>
+          <Link to="/" className="flex shrink-0 items-center gap-2 sm:gap-3 min-w-0 group">
+            <img
+              src="/logo.webp"
+              alt="Hindustan Hardware & Sanitary Logo"
+              className="h-10 w-10 sm:h-12 sm:w-12 rounded-full object-cover border-2 border-[#D4AF37] shadow-md shadow-[#D4AF37]/20 shrink-0 group-hover:scale-105 transition-transform"
+            />
             <span className="leading-tight truncate">
               <strong className="block font-serif text-base sm:text-lg font-black tracking-wider text-white truncate">
                 HINDUSTAN

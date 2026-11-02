@@ -741,15 +741,31 @@ export function LiveTrackingDetailPage() {
               <div className="mt-4 border-t border-border pt-4">
                 {assignment?.deliveryPartner ? (
                   <div className="space-y-3">
-                    <div>
-                      <b className="text-sm text-ink block">{assignment.deliveryPartner.fullName}</b>
-                      <span className="text-xs text-slate-500">Verified Hindustan Store Driver</span>
+                    <div className="flex items-center gap-3">
+                      {assignment.deliveryPartner.avatarUrl ? (
+                        <img
+                          src={assignment.deliveryPartner.avatarUrl}
+                          alt={assignment.deliveryPartner.fullName}
+                          className="h-12 w-12 rounded-full object-cover border-2 border-accent shadow-sm shrink-0"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 rounded-full bg-amber-50 border-2 border-accent/40 flex items-center justify-center text-accent font-black text-sm shrink-0">
+                          {assignment.deliveryPartner.fullName?.charAt(0)?.toUpperCase() || "D"}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <b className="text-sm text-ink block truncate">{assignment.deliveryPartner.fullName}</b>
+                        <span className="text-xs text-slate-500 flex items-center gap-1">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block"></span>
+                          Verified Hindustan Store Rider
+                        </span>
+                      </div>
                     </div>
 
                     {assignment.deliveryPartner.phone && (
                       <a
                         href={`tel:${assignment.deliveryPartner.phone}`}
-                        className="flex items-center gap-2 rounded-lg border border-border bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 hover:bg-slate-100"
+                        className="flex items-center gap-2 rounded-lg border border-border bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 hover:bg-slate-100 transition-colors"
                       >
                         <Phone size={14} className="text-emerald-600" />
                         <span>Call Partner ({assignment.deliveryPartner.phone})</span>

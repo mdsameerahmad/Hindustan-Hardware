@@ -1,6 +1,7 @@
 import { createBrowserRouter, RouterProvider } from "react-router"
 import { Button, EmptyState } from "./components"
 import { InstallPwaBanner } from "./components/InstallPwaBanner"
+import { AppSplashScreen } from "./components/AppSplashScreen"
 import { StoreProvider } from "./store"
 import { AuthProvider } from "./authContext"
 import { CustomerRoute, AdminRoute, DeliveryPartnerRoute } from "./RouteGuards"
@@ -37,6 +38,7 @@ import {
   GenericAdminPage,
   InventoryPage,
   ProductFormPage,
+  DeliveryPartnersPage,
 } from "./admin"
 import { Link, useRouteError } from "react-router"
 
@@ -133,6 +135,7 @@ const router = createBrowserRouter([
           { path: "orders/:id", Component: AdminOrderDetailPage },
           { path: "customers", element: <GenericAdminPage kind="customers" /> },
           { path: "deliveries", element: <GenericAdminPage kind="deliveries" /> },
+          { path: "delivery-partners", Component: DeliveryPartnersPage },
           { path: "inquiries", element: <GenericAdminPage kind="inquiries" /> },
           { path: "settings", element: <GenericAdminPage kind="settings" /> },
           { path: "*", Component: NotFound },
@@ -157,6 +160,7 @@ export default function App() {
   return (
     <AuthProvider>
       <StoreProvider>
+        <AppSplashScreen />
         <RouterProvider router={router} />
         <InstallPwaBanner />
       </StoreProvider>
