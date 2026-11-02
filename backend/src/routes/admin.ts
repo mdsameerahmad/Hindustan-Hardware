@@ -38,6 +38,8 @@ import {
   inventoryMovementQuerySchema,
   adminCustomerQuerySchema,
   adminAuditLogQuerySchema,
+  createDeliveryPartnerSchema,
+  updateDeliveryPartnerSchema,
 } from '../common/validation/adminSchemas';
 import { orderIdParamSchema, cancelOrderSchema } from '../common/validation/orderSchemas';
 import { adminRateLimiter } from '../common/middleware/rateLimiter';
@@ -546,5 +548,72 @@ adminRouter.patch('/deliveries/:assignmentId/status', async (req: Request, res: 
     next(err);
   }
 });
+
+// ----------------- Phase 9 Delivery Partner Management -----------------
+/**
+ * GET /api/v1/admin/delivery-partners
+ * Lists all registered delivery partners with active assignments & shop coordinates.
+ */
+adminRouter.get('/delivery-partners', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const search = req.query.search ? String(req.query.search) : undefined;
+    const partners = await AdminService.listDeliveryPartners({ search });
+    return sendSuccess(res, partners, 'Delivery partners retrieved successfully');
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/v1/admin/delivery-partners
+ * Registers a new delivery partner with name, mobile number, and initial shop coordinates.
+ */
+adminRouter.post('/delivery-partners', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = createDeliveryPartnerSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+
+    const partner = await AdminService.createDeliveryPartner(parsed.data, req.user!.id);
+    return sendSuccess(res, partner, 'Delivery partner created successfully with shop origin coordinates', 201);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PATCH /api/v1/admin/delivery-partners/:id
+ * Updates delivery partner details (name, phone, avatar).
+ */
+adminRouter.patch('/delivery-partners/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const partnerId = String(req.params.id);
+    if (!partnerId) throw new BadRequestError('Delivery partner ID is required.');
+
+    const parsed = updateDeliveryPartnerSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+
+    const updated = await AdminService.updateDeliveryPartner(partnerId, parsed.data, req.user!.id);
+    return sendSuccess(res, updated, 'Delivery partner updated successfully');
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * DELETE /api/v1/admin/delivery-partners/:id
+ * Removes or demotes delivery partner if no active deliveries are ongoing.
+ */
+adminRouter.delete('/delivery-partners/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const partnerId = String(req.params.id);
+    if (!partnerId) throw new BadRequestError('Delivery partner ID is required.');
+
+    await AdminService.deleteDeliveryPartner(partnerId, req.user!.id);
+    return sendSuccess(res, { success: true }, 'Delivery partner removed successfully');
+  } catch (err) {
+    next(err);
+  }
+});
+
 
 

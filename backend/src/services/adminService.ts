@@ -20,6 +20,8 @@ import {
 import { logger } from '../common/utils/logger';
 import { AuditLogService } from './auditLogService';
 import { broadcastOrderStatus } from '../common/socket/trackingSocket';
+import { HINDUSTAN_HARDWARE_STORE } from '../config/store';
+import { randomUUID } from 'crypto';
 
 export class AdminService {
   /**
@@ -1035,4 +1037,382 @@ export class AdminService {
       },
     };
   }
+
+  /**
+   * -------------------------------------------------------------
+   * Delivery Partner Management (CRUD + Shop Coordinates Ingestion)
+   * -------------------------------------------------------------
+   */
+
+  /**
+   * Lists all delivery partners with their latest location and active assignment status.
+   */
+  static async listDeliveryPartners(params: {
+    search?: string;
+  }): Promise<any[]> {
+    const client = getSupabaseAdminClient() || getSupabaseClient();
+    if (!client) throw new InternalServerError('Database service is unavailable.');
+
+    // 1. Query delivery partner profiles
+    let query = client
+      .from('profiles')
+      .select('id, full_name, phone, role, avatar_url, created_at, updated_at')
+      .in('role', ['delivery_partner', 'staff'])
+      .order('created_at', { ascending: false });
+
+    if (params.search) {
+      query = query.or(`full_name.ilike.%${params.search}%,phone.ilike.%${params.search}%`);
+    }
+
+    const { data: directPartners, error } = await query;
+    if (error) {
+      logger.error('Failed to query delivery partners', { error: error.message });
+      throw new InternalServerError('Unable to query delivery partners.');
+    }
+
+    // 2. Also check delivery_assignments to guarantee any partner who has had an assignment in DB is included
+    const { data: assignmentPartners } = await client
+      .from('delivery_assignments')
+      .select('delivery_partner_id');
+
+    const assignedPartnerIds = Array.from(
+      new Set((assignmentPartners || []).map((a: any) => a.delivery_partner_id).filter(Boolean))
+    );
+
+    let allPartners = [...(directPartners || [])];
+    const existingIds = new Set(allPartners.map((p: any) => p.id));
+
+    if (assignedPartnerIds.length > 0) {
+      const missingIds = assignedPartnerIds.filter((id) => !existingIds.has(id));
+      if (missingIds.length > 0) {
+        const { data: missingProfiles } = await client
+          .from('profiles')
+          .select('id, full_name, phone, role, avatar_url, created_at, updated_at')
+          .in('id', missingIds);
+        if (missingProfiles && missingProfiles.length > 0) {
+          allPartners.push(...missingProfiles);
+        }
+      }
+    }
+
+    // Enrich with shop coordinates and active assignment count
+    const enriched = await Promise.all(
+      (allPartners || []).map(async (p: any) => {
+        // Query active delivery assignment if any
+        const { data: activeAssignment } = await client
+          .from('delivery_assignments')
+          .select('id, order_id, status, assigned_at')
+          .eq('delivery_partner_id', p.id)
+          .in('status', ['assigned', 'picked_up', 'out_for_delivery'])
+          .order('assigned_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        // Check if there is an active delivery location recorded
+        let latestLocation = null;
+        if (activeAssignment?.id) {
+          const { data: loc } = await client
+            .from('delivery_locations')
+            .select('latitude, longitude, accuracy, device_timestamp, server_received_at')
+            .eq('delivery_assignment_id', activeAssignment.id)
+            .maybeSingle();
+          if (loc) {
+            latestLocation = {
+              latitude: Number(loc.latitude),
+              longitude: Number(loc.longitude),
+              accuracy: loc.accuracy != null ? Number(loc.accuracy) : null,
+              deviceTimestamp: loc.device_timestamp,
+              serverReceivedAt: loc.server_received_at,
+            };
+          }
+        }
+
+        return {
+          id: p.id,
+          fullName: p.full_name || 'Delivery Partner',
+          phone: p.phone || '',
+          role: p.role,
+          avatarUrl: p.avatar_url || null,
+          createdAt: p.created_at,
+          updatedAt: p.updated_at,
+          activeAssignment: activeAssignment
+            ? {
+                id: activeAssignment.id,
+                orderId: activeAssignment.order_id,
+                status: activeAssignment.status,
+                assignedAt: activeAssignment.assigned_at,
+              }
+            : null,
+          sourceCoordinates: {
+            name: HINDUSTAN_HARDWARE_STORE.name,
+            address: HINDUSTAN_HARDWARE_STORE.address,
+            latitude: HINDUSTAN_HARDWARE_STORE.latitude,
+            longitude: HINDUSTAN_HARDWARE_STORE.longitude,
+          },
+          currentLocation: latestLocation || {
+            latitude: HINDUSTAN_HARDWARE_STORE.latitude,
+            longitude: HINDUSTAN_HARDWARE_STORE.longitude,
+            isOriginStore: true,
+          },
+        };
+      })
+    );
+
+    return enriched;
+  }
+
+  /**
+   * Creates a new delivery partner and ensures shop coordinates are assigned.
+   */
+  static async createDeliveryPartner(
+    data: {
+      fullName: string;
+      phone: string;
+      email?: string;
+      avatarUrl?: string | null;
+      password?: string;
+    },
+    actorId: string
+  ): Promise<any> {
+    const adminClient = getSupabaseAdminClient();
+    const fallbackClient = getSupabaseClient();
+    const client = adminClient || fallbackClient;
+    if (!client) throw new InternalServerError('Database service is unavailable.');
+
+    const partnerEmail =
+      data.email?.toLowerCase().trim() ||
+      `partner.${data.phone.replace(/[^0-9]/g, '') || randomUUID().slice(0, 6)}@hindustanhardware.in`;
+    const partnerPassword = data.password || 'Partner@123456';
+
+    let userId: string = '';
+
+    // If Supabase Admin Client is available, create auth.user
+    if (adminClient?.auth?.admin) {
+      try {
+        const { data: usersData } = await adminClient.auth.admin.listUsers();
+        const existing = (usersData?.users || []).find(
+          (u) => u.email?.toLowerCase() === partnerEmail.toLowerCase()
+        );
+
+        if (existing) {
+          userId = existing.id;
+          await adminClient.auth.admin.updateUserById(userId, {
+            password: partnerPassword,
+            user_metadata: { full_name: data.fullName, phone: data.phone, avatar_url: data.avatarUrl || null },
+          });
+        } else {
+          const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
+            email: partnerEmail,
+            password: partnerPassword,
+            email_confirm: true,
+            user_metadata: { full_name: data.fullName, phone: data.phone, avatar_url: data.avatarUrl || null },
+          });
+          if (createErr || !newUser.user) {
+            throw new BadRequestError(createErr?.message || 'Failed to create partner auth user.');
+          }
+          userId = newUser.user.id;
+        }
+      } catch (authErr: any) {
+        logger.warn('Auth admin creation error, checking direct profile insert', { error: authErr.message });
+      }
+    }
+
+    if (!userId) {
+      userId = randomUUID();
+    }
+
+    // Upsert delivery partner into public.profiles
+    const now = new Date().toISOString();
+    const { data: profile, error: profileErr } = await client
+      .from('profiles')
+      .upsert(
+        {
+          id: userId,
+          role: 'delivery_partner',
+          full_name: data.fullName.trim(),
+          phone: data.phone.trim(),
+          avatar_url: data.avatarUrl || null,
+          updated_at: now,
+        },
+        { onConflict: 'id' }
+      )
+      .select('*')
+      .single();
+
+    if (profileErr || !profile) {
+      logger.error('Failed to create delivery partner profile', { error: profileErr?.message });
+      throw new InternalServerError('Failed to save delivery partner in database.');
+    }
+
+    // Log administrative audit log
+    await AuditLogService.logAction({
+      actorId,
+      action: 'DELIVERY_PARTNER_CREATE',
+      resourceType: 'profiles',
+      resourceId: profile.id,
+      details: {
+        fullName: profile.full_name,
+        phone: profile.phone,
+        avatarUrl: profile.avatar_url,
+        email: partnerEmail,
+        sourceLocation: {
+          name: HINDUSTAN_HARDWARE_STORE.name,
+          latitude: HINDUSTAN_HARDWARE_STORE.latitude,
+          longitude: HINDUSTAN_HARDWARE_STORE.longitude,
+        },
+      },
+    });
+
+    return {
+      id: profile.id,
+      fullName: profile.full_name,
+      phone: profile.phone,
+      avatarUrl: profile.avatar_url,
+      email: partnerEmail,
+      role: profile.role,
+      createdAt: profile.created_at,
+      updatedAt: profile.updated_at,
+      sourceCoordinates: {
+        name: HINDUSTAN_HARDWARE_STORE.name,
+        address: HINDUSTAN_HARDWARE_STORE.address,
+        latitude: HINDUSTAN_HARDWARE_STORE.latitude,
+        longitude: HINDUSTAN_HARDWARE_STORE.longitude,
+      },
+      currentLocation: {
+        latitude: HINDUSTAN_HARDWARE_STORE.latitude,
+        longitude: HINDUSTAN_HARDWARE_STORE.longitude,
+        isOriginStore: true,
+      },
+    };
+  }
+
+  /**
+   * Updates an existing delivery partner.
+   */
+  static async updateDeliveryPartner(
+    id: string,
+    data: {
+      fullName?: string;
+      phone?: string;
+      avatarUrl?: string | null;
+    },
+    actorId: string
+  ): Promise<any> {
+    const client = getSupabaseAdminClient() || getSupabaseClient();
+    if (!client) throw new InternalServerError('Database service is unavailable.');
+
+    const updatePayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (data.fullName !== undefined) updatePayload.full_name = data.fullName.trim();
+    if (data.phone !== undefined) updatePayload.phone = data.phone.trim();
+    if (data.avatarUrl !== undefined) updatePayload.avatar_url = data.avatarUrl;
+
+    const { data: updated, error } = await client
+      .from('profiles')
+      .update(updatePayload)
+      .eq('id', id)
+      .eq('role', 'delivery_partner')
+      .select('*')
+      .single();
+
+    if (error || !updated) {
+      logger.error('Failed to update delivery partner', { error: error?.message, id });
+      throw new NotFoundError('Delivery partner not found.');
+    }
+
+    // If partner has any active delivery assignments, update initial location
+    const { data: activeAssignments } = await client
+      .from('delivery_assignments')
+      .select('id, order_id')
+      .eq('delivery_partner_id', id)
+      .in('status', ['assigned', 'picked_up', 'out_for_delivery']);
+
+    if (activeAssignments && activeAssignments.length > 0) {
+      const now = new Date().toISOString();
+      for (const assignment of activeAssignments) {
+        await client.from('delivery_locations').upsert(
+          {
+            delivery_assignment_id: assignment.id,
+            order_id: assignment.order_id,
+            latitude: HINDUSTAN_HARDWARE_STORE.latitude,
+            longitude: HINDUSTAN_HARDWARE_STORE.longitude,
+            accuracy: 10,
+            device_timestamp: now,
+            server_received_at: now,
+          },
+          { onConflict: 'delivery_assignment_id' }
+        );
+      }
+    }
+
+    await AuditLogService.logAction({
+      actorId,
+      action: 'DELIVERY_PARTNER_UPDATE',
+      resourceType: 'profiles',
+      resourceId: updated.id,
+      details: updatePayload,
+    });
+
+    return {
+      id: updated.id,
+      fullName: updated.full_name,
+      phone: updated.phone,
+      role: updated.role,
+      avatarUrl: updated.avatar_url,
+      updatedAt: updated.updated_at,
+      sourceCoordinates: {
+        name: HINDUSTAN_HARDWARE_STORE.name,
+        address: HINDUSTAN_HARDWARE_STORE.address,
+        latitude: HINDUSTAN_HARDWARE_STORE.latitude,
+        longitude: HINDUSTAN_HARDWARE_STORE.longitude,
+      },
+      currentLocation: {
+        latitude: HINDUSTAN_HARDWARE_STORE.latitude,
+        longitude: HINDUSTAN_HARDWARE_STORE.longitude,
+        isOriginStore: true,
+      },
+    };
+  }
+
+  /**
+   * Removes or demotes a delivery partner.
+   */
+  static async deleteDeliveryPartner(id: string, actorId: string): Promise<void> {
+    const adminClient = getSupabaseAdminClient();
+    const fallbackClient = getSupabaseClient();
+    const client = adminClient || fallbackClient;
+    if (!client) throw new InternalServerError('Database service is unavailable.');
+
+    // Check for active assignments
+    const { count: activeCount } = await client
+      .from('delivery_assignments')
+      .select('id', { count: 'exact', head: true })
+      .eq('delivery_partner_id', id)
+      .in('status', ['assigned', 'picked_up', 'out_for_delivery']);
+
+    if (activeCount && activeCount > 0) {
+      throw new BadRequestError('Cannot delete delivery partner with ongoing active delivery assignments.');
+    }
+
+    // Demote role to customer or delete if not bound to orders
+    const { error: updateErr } = await client
+      .from('profiles')
+      .update({ role: 'customer', updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (updateErr) {
+      logger.error('Failed to delete/demote delivery partner', { error: updateErr.message, id });
+      throw new InternalServerError('Failed to delete delivery partner.');
+    }
+
+    await AuditLogService.logAction({
+      actorId,
+      action: 'DELIVERY_PARTNER_DELETE',
+      resourceType: 'profiles',
+      resourceId: id,
+      details: { previousRole: 'delivery_partner', newRole: 'customer' },
+    });
+  }
 }
+

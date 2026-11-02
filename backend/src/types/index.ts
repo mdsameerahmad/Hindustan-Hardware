@@ -492,6 +492,7 @@ export interface DeliveryAssignmentRecord {
     id: string;
     fullName: string;
     phone: string | null;
+    avatarUrl?: string | null;
   };
 }
 
@@ -582,6 +583,7 @@ export interface OrderLiveTrackingResponse {
     deliveryPartner: {
       fullName: string;
       phone: string | null;
+      avatarUrl?: string | null;
     } | null;
   } | null;
   latestLocation: {

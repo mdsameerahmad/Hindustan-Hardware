@@ -66,3 +66,17 @@ export const adminAuditLogQuerySchema = z.object({
   action: z.string().trim().optional(),
   actorId: z.string().uuid().optional(),
 });
+
+export const createDeliveryPartnerSchema = z.object({
+  fullName: z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
+  phone: z.string().trim().min(7, 'Mobile number must be at least 7 characters').max(20),
+  avatarUrl: z.string().nullable().optional(),
+  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+});
+
+export const updateDeliveryPartnerSchema = z.object({
+  fullName: z.string().trim().min(2).max(100).optional(),
+  phone: z.string().trim().min(7).max(20).optional(),
+  avatarUrl: z.string().nullable().optional(),
+});
+

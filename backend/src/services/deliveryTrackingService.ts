@@ -24,6 +24,7 @@ import {
 import { RoadRoutingService } from './roadRoutingService';
 import { ServiceabilityService } from './serviceabilityService';
 import { hashDeliveryOtp } from './deliveryOtpService';
+import { HINDUSTAN_HARDWARE_STORE } from '../config/store';
 
 export function isLocationStale(
   serverReceivedAtOrDeviceTimestamp: string,
@@ -71,7 +72,7 @@ export class DeliveryTrackingService {
     // 2. Verify delivery partner profile exists and is authorized (role: staff or delivery_partner or admin)
     const { data: partnerProfile, error: partnerErr } = await client
       .from('profiles')
-      .select('id, role, full_name, phone')
+      .select('id, role, full_name, phone, avatar_url')
       .eq('id', params.deliveryPartnerId)
       .single();
 
@@ -116,6 +117,27 @@ export class DeliveryTrackingService {
       throw new InternalServerError('Failed to create delivery assignment.');
     }
 
+    // 5. Seed initial delivery location with the exact shop coordinates in the database
+    // This guarantees tracking and routing immediately have valid coordinates from the store source.
+    try {
+      await client.from('delivery_locations').upsert(
+        {
+          delivery_assignment_id: newAssignment.id,
+          order_id: newAssignment.order_id,
+          latitude: HINDUSTAN_HARDWARE_STORE.latitude,
+          longitude: HINDUSTAN_HARDWARE_STORE.longitude,
+          accuracy: 10,
+          speed: 0,
+          heading: 0,
+          device_timestamp: now,
+          server_received_at: now,
+        },
+        { onConflict: 'delivery_assignment_id' }
+      );
+    } catch (locErr: any) {
+      logger.warn('Initial shop location seeding warning', { error: locErr?.message, assignmentId: newAssignment.id });
+    }
+
     return {
       id: newAssignment.id,
       orderId: newAssignment.order_id,
@@ -132,6 +154,7 @@ export class DeliveryTrackingService {
         id: partnerProfile.id,
         fullName: partnerProfile.full_name,
         phone: partnerProfile.phone,
+        avatarUrl: partnerProfile.avatar_url || null,
       },
     };
   }
@@ -730,17 +753,18 @@ export class DeliveryTrackingService {
     }
 
     // 3. Fetch delivery partner profile summary
-    let partnerInfo: { fullName: string; phone: string | null } | null = null;
+    let partnerInfo: { fullName: string; phone: string | null; avatarUrl: string | null } | null = null;
     if (assignment.delivery_partner_id) {
       const { data: partner } = await client
         .from('profiles')
-        .select('full_name, phone')
+        .select('full_name, phone, avatar_url')
         .eq('id', assignment.delivery_partner_id)
         .single();
       if (partner) {
         partnerInfo = {
           fullName: partner.full_name || 'Hindustan Hardware Partner',
           phone: partner.phone || null,
+          avatarUrl: partner.avatar_url || null,
         };
       }
     }
