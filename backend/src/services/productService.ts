@@ -2,6 +2,7 @@ import { getSupabaseClient, getSupabaseAdminClient } from '../config/supabase';
 import { InternalServerError, NotFoundError, ConflictError, BadRequestError } from '../common/errors';
 import { Product, PaginatedResult, ProductVariant, Inventory } from '../types';
 import { ImageService } from './imageService';
+import { logger } from '../common/utils/logger';
 
 export interface ProductQueryOptions {
   page: number;
@@ -18,6 +19,46 @@ export interface ProductQueryOptions {
 }
 
 export class ProductService {
+  /**
+   * Hydrate product images through a single explicit table query for list APIs.
+   * Some PostgREST relationship responses omit nested image rows under RLS or
+   * schema-cache differences, while the direct public gallery endpoint works.
+   */
+  private static async attachProductImages(client: any, rows: any[]): Promise<any[]> {
+    if (rows.length === 0) return rows;
+
+    const productIds = rows.map((row) => row.id).filter(Boolean);
+    const { data: imageRows, error } = await client
+      .from('product_images')
+      .select('product_id, storage_path, is_primary, display_order, created_at')
+      .in('product_id', productIds)
+      .order('is_primary', { ascending: false })
+      .order('display_order', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      // Keep nested relationship results as a graceful fallback, but log the
+      // failed explicit lookup so missing listing images can be diagnosed.
+      logger.warn('Failed to hydrate product images for product list', {
+        error: error.message,
+        productCount: productIds.length,
+      });
+      return rows;
+    }
+
+    const imagesByProduct = new Map<string, any[]>();
+    for (const image of imageRows || []) {
+      const productImages = imagesByProduct.get(image.product_id) || [];
+      productImages.push(image);
+      imagesByProduct.set(image.product_id, productImages);
+    }
+
+    return rows.map((row) => ({
+      ...row,
+      product_images: imagesByProduct.get(row.id) || row.product_images || [],
+    }));
+  }
+
   /**
    * Parses product row, resolves brand discount or product discount override,
    * and adjusts base_price / compare_at_price accordingly.
@@ -200,7 +241,8 @@ export class ProductService {
       throw new InternalServerError(`Failed to query products: ${error.message}`);
     }
 
-    let items = (data || []).map((row) => this.parseProductRow(row));
+    const rowsWithImages = await this.attachProductImages(supabase, data || []);
+    let items = rowsWithImages.map((row) => this.parseProductRow(row));
 
     // In-stock availability filter if requested
     if (availability === 'in_stock') {
