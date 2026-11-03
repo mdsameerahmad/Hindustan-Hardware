@@ -238,18 +238,14 @@ export const categories = [
 ]
 
 const images = {
-  pipe: "https://images.unsplash.com/photo-1642797735471-3e90055c5ff9?auto=format&fit=crop&w=900&q=80",
-  pressure:
-    "https://images.unsplash.com/photo-1715322554946-1b22a9800aec?auto=format&fit=crop&w=900&q=80",
-  hdpe: "https://images.unsplash.com/photo-1650176729290-c831770afaee?auto=format&fit=crop&w=900&q=80",
-  fitting:
-    "https://images.unsplash.com/photo-1707409464203-df2f21c32b9c?auto=format&fit=crop&w=900&q=80",
-  valve:
-    "https://images.unsplash.com/photo-1681249537103-9e0c7316d91e?auto=format&fit=crop&w=900&q=80",
-  tool: "https://images.unsplash.com/photo-1503789146722-cf137a3c0fea?auto=format&fit=crop&w=900&q=80",
-  electrical:
-    "https://images.unsplash.com/photo-1587534012737-1fd8a84b519e?auto=format&fit=crop&w=900&q=80",
-  tank: "https://images.unsplash.com/photo-1603093433330-e0e5c30df0fe?auto=format&fit=crop&w=900&q=80",
+  pipe: "/product-placeholder.svg",
+  pressure: "/product-placeholder.svg",
+  hdpe: "/product-placeholder.svg",
+  fitting: "/product-placeholder.svg",
+  valve: "/product-placeholder.svg",
+  tool: "/product-placeholder.svg",
+  electrical: "/product-placeholder.svg",
+  tank: "/product-placeholder.svg",
 }
 
 type Seed = {

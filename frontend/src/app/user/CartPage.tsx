@@ -10,6 +10,7 @@ import {
 } from "../components"
 import { useStore } from "../store"
 import { DEFAULT_PRODUCT_IMAGE } from "../utils/productTransform"
+import { ProductImage } from "../features/components/ProductImage"
 
 export function CartPage() {
   const {
@@ -102,10 +103,10 @@ export function CartPage() {
               className="flex flex-col sm:grid sm:grid-cols-[100px_1fr_auto] gap-3 sm:gap-4 rounded-xl border border-border bg-white p-3.5 sm:p-4"
             >
               <div className="flex gap-3 sm:block">
-                <img
+                <ProductImage
                   src={product.image}
                   alt=""
-                  className="h-20 w-20 sm:h-24 sm:w-24 shrink-0 rounded-lg object-cover border border-slate-100"
+                  className="h-20 w-20 sm:h-24 sm:w-24 shrink-0 rounded-lg object-contain bg-slate-50 p-1 border border-slate-100"
                 />
                 <div className="sm:hidden flex-1 min-w-0">
                   <Link

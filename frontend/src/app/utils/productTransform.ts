@@ -5,9 +5,9 @@
 
 import type { BackendProduct } from '../api/catalogueApi'
 import type { Product } from '../data'
+import { DEFAULT_PRODUCT_IMAGE, resolveProductImage } from './productImages'
 
-export const DEFAULT_PRODUCT_IMAGE =
-  'https://images.unsplash.com/photo-1642797735471-3e90055c5ff9?auto=format&fit=crop&w=800&q=80'
+export { DEFAULT_PRODUCT_IMAGE } from './productImages'
 
 export function transformBackendProduct(bp: BackendProduct): Product {
   const brandName = bp.brand?.name || 'Hindustan Hardware'
@@ -17,24 +17,19 @@ export function transformBackendProduct(bp: BackendProduct): Product {
 
   // Image handling: Strictly prioritize product-specific image uploaded by admin
   // Do NOT show brand logo as product image since brand logo is distinct from product photo
-  let image: string = DEFAULT_PRODUCT_IMAGE
-
-  if (Array.isArray(bp.product_images) && bp.product_images.length > 0) {
-    const first = bp.product_images[0]
-    if (typeof first === 'string' && first.trim()) {
-      image = first.trim()
-    } else if (first?.public_url) {
-      image = first.public_url
-    } else if (first?.storage_path) {
-      image = first.storage_path
-    }
-  } else if (bp.image_url && typeof bp.image_url === 'string' && bp.image_url.trim()) {
-    image = bp.image_url.trim()
-  } else if (bp.specs?.image_url && typeof bp.specs.image_url === 'string') {
-    image = bp.specs.image_url.trim()
-  } else if (bp.specs?.imageUrl && typeof bp.specs.imageUrl === 'string') {
-    image = bp.specs.imageUrl.trim()
-  }
+  const productImageCandidates = [
+    ...(Array.isArray(bp.product_images)
+      ? bp.product_images.map((img: any) => typeof img === 'string' ? img : img?.public_url)
+      : []),
+    bp.image_url,
+    bp.specs?.image_url,
+    bp.specs?.imageUrl,
+  ]
+  const productImages = productImageCandidates
+    .map(resolveProductImage)
+    .filter((candidate) => candidate !== DEFAULT_PRODUCT_IMAGE)
+    .filter((candidate, index, all) => all.indexOf(candidate) === index)
+  const image = productImages[0] || DEFAULT_PRODUCT_IMAGE
 
   // Stock handling:
   // If inventory record exists and is non-negative, use quantity_available.
@@ -65,9 +60,7 @@ export function transformBackendProduct(bp: BackendProduct): Product {
     intendedApplication: bp.intended_application || (bp.specs?.intended_application as string) || '',
     comparisonGroupId: bp.comparison_group_id || undefined,
     variantAttributes: {},
-    images: (Array.isArray(bp.product_images) && bp.product_images.length > 0)
-      ? bp.product_images.map((img: any) => typeof img === 'string' ? img : (img?.public_url || img?.storage_path || image))
-      : [image],
+    images: productImages.length > 0 ? productImages : [DEFAULT_PRODUCT_IMAGE],
     description: bp.description || `${bp.name} - Quality hardware product available at Hindustan Hardware.`,
     featured: bp.is_featured,
     active: bp.is_active,

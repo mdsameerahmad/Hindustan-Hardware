@@ -15,6 +15,7 @@ import { type Product } from "../data"
 import { useAdminInventory } from "../features/hooks/useAdminInventory"
 import { useAdminProducts } from "../features/hooks/useAdminProducts"
 import { useStore } from "../store"
+import { ProductImage } from "../features/components/ProductImage"
 
 function MiniStat({
   label,
@@ -148,10 +149,10 @@ export function InventoryPage() {
                       <tr key={product.id}>
                         <td>
                           <div className="flex items-center gap-3 min-w-0">
-                            <img
-                              src={product.image || "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80"}
+                            <ProductImage
+                              src={product.image}
                               alt=""
-                              className="h-10 w-10 rounded-lg object-cover bg-slate-100 shrink-0"
+                              className="h-10 w-10 rounded-lg object-contain bg-slate-100 p-1 shrink-0"
                             />
                             <div className="min-w-0">
                               <b className="block text-slate-900 truncate">{product.name}</b>
@@ -229,10 +230,10 @@ export function InventoryPage() {
                 return (
                   <div key={product.id} className="p-3.5 space-y-3">
                     <div className="flex items-start gap-3">
-                      <img
-                        src={product.image || "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80"}
+                      <ProductImage
+                        src={product.image}
                         alt=""
-                        className="h-11 w-11 rounded-lg object-cover bg-slate-100 shrink-0"
+                        className="h-11 w-11 rounded-lg object-contain bg-slate-100 p-1 shrink-0"
                       />
                       <div className="min-w-0 flex-1">
                         <b className="block text-xs font-bold text-slate-900 leading-snug">{product.name}</b>

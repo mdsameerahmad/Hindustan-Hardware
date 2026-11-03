@@ -19,6 +19,7 @@ import {
 import { type Product } from "../data"
 import { useAdminCategories } from "../features/hooks/useAdminCategories"
 import { useAdminProducts } from "../features/hooks/useAdminProducts"
+import { ProductImage } from "../features/components/ProductImage"
 
 export function AdminProductsPage() {
   const { categories: backendCategories } = useAdminCategories()
@@ -164,10 +165,10 @@ export function AdminProductsPage() {
                     <tr key={product.id}>
                       <td>
                         <div className="flex min-w-56 items-center gap-3">
-                          <img
-                            src={product.image || "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80"}
+                          <ProductImage
+                            src={product.image}
                             alt=""
-                            className="h-11 w-11 rounded-lg object-cover bg-slate-100 shrink-0"
+                            className="h-11 w-11 rounded-lg object-contain bg-slate-100 p-1 shrink-0"
                           />
                           <div className="min-w-0">
                             <b className="block font-semibold text-slate-900 truncate">{product.name}</b>
@@ -239,10 +240,10 @@ export function AdminProductsPage() {
               {products.map((product) => (
                 <div key={product.id} className="p-3.5 space-y-3">
                   <div className="flex items-start gap-3">
-                    <img
-                      src={product.image || "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80"}
+                    <ProductImage
+                      src={product.image}
                       alt=""
-                      className="h-12 w-12 rounded-lg object-cover bg-slate-100 shrink-0"
+                      className="h-12 w-12 rounded-lg object-contain bg-slate-100 p-1 shrink-0"
                     />
                     <div className="min-w-0 flex-1">
                       <b className="block text-xs font-bold text-slate-900 leading-snug">{product.name}</b>

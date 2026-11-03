@@ -283,7 +283,7 @@ export function SearchBox() {
                 <ProductImage
                   src={product.image}
                   alt={product.name}
-                  className="h-10 w-10 rounded-lg object-cover bg-slate-100 shrink-0 border border-slate-200"
+                  className="h-10 w-10 rounded-lg object-contain bg-slate-100 p-1 shrink-0 border border-slate-200"
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-900 truncate">

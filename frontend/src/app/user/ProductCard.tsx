@@ -46,7 +46,7 @@ export function ProductCard({
             <ProductImage
               src={product.image}
               alt={product.name}
-              className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+              className="h-full w-full object-contain p-3 transition duration-500 group-hover:scale-105"
             />
           </Link>
           <button
@@ -139,7 +139,7 @@ export function ProductCard({
           <ProductImage
             src={product.image}
             alt={product.name}
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            className="h-full w-full object-contain p-3 transition duration-500 group-hover:scale-105"
           />
         </Link>
 

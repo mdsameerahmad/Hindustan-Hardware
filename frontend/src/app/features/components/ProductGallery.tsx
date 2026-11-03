@@ -42,7 +42,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
         <ProductImage
           src={mainImage}
           alt={productName}
-          className="h-full w-full object-cover transition duration-300 hover:scale-105"
+          className="h-full w-full object-contain p-4 transition duration-300 hover:scale-105"
         />
       </div>
 
@@ -65,7 +65,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
                 <ProductImage
                   src={thumb.url}
                   alt={thumb.alt}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-contain p-1"
                 />
               </button>
             )
