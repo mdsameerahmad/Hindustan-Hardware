@@ -1,46 +1,33 @@
-import { createBrowserRouter, RouterProvider } from "react-router"
-import { Button, EmptyState } from "./components"
-import { InstallPwaBanner } from "./components/InstallPwaBanner"
-import { AppSplashScreen } from "./components/AppSplashScreen"
-import { StoreProvider } from "./store"
-import { AuthProvider } from "./authContext"
-import { CustomerRoute, AdminRoute, DeliveryPartnerRoute } from "./RouteGuards"
-import { DeliveryPartnerPortalPage } from "./partner/DeliveryPartnerPortalPage"
-import { StorefrontLayout } from "./user"
+import { createBrowserRouter, Link, RouterProvider, useRouteError } from "react-router"
 import {
-  HomePage,
-  ProductsPage,
-  ProductDetailPage,
-  BrandDetailPage,
-  BrandsPage,
-  ComparePage,
-  CartPage,
-  CheckoutPage,
-  OrderDetailPage,
-  OrdersPage,
-  OrderSuccessPage,
-  TrackingPage,
-  LiveTrackingDetailPage,
-  WishlistPage,
-  AboutPage,
-  AccountPage,
-  AuthPage,
-  ContactPage,
-} from "./user"
-import {
-  AdminLayout,
-  AdminOrderDetailPage,
-  AdminOrdersPage,
-  AdminOverviewPage,
-  AdminProductsPage,
-  CategoriesPage,
-  BrandsAdminPage,
-  GenericAdminPage,
-  InventoryPage,
-  ProductFormPage,
-  DeliveryPartnersPage,
+    AdminLayout,
+    AdminOrderDetailPage,
+    AdminOrdersPage,
+    AdminOverviewPage,
+    AdminProductsPage,
+    BrandsAdminPage,
+    CategoriesPage,
+    DeliveryPartnersPage,
+    GenericAdminPage,
+    InventoryPage,
+    ProductFormPage,
 } from "./admin"
-import { Link, useRouteError } from "react-router"
+import { AuthProvider } from "./authContext"
+import { Button, EmptyState } from "./components"
+import { AppSplashScreen } from "./components/AppSplashScreen"
+import { InstallPwaBanner } from "./components/InstallPwaBanner"
+import { DeliveryPartnerPortalPage } from "./partner/DeliveryPartnerPortalPage"
+import { AdminRoute, CustomerRoute, DeliveryPartnerRoute } from "./RouteGuards"
+import { StoreProvider } from "./store"
+import {
+    AboutPage,
+    AccountPage,
+    AuthPage, BrandDetailPage,
+    BrandsPage, CartPage,
+    CheckoutPage, ComparePage, ContactPage, HomePage, LiveTrackingDetailPage, OrderDetailPage,
+    OrdersPage,
+    OrderSuccessPage, ProductDetailPage, ProductsPage, StorefrontLayout, TrackingPage, WishlistPage
+} from "./user"
 
 function RouteErrorBoundary() {
   const error: any = useRouteError()
@@ -137,7 +124,6 @@ const router = createBrowserRouter([
           { path: "deliveries", element: <GenericAdminPage kind="deliveries" /> },
           { path: "delivery-partners", Component: DeliveryPartnersPage },
           { path: "inquiries", element: <GenericAdminPage kind="inquiries" /> },
-          { path: "settings", element: <GenericAdminPage kind="settings" /> },
           { path: "*", Component: NotFound },
         ],
       },

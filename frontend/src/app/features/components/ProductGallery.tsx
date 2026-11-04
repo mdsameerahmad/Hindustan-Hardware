@@ -32,7 +32,11 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
 
   // Combine primary image and additional gallery images
   const allThumbnails = images.length > 0
-    ? images.map((img) => ({ id: img.id, url: img.public_url || '', alt: img.alt_text || productName }))
+    ? images.map((img) => ({ 
+        id: img.id, 
+        url: img.public_url || img.storage_path || '', 
+        alt: img.alt_text || productName 
+      }))
     : [{ id: 'main', url: mainImage, alt: productName }]
 
   return (

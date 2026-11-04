@@ -12,6 +12,7 @@ import {
   PageHeader,
 } from "../components"
 import { type Product } from "../data"
+import { ProductImage } from "../features/components/ProductImage"
 import { useAdminInventory } from "../features/hooks/useAdminInventory"
 import { useAdminProducts } from "../features/hooks/useAdminProducts"
 import { useStore } from "../store"

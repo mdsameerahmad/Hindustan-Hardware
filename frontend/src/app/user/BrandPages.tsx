@@ -195,16 +195,7 @@ export function BrandStrip({ className = "" }: { className?: string }) {
   )
 }
 
-const brandFilters = [
-  "All",
-  "CPVC Pipes",
-  "PVC Pipes",
-  "UPVC Pipes",
-  "HDPE Pipes",
-  "SWR and Drainage",
-  "Pipe Fittings",
-  "Water Supply Systems",
-]
+const brandFilters: string[] = []
 
 export function BrandsPage() {
   const [brands, setBrands] = useState<Brand[]>([])
@@ -260,12 +251,8 @@ export function BrandsPage() {
 
   // Category filter tabs matching reference image with dynamic fallback
   const categoryFilters = useMemo(() => {
-    const defaultPills = [
+    const defaultPills: { id: string; label: string; icon: any }[] = [
       { id: "all", label: "All Brands", icon: LayoutGrid },
-      { id: "pipes", label: "Pipes & Fittings", icon: Pipette },
-      { id: "pumps", label: "Pumps", icon: Wrench },
-      { id: "electrical", label: "Electrical", icon: Zap },
-      { id: "sanitaryware", label: "Sanitaryware", icon: Bath },
     ]
 
     if (categories.length > 0) {
@@ -342,7 +329,7 @@ export function BrandsPage() {
         <div className="absolute right-0 top-0 bottom-0 w-1/2 md:w-5/12 hidden md:block overflow-hidden pointer-events-none z-0">
           <div className="relative w-full h-full flex items-center justify-end pr-8">
             <img
-              src="https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1000&q=80"
+              src="/placeholder.webp"
               alt="Plumbing hardware and sanitary fittings"
               className="object-cover h-full w-full max-w-lg opacity-85 mix-blend-multiply"
               style={{

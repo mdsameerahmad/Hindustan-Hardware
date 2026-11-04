@@ -1,11 +1,18 @@
 import {
   Building2,
+  Check,
   Loader2,
+  Mail,
+  MapPin,
+  Phone,
   RefreshCcw,
   Search,
+  Trash2,
+  X
 } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link } from "react-router"
+import { bulkInquiryApi, type BulkInquiry } from "../api/bulkInquiryApi"
 import {
   Badge,
   Button,
@@ -15,16 +22,18 @@ import {
 } from "../components"
 import { useAdminCustomers } from "../features/hooks/useAdminCustomers"
 import { useAdminOrders } from "../features/hooks/useAdminOrders"
-import { useStore } from "../store"
-import { AdminField, FormCard } from "./AdminSharedComponents"
 
-export type GenericKind = "customers" | "deliveries" | "inquiries" | "settings"
+export type GenericKind = "customers" | "deliveries" | "inquiries"
+
+function toWhatsAppNumber(phone: string) {
+  const digits = phone.replace(/\D/g, "").replace(/^0+/, "")
+  return digits.startsWith("91") ? digits : `91${digits}`
+}
 
 export function GenericAdminPage({ kind }: { kind: GenericKind }) {
   if (kind === "customers") return <Customers />
   if (kind === "deliveries") return <Deliveries />
-  if (kind === "inquiries") return <Inquiries />
-  return <Settings />
+  return <Inquiries />
 }
 
 export function Customers() {
@@ -313,85 +322,163 @@ export function Deliveries() {
 }
 
 export function Inquiries() {
-  const [responseNotes, setResponseNotes] = useState("")
-  const [saved, setSaved] = useState(false)
+  const [inquiries, setInquiries] = useState<BulkInquiry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [actionId, setActionId] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  const loadInquiries = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      setInquiries(await bulkInquiryApi.list())
+    } catch (err: any) {
+      setError(err?.message || "Failed to load bulk inquiries.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadInquiries()
+  }, [])
+
+  useEffect(() => {
+    if (!expandedId) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExpandedId(null)
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [expandedId])
+
+  const handleMarkRead = async (id: string) => {
+    setActionId(id)
+    setError(null)
+    try {
+      const updated = await bulkInquiryApi.markRead(id)
+      setInquiries((current) => current.map((inquiry) => inquiry.id === id ? updated : inquiry))
+    } catch (err: any) {
+      setError(err?.message || "Failed to mark inquiry as read.")
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  const handleDelete = async (inquiry: BulkInquiry) => {
+    if (!window.confirm(`Permanently delete the inquiry from ${inquiry.full_name}? This cannot be undone.`)) return
+    setActionId(inquiry.id)
+    setError(null)
+    try {
+      await bulkInquiryApi.delete(inquiry.id)
+      setInquiries((current) => current.filter((item) => item.id !== inquiry.id))
+      setExpandedId((current) => current === inquiry.id ? null : current)
+    } catch (err: any) {
+      setError(err?.message || "Failed to delete inquiry.")
+    } finally {
+      setActionId(null)
+    }
+  }
 
   return (
     <>
       <PageHeader
         title="Bulk inquiries"
-        description="Review large-volume project inquiries submitted by contractors and builders."
+        description="Customer bulk-order requests submitted from the storefront, newest first."
+        action={<Button variant="ghost" onClick={() => void loadInquiries()} title="Refresh inquiries"><RefreshCcw size={15} /></Button>}
       />
-      <div className="rounded-xl border border-border bg-white p-12 text-center shadow-xs">
-        <Building2 className="mx-auto h-12 w-12 text-slate-300" />
-        <h3 className="mt-3 text-base font-bold text-slate-800">No bulk contractor inquiries pending</h3>
-        <p className="mt-1 text-sm text-slate-500 max-w-md mx-auto">
-          Inquiries submitted via the storefront Bulk Order form will appear here with customer contact details and requested bill of materials.
-        </p>
-      </div>
-      <section className="mt-6 rounded-xl border border-border bg-white p-6 shadow-xs">
-        <h2 className="font-black text-slate-900">Quotation response draft</h2>
-        <p className="text-xs text-slate-500 mt-1">Draft notes or custom terms for pending contractor quotations.</p>
-        <textarea
-          className="field mt-4 w-full"
-          rows={4}
-          value={responseNotes}
-          onChange={(e) => {
-            setResponseNotes(e.target.value)
-            setSaved(false)
-          }}
-          placeholder="Enter custom contractor quotation notes, bulk discount thresholds, or logistics terms..."
-        />
-        <div className="mt-4 flex items-center gap-3">
-          <Button onClick={() => setSaved(true)}>Save Draft Notes</Button>
-          {saved && <span className="text-xs font-semibold text-emerald-700">Draft saved successfully.</span>}
+      {error && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+      {loading ? (
+        <div className="flex h-48 flex-col items-center justify-center gap-3 rounded-xl border border-border bg-white"><Loader2 className="h-7 w-7 animate-spin text-brand" /><p className="text-sm text-slate-500">Loading customer inquiries...</p></div>
+      ) : error ? (
+        <div className="rounded-xl border border-border bg-white p-10 text-center shadow-xs sm:p-12"><Building2 className="mx-auto h-12 w-12 text-amber-500" /><h3 className="mt-3 text-base font-bold text-slate-800">Unable to load enquiries</h3><p className="mx-auto mt-1 max-w-md text-sm text-slate-500">Resolve the database issue above, then refresh to view inquiry history.</p><Button variant="outline" className="mt-4" onClick={() => void loadInquiries()}>Try again</Button></div>
+      ) : inquiries.length === 0 ? (
+        <div className="rounded-xl border border-border bg-white p-10 text-center shadow-xs sm:p-12"><Building2 className="mx-auto h-12 w-12 text-slate-300" /><h3 className="mt-3 text-base font-bold text-slate-800">No Enquiry yet</h3><p className="mx-auto mt-1 max-w-md text-sm text-slate-500">New requests from the Bulk Orders form will appear here after customers submit them.</p></div>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {inquiries.map((inquiry) => {
+            const description = inquiry.requirements?.trim() || inquiry.product_details
+            return (
+              <article key={inquiry.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[#D4AF37]/60 hover:shadow-md">
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(inquiry.id)}
+                  className="w-full p-5 text-left transition hover:bg-[#fffdf7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#D4AF37] sm:p-6"
+                >
+                  <div className="flex items-start gap-4">
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#fff4cf] to-[#f7df92] font-black uppercase text-[#85600a]">
+                      {inquiry.full_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h2 className="truncate text-base font-black text-[#111111] sm:text-lg">{inquiry.full_name}</h2>
+                        <Badge tone={inquiry.status === "new" ? "warning" : "blue"}>{inquiry.status === "read" ? "Read" : inquiry.status}</Badge>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">{description}</p>
+                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-medium text-slate-500">
+                        <span className="inline-flex items-center gap-1.5"><Phone size={12} />{inquiry.phone}</span>
+                        <span>Received {new Date(inquiry.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <span className="mt-1 shrink-0 rounded-lg bg-[#fff4cf] px-3 py-1.5 text-[11px] font-bold text-[#85600a]">View details</span>
+                  </div>
+                </button>
+              </article>
+            )
+          })}
         </div>
-      </section>
+      )}
+
+      {expandedId && inquiries.find((inquiry) => inquiry.id === expandedId) && (() => {
+        const inquiry = inquiries.find((item) => item.id === expandedId)!
+        return (
+          <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) setExpandedId(null) }}>
+            <section role="dialog" aria-modal="true" aria-labelledby="inquiry-dialog-title" className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-[#fbfaf7] shadow-2xl sm:rounded-3xl">
+              <header className="relative shrink-0 bg-gradient-to-r from-[#0b0b0b] via-[#17140c] to-[#30240b] px-5 py-6 text-white sm:px-8 sm:py-7">
+                <div className="absolute -right-10 -top-14 h-40 w-40 rounded-full border-[18px] border-[#D4AF37]/10" />
+                <div className="relative flex items-start gap-4 pr-8">
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#D4AF37]/40 bg-[#D4AF37]/15 text-sm font-black uppercase text-[#f3cf63]">
+                    {inquiry.full_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#e2bd4b]">Bulk order inquiry</p>
+                    <h2 id="inquiry-dialog-title" className="mt-1 truncate text-xl font-black sm:text-2xl">{inquiry.full_name}</h2>
+                    <p className="mt-1 text-xs text-white/65">Submitted {new Date(inquiry.created_at).toLocaleString()}</p>
+                  </div>
+                  <Badge tone={inquiry.status === "new" ? "warning" : "blue"}>{inquiry.status === "read" ? "Read" : inquiry.status}</Badge>
+                </div>
+                <button type="button" aria-label="Close inquiry details" onClick={() => setExpandedId(null)} className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white/20 sm:right-6 sm:top-6"><X size={18} /></button>
+              </header>
+
+              <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-8">
+                <div className="mb-5 rounded-2xl border border-[#e9d8a8] bg-[#fff8e4] p-4 sm:p-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#9b7412]">Products / sizes requested</p>
+                  <p className="mt-2 whitespace-pre-wrap text-base font-bold leading-7 text-[#19170f]">{inquiry.product_details}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-[#e6d39c] bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">Quantity: {inquiry.quantity}</span>
+                    <span className="rounded-full border border-[#e6d39c] bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">{inquiry.status === "read" ? "Reviewed" : "Needs review"}</span>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4"><span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-wide text-slate-500"><Phone size={14} className="text-[#a47b10]" />Phone</span><a href={`tel:${inquiry.phone}`} className="mt-2 block break-all text-sm font-bold text-slate-900 hover:text-[#9b7412]">{inquiry.phone}</a></div>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4"><span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-wide text-slate-500"><Mail size={14} className="text-[#a47b10]" />Email</span><span className="mt-2 block break-all text-sm font-semibold text-slate-800">{inquiry.email || "Not provided"}</span></div>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:col-span-2"><span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-wide text-slate-500"><MapPin size={14} className="text-[#a47b10]" />Delivery location</span><p className="mt-2 text-sm font-semibold leading-6 text-slate-800">{inquiry.delivery_location}</p></div>
+                  {inquiry.requirements && <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:col-span-2"><span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Project notes &amp; additional requirements</span><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">{inquiry.requirements}</p></div>}
+                </div>
+              </div>
+
+              <footer className="flex shrink-0 flex-wrap gap-2 border-t border-slate-200 bg-white px-5 py-4 sm:px-8">
+                <a href={`https://wa.me/${toWhatsAppNumber(inquiry.phone)}?text=${encodeURIComponent(`Hello ${inquiry.full_name}, we received your bulk inquiry for ${inquiry.product_details}.`)}`} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700">Contact on WhatsApp</a>
+                {inquiry.status === "new" && <Button variant="outline" size="sm" disabled={actionId === inquiry.id} onClick={() => void handleMarkRead(inquiry.id)}><Check size={15} /> Mark as read</Button>}
+                <Button variant="ghost" size="sm" disabled={actionId === inquiry.id} onClick={() => void handleDelete(inquiry)} className="text-red-600 hover:bg-red-50 hover:text-red-700"><Trash2 size={15} /> Delete</Button>
+              </footer>
+            </section>
+          </div>
+        )
+      })()}
     </>
   )
 }
 
-export function Settings() {
-  const { notify } = useStore()
-  return (
-    <>
-      <PageHeader
-        title="Store settings"
-        description="Configure shop information, delivery, units and business rules."
-      />
-      <div className="grid gap-6 xl:grid-cols-2">
-        <FormCard title="Shop information">
-          <AdminField label="Store name" value="Hindustan Hardware" />
-          <AdminField
-            label="Address"
-            value="P.G. Road, Opposite Eidgah, Jehanabad, Bihar 804408"
-          />
-          <AdminField label="Phone" value="+91 XXXXX XXXXX" />
-        </FormCard>
-        <FormCard title="Delivery configuration">
-          <AdminField label="Minimum order" value="Not configured" />
-          <AdminField label="Service PIN codes" value="804408" />
-          <AdminField label="Delivery fee" value="Configure manually" />
-        </FormCard>
-        <FormCard title="Tax settings">
-          <p className="text-sm leading-6 text-slate-500">
-            No tax rule is active. Configure a verified rate before calculating
-            taxes.
-          </p>
-          <AdminField label="Tax label" value="" />
-          <AdminField label="Rate (%)" value="" />
-        </FormCard>
-        <FormCard title="Business hours">
-          <AdminField label="Weekday hours" value="Configure store hours" />
-          <AdminField label="Weekend hours" value="Configure store hours" />
-        </FormCard>
-      </div>
-      <Button
-        className="mt-6"
-        onClick={() => notify("Store configuration preferences saved")}
-      >
-        Save Settings
-      </Button>
-    </>
-  )
-}

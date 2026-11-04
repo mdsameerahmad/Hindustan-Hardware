@@ -159,7 +159,7 @@ sequenceDiagram
 
 ### 4.1 Discovery, Hero Banners & Application Showcases
 - **Rotating Hero Carousel:** Showcases core product lines (*Plumbing Essentials, Water Storage Tanks, Connection Valves & Fittings*) on an elegant dark marble backdrop with gold CTA buttons.
-- **Trust Badges Strip:** Highlights *100% Genuine Certified Products, Best Price Guarantee, Expert Support (+91 98765 43210), and Pan India Delivery*.
+- **Trust Badges Strip:** Highlights *100% Genuine Certified Products, Best Price Guarantee, Expert Support (+91 8935926021), and Pan India Delivery*.
 - **Showcase Banners:** 3 curated photographic cards:
   1. *Modern Bathroom Solutions* (Luxury Ceramic Water Closets, Countertop Basins).
   2. *Premium Faucets & Fittings* (Basin Mixers, Overhead Showers).

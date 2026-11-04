@@ -15,7 +15,6 @@ import {
   ShoppingCart,
   Truck,
   UserRound,
-  Wrench,
   X
 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -359,18 +358,14 @@ export function Footer() {
             "Home",
             "About Us",
             "Contact Us",
-            "FAQs",
             "Terms & Conditions",
-            "Privacy Policy",
           ]}
         />
         <FooterColumn
           title="Customer Service"
           links={[
             "Track Order",
-            "Shipping Policy",
             "Return & Refund",
-            "Warranty",
             "Bulk Orders",
           ]}
         />
@@ -392,7 +387,7 @@ export function Footer() {
           </div>
           <div className="mt-4 text-xs text-[#888888]">
             <p className="flex items-center gap-2">
-              <Phone size={12} className="text-[#D4AF37]" /> +91 98765 43210
+              <Phone size={12} className="text-[#D4AF37]" /> +91 8935926021
             </p>
             <p className="flex items-center gap-2 mt-1">
               <AtSign size={12} className="text-[#D4AF37]" /> info@hindustanhardware.in
@@ -440,9 +435,23 @@ function FooterColumn({ title, links }: { title: string; links: string[] }) {
 
 export function StorefrontLayout() {
   const { pathname } = useLocation()
-  const { cartCount, orders, toasts, categories } = useStore()
+  const { cartCount, orders, toasts, categories: storeCategories } = useStore()
   const [menuOpen, setMenuOpen] = useState(false)
   const [categoriesDropdownOpen, setCategoriesDropdownOpen] = useState(false)
+  const [dbCategories, setDbCategories] = useState<any[]>([])
+
+  // Hydrate categories from backend if store is empty or for redundancy
+  useEffect(() => {
+    if (storeCategories.length > 0) {
+      setDbCategories(storeCategories)
+    } else {
+      catalogueApi.getCategories().then((cats) => {
+        if (cats && cats.length) setDbCategories(cats)
+      }).catch(() => {})
+    }
+  }, [storeCategories])
+
+  const displayCategories = dbCategories.length > 0 ? dbCategories : storeCategories
 
   // Always reset page scroll position to top whenever route changes
   useEffect(() => {
@@ -468,7 +477,7 @@ export function StorefrontLayout() {
             </div>
             <div className="flex items-center gap-6">
               <span className="flex items-center gap-1.5 text-white">
-                <Phone size={13} className="text-[#D4AF37]" /> +91 98765 43210
+                <Phone size={13} className="text-[#D4AF37]" /> +91 8935926021
               </span>
               <Link to="/contact" className="hover:text-[#D4AF37]">
                 Customer Support
@@ -544,12 +553,13 @@ export function StorefrontLayout() {
 
         {/* Secondary Navigation Ribbon */}
         <nav className="border-t border-[#1C1C1C] bg-[#000000] text-xs font-semibold overflow-x-auto scrollbar-none">
-          <div className="container-wide flex items-center gap-2 py-2">
-            {/* All Categories Button & Dropdown */}
+          <div className="container-wide flex items-center gap-3 py-2">
+            {/* All Categories Split Button exactly matching Reference Image */}
             <div className="relative shrink-0 flex items-center">
-              <div className="inline-flex rounded overflow-hidden shadow-sm">
+              <div className="inline-flex rounded overflow-hidden shadow-sm border border-[#D4AF37]/20">
                 <Link
                   to="/products"
+                  onClick={() => setCategoriesDropdownOpen(false)}
                   className="flex items-center gap-2 bg-[#D4AF37] px-3.5 py-1.5 font-bold text-[#0B0B0B] hover:bg-[#B89124] transition"
                 >
                   <Menu size={14} />
@@ -558,10 +568,19 @@ export function StorefrontLayout() {
                 <button
                   type="button"
                   aria-label="Toggle categories menu"
-                  onClick={() => setCategoriesDropdownOpen(!categoriesDropdownOpen)}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setCategoriesDropdownOpen(!categoriesDropdownOpen)
+                  }}
                   className="bg-[#D4AF37] px-2 py-1.5 text-[#0B0B0B] hover:bg-[#B89124] border-l border-[#B89124]/40 transition"
                 >
-                  <ChevronDown size={14} className={`transition-transform duration-200 ${categoriesDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform duration-200 ${
+                      categoriesDropdownOpen ? "rotate-180" : ""
+                    }`}
+                  />
                 </button>
               </div>
 
@@ -572,41 +591,36 @@ export function StorefrontLayout() {
                     className="fixed inset-0 z-40"
                     onClick={() => setCategoriesDropdownOpen(false)}
                   />
-                  <div className="absolute left-0 top-full mt-1.5 w-64 rounded-xl border border-[#222222] bg-[#0B0B0B] py-2 shadow-2xl z-50">
+                  <div className="absolute left-0 top-full mt-2 w-64 rounded-xl border border-[#222222] bg-[#0B0B0B] py-2 shadow-2xl z-50">
                     <div className="flex items-center justify-between px-4 py-2 border-b border-[#1C1C1C]">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#888888]">
-                        Product Categories
+                        Shop by Category
                       </span>
-                      <Link
-                        to="/products"
-                        onClick={() => setCategoriesDropdownOpen(false)}
-                        className="text-[10px] font-bold text-[#D4AF37] hover:underline"
-                      >
-                        All Products →
-                      </Link>
                     </div>
-                    <div className="max-h-80 overflow-y-auto">
+                    <div className="max-h-[70vh] overflow-y-auto">
                       <Link
                         to="/products"
                         onClick={() => setCategoriesDropdownOpen(false)}
-                        className="flex items-center justify-between px-4 py-2.5 text-xs font-bold text-[#D4AF37] hover:bg-[#1C1C1C] border-b border-[#1C1C1C]/50 transition"
+                        className="flex items-center justify-between px-4 py-2.5 text-xs font-bold text-[#D4AF37] hover:bg-white/5 border-b border-[#1C1C1C]/50 transition"
                       >
                         <span>View All Products</span>
-                        <span className="text-[10px]">→</span>
+                        <ChevronDown size={12} className="-rotate-90 opacity-50" />
                       </Link>
-                      {categories.map((category) => (
+                      {displayCategories.map((category) => (
                         <Link
                           key={category.id || category.slug}
                           to={`/category/${category.slug}`}
                           onClick={() => setCategoriesDropdownOpen(false)}
-                          className="flex items-center justify-between px-4 py-2.5 text-xs text-[#CCCCCC] hover:bg-[#1C1C1C] hover:text-[#D4AF37] transition"
+                          className="flex items-center justify-between px-4 py-2.5 text-xs text-[#CCCCCC] hover:bg-white/5 hover:text-[#D4AF37] transition"
                         >
                           <span>{category.name}</span>
-                          <span className="text-[10px] text-[#666666]">→</span>
+                          <ChevronDown size={12} className="-rotate-90 opacity-30" />
                         </Link>
                       ))}
-                      {categories.length === 0 && (
-                        <div className="px-4 py-3 text-xs text-[#888888]">Loading categories...</div>
+                      {displayCategories.length === 0 && (
+                        <div className="px-4 py-4 text-center text-xs text-[#666666]">
+                          Loading categories...
+                        </div>
                       )}
                     </div>
                   </div>
@@ -614,24 +628,26 @@ export function StorefrontLayout() {
               )}
             </div>
 
-            {/* Brands Link */}
+            {/* Brands Link matching Reference Image styling */}
             <Link
               to="/brands"
-              className="rounded px-3 py-1.5 whitespace-nowrap font-bold text-[#D4AF37] bg-white/5 hover:bg-white/10 transition shrink-0"
+              className="rounded bg-[#161616] px-4 py-1.5 whitespace-nowrap font-bold text-[#D4AF37] hover:bg-[#222222] border border-[#333333]/30 transition shrink-0"
             >
               Brands
             </Link>
 
-            {/* All Categories Pills directly in navbar */}
-            {categories.map((category) => (
-              <Link
-                key={category.id || category.slug}
-                to={`/category/${category.slug}`}
-                className="rounded px-3 py-1.5 whitespace-nowrap font-medium text-[#CCCCCC] hover:text-[#D4AF37] hover:bg-white/5 transition shrink-0"
-              >
-                {category.name}
-              </Link>
-            ))}
+            {/* All Categories Pills directly in navbar - Scrollable Ribbon */}
+            <div className="flex items-center gap-1 border-l border-[#222222] ml-1 pl-2 overflow-x-auto scrollbar-none">
+              {displayCategories.map((category) => (
+                <Link
+                  key={category.id || category.slug}
+                  to={`/category/${category.slug}`}
+                  className="rounded px-3 py-1.5 whitespace-nowrap font-medium text-[#AAAAAA] hover:text-white hover:bg-white/5 transition shrink-0"
+                >
+                  {category.name}
+                </Link>
+              ))}
+            </div>
           </div>
         </nav>
 
@@ -654,7 +670,7 @@ export function StorefrontLayout() {
             <div className="pt-2 text-[11px] font-bold uppercase tracking-wider text-[#777777]">
               Categories
             </div>
-            {categories.map((cat) => (
+            {displayCategories.map((cat) => (
               <Link
                 onClick={() => setMenuOpen(false)}
                 key={cat.id || cat.slug}

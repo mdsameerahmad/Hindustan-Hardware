@@ -1,5 +1,8 @@
 import {
+  AlertCircle,
   Bike,
+  Building2,
+  Camera,
   CheckCircle2,
   Edit2,
   MapPin,
@@ -8,19 +11,14 @@ import {
   Plus,
   RefreshCcw,
   Search,
+  ShieldCheck,
   Trash2,
   Truck,
-  UserCheck,
-  X,
-  AlertCircle,
-  ShieldCheck,
-  Building2,
-  Clock,
-  Camera,
   User,
+  X
 } from "lucide-react"
-import React, { useEffect, useState, useMemo } from "react"
-import { Badge, Button } from "../components"
+import React, { useEffect, useMemo, useState } from "react"
+import { Button } from "../components"
 import { adminApi } from "../features/commerceApi"
 import { convertImageToWebP } from "../utils/imageConverter"
 
@@ -97,7 +95,7 @@ export function DeliveryPartnersPage() {
           const mapped = custItems.map((c: any) => ({
             id: c.id,
             fullName: c.fullName || "Delivery Partner",
-            phone: c.phone || "+91 98765 43210",
+            phone: c.phone || "+91 8935926021",
             email: c.email || undefined,
             role: c.role || "delivery_partner",
             avatarUrl: c.avatarUrl || null,
@@ -580,7 +578,7 @@ export function DeliveryPartnersPage() {
                 <input
                   type="tel"
                   required
-                  placeholder="e.g. +91 98765 43210"
+                  placeholder="e.g. +91 8935926021"
                   value={formPhone}
                   onChange={(e) => setFormPhone(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-sm focus:outline-hidden focus:border-[#D4AF37] transition font-mono"

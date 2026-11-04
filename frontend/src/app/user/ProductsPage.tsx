@@ -250,7 +250,7 @@ export function ProductsPage() {
             <span className="text-[11px] text-slate-400 font-semibold">{pagination.total || 1763}</span>
           </label>
 
-          {effectiveCategories.slice(0, 10).map((item) => {
+          {effectiveCategories.map((item) => {
             const isSelected = categoryParam === item.slug || categoryParam === item.id
             return (
               <label key={item.id} className="flex items-center justify-between cursor-pointer py-0.5 text-slate-600 hover:text-slate-900 font-medium">

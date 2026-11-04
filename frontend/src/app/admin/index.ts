@@ -1,15 +1,16 @@
 /**
  * Admin Portal Layout and Administrative Pages barrel exports.
  */
-export { AdminLayout, AdminHeaderUser } from "./AdminLayout"
+export { AdminHeaderUser, AdminLayout } from "./AdminLayout"
+export { AdminOrderDetailPage } from "./AdminOrderDetailPage"
+export { AdminOrdersPage } from "./AdminOrdersPage"
 export { AdminOverviewPage } from "./AdminOverviewPage"
 export { AdminProductsPage } from "./AdminProductsPage"
-export { ProductFormPage } from "./ProductFormPage"
-export { CategoriesPage } from "./CategoriesPage"
+export { AdminField, FormCard, SimpleTable } from "./AdminSharedComponents"
 export { BrandsAdminPage } from "./BrandsAdminPage"
-export { InventoryPage } from "./InventoryPage"
-export { AdminOrdersPage } from "./AdminOrdersPage"
-export { AdminOrderDetailPage } from "./AdminOrderDetailPage"
+export { CategoriesPage } from "./CategoriesPage"
 export { DeliveryPartnersPage } from "./DeliveryPartnersPage"
-export { GenericAdminPage, Customers, Deliveries, Inquiries, Settings } from "./GenericAdminPage"
-export { FormCard, AdminField, SimpleTable } from "./AdminSharedComponents"
+export { Customers, Deliveries, GenericAdminPage, Inquiries } from "./GenericAdminPage"
+export { InventoryPage } from "./InventoryPage"
+export { ProductFormPage } from "./ProductFormPage"
+

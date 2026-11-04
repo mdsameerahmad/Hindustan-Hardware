@@ -23,9 +23,12 @@ export function useProductImages(productId: string | undefined, defaultImageUrl?
       .then((data) => {
         if (!isMounted) return
         setImages(data || [])
+        
+        // Prioritize primary image from gallery, fallback to defaultImageUrl
         if (data && data.length > 0) {
           const primary = data.find((img) => img.is_primary) || data[0]
-          setSelectedImage(primary.public_url || defaultImageUrl || '')
+          const imageUrl = primary.public_url || primary.storage_path
+          setSelectedImage(imageUrl || defaultImageUrl || '')
         } else if (defaultImageUrl) {
           setSelectedImage(defaultImageUrl)
         }

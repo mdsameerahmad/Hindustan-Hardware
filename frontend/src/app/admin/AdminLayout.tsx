@@ -1,20 +1,17 @@
 import {
-  Bike,
-  Boxes,
-  Building2,
-  ClipboardList,
-  FileText,
-  Gauge,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  Package,
-  Settings,
-  Tags,
-  Truck,
-  Users,
-  Wrench,
-  X,
+    Bike,
+    Boxes,
+    Building2,
+    ClipboardList,
+    Gauge,
+    LayoutDashboard,
+    LogOut,
+    Menu,
+    Package,
+    Tags,
+    Truck,
+    Users,
+    X
 } from "lucide-react"
 import { useState } from "react"
 import { Link, NavLink, Outlet, useNavigate } from "react-router"
@@ -64,7 +61,6 @@ const adminNav = [
   ["Delivery Orders", "/admin/deliveries", Truck],
   ["Delivery Partner Management", "/admin/delivery-partners", Bike],
   ["Bulk Inquiries", "/admin/inquiries", Building2],
-  ["Store Settings", "/admin/settings", Settings],
 ] as const
 
 export function AdminLayout() {

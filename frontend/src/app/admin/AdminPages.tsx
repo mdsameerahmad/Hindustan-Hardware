@@ -12,13 +12,14 @@
  * - GenericAdminPage.tsx
  * - AdminSharedComponents.tsx
  */
+export { AdminOrderDetailPage } from "./AdminOrderDetailPage"
+export { AdminOrdersPage } from "./AdminOrdersPage"
 export { AdminOverviewPage } from "./AdminOverviewPage"
 export { AdminProductsPage } from "./AdminProductsPage"
-export { ProductFormPage } from "./ProductFormPage"
-export { CategoriesPage } from "./CategoriesPage"
+export { AdminField, FormCard, SimpleTable } from "./AdminSharedComponents"
 export { BrandsAdminPage } from "./BrandsAdminPage"
+export { CategoriesPage } from "./CategoriesPage"
+export { Customers, Deliveries, GenericAdminPage, Inquiries } from "./GenericAdminPage"
 export { InventoryPage } from "./InventoryPage"
-export { AdminOrdersPage } from "./AdminOrdersPage"
-export { AdminOrderDetailPage } from "./AdminOrderDetailPage"
-export { GenericAdminPage, Customers, Deliveries, Inquiries, Settings } from "./GenericAdminPage"
-export { FormCard, AdminField, SimpleTable } from "./AdminSharedComponents"
+export { ProductFormPage } from "./ProductFormPage"
+

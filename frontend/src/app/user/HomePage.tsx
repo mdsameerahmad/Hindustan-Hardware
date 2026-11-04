@@ -1,10 +1,7 @@
 import {
   ArrowRight,
-  Building2,
   ChevronLeft,
   ChevronRight,
-  Droplets,
-  Hammer,
   PackageCheck,
   Phone,
   ShieldCheck,
@@ -13,50 +10,22 @@ import {
   Store,
   Truck,
   Users,
-  Wrench,
+  Wrench
 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router"
 import { catalogueApi, type BackendCategory } from "../api/catalogueApi"
-import { Button, ProductCard, SectionHeading } from "../components"
+import { ProductCard } from "../components"
 import { type Product } from "../data"
+import { ProductImage } from "../features/components/ProductImage"
 import { transformBackendProduct } from "../utils/productTransform"
 import { BrandStrip } from "./BrandPages"
 
 // Realistic fallback photography for hardware categories matching the reference image
-const categoryImages: Record<string, { image: string; subtitle: string }> = {
-  "pipes": {
-    image: "https://images.unsplash.com/photo-1542013936693-884638332954?auto=format&fit=crop&w=800&q=80",
-    subtitle: "uPVC, CPVC, PVC, HDPE",
-  },
-  "bathroom": {
-    image: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80",
-    subtitle: "Wash Basins, CP Fittings, Accessories",
-  },
-  "tanks": {
-    image: "https://images.unsplash.com/photo-1590496793929-36417d3117de?auto=format&fit=crop&w=800&q=80",
-    subtitle: "Sintex, Supreme, 3 Layer & More",
-  },
-  "pumps": {
-    image: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=800&q=80",
-    subtitle: "Water Pumps, Pressure Pumps",
-  },
-  "hardware": {
-    image: "https://images.unsplash.com/photo-1581244277943-fe4a9c777189?auto=format&fit=crop&w=800&q=80",
-    subtitle: "Tools, Locks, Hinges, Fasteners",
-  },
-  "electrical": {
-    image: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=800&q=80",
-    subtitle: "Wires, Switches, MCB, Lights",
-  },
-}
+const categoryImages: Record<string, { image: string; subtitle: string }> = {}
 
 // Default visual themes for storefront hero presentations matching reference
-const heroImagePresets = [
-  "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1600&q=85",
-  "https://images.unsplash.com/photo-1620626011761-996317b8d101?auto=format&fit=crop&w=1600&q=85",
-  "https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&w=1600&q=85",
-]
+const heroImagePresets: string[] = []
 
 export function HomePage() {
   const [slide, setSlide] = useState(0)
@@ -68,18 +37,25 @@ export function HomePage() {
   const heroSlides = useMemo(() => {
     return [
       {
-        label: "PREMIUM SANITARY & HARDWARE SOLUTIONS",
-        titlePrefix: "Built for ",
-        titleHighlight: "every project.",
-        text: "Trusted plumbing, sanitaryware and hardware from brands you know.",
-        image: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1600&q=85",
+        label: "PREMIUM WATER STORAGE SOLUTIONS",
+        titlePrefix: "Strength for ",
+        titleHighlight: "every drop.",
+        text: "Durable multi-layer water tanks from Sintex, Supreme and more.",
+        image: "https://images.unsplash.com/photo-1603093433330-e0e5c30df0fe?auto=format&fit=crop&w=1600&q=85",
       },
       {
         label: "DURABLE PIPES & INDUSTRIAL FITTINGS",
-        titlePrefix: "Strength for ",
+        titlePrefix: "Flow for ",
         titleHighlight: "every pipeline.",
         text: "Authorized CPVC, UPVC, PVC and SWR systems direct from top manufacturers.",
-        image: "https://images.unsplash.com/photo-1620626011761-996317b8d101?auto=format&fit=crop&w=1600&q=85",
+        image: "https://images.unsplash.com/photo-1542013936693-884638332954?auto=format&fit=crop&w=1600&q=85",
+      },
+      {
+        label: "PREMIUM SANITARY & BATHROOM FITTINGS",
+        titlePrefix: "Elegance for ",
+        titleHighlight: "every space.",
+        text: "Modern wash basins, toilets, and CP fittings for your dream bathroom.",
+        image: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1600&q=85",
       },
     ]
   }, [])
@@ -343,7 +319,7 @@ export function HomePage() {
               >
                 {/* Category Thumbnail Image */}
                 <div className="aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-100">
-                  <img
+                  <ProductImage
                     src={category.image}
                     alt={category.name}
                     className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -462,7 +438,7 @@ export function HomePage() {
               </span>
               <div>
                 <strong className="block text-sm font-bold text-white">Expert Support</strong>
-                <span className="text-xs text-[#D4AF37] font-semibold">+91 98765 43210</span>
+                <span className="text-xs text-[#D4AF37] font-semibold">+91 8935926021</span>
               </div>
             </div>
           </div>
@@ -544,7 +520,7 @@ export function HomePage() {
         <div className="grid overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-sm md:grid-cols-2">
           <div className="relative min-h-72 sm:min-h-80 w-full overflow-hidden bg-slate-100">
             <img
-              src="https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=80"
+              src="/ShopImage.webp"
               alt="Hindustan Hardware Showroom"
               className="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
             />
