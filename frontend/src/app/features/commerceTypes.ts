@@ -300,6 +300,8 @@ export interface AdminCategory {
   name: string
   slug: string
   description?: string | null
+  imageUrl?: string | null
+  image_url?: string | null
   parentId?: string | null
   isActive: boolean
   sortOrder: number

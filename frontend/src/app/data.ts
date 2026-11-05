@@ -71,7 +71,7 @@ export type Order = {
   }[]
 }
 
-<<<<<<< HEAD
+
 export const initialBrands: Brand[] = [
   {
     id: "ashirvad",
@@ -925,15 +925,6 @@ export const initialOrders: Order[] = [
     items: [{ productId: "p29", quantity: 3, price: 780 }],
   },
 ]
-=======
-export const initialBrands: Brand[] = []
-export const categories: any[] = []
-const images = {}
-const seeds: Seed[] = []
-export const initialProducts: Product[] = []
-export const initialOrders: Order[] = []
->>>>>>> 513b49d (Done with Image Fixing)
-
 export const orderStages: OrderStatus[] = [
   "Order Confirmed",
   "Dispatched from Store",

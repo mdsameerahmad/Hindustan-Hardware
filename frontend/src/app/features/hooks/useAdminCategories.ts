@@ -77,6 +77,22 @@ export function useAdminCategories() {
     [fetchCategories],
   )
 
+  const uploadCategoryImage = useCallback(
+    async (id: string, file: File): Promise<AdminCategory | null> => {
+      setActionLoading(true)
+      try {
+        const updated = await adminApi.uploadCategoryImage(id, file)
+        await fetchCategories()
+        return updated
+      } catch (err: any) {
+        throw new Error(err?.message || "Failed to upload category image.")
+      } finally {
+        setActionLoading(false)
+      }
+    },
+    [fetchCategories],
+  )
+
   return {
     categories,
     loading,
@@ -86,5 +102,6 @@ export function useAdminCategories() {
     createCategory,
     updateCategory,
     deleteCategory,
+    uploadCategoryImage,
   }
 }

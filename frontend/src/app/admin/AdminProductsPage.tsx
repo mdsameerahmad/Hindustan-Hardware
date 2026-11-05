@@ -20,7 +20,6 @@ import { type Product } from "../data"
 import { ProductImage } from "../features/components/ProductImage"
 import { useAdminCategories } from "../features/hooks/useAdminCategories"
 import { useAdminProducts } from "../features/hooks/useAdminProducts"
-import { ProductImage } from "../features/components/ProductImage"
 
 export function AdminProductsPage() {
   const { categories: backendCategories } = useAdminCategories()

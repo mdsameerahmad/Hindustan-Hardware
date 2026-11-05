@@ -8,8 +8,9 @@ import {
   RefreshCcw,
   Search,
   Trash2,
+  Upload,
 } from "lucide-react"
-import React, { useMemo, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import {
   Badge,
   Button,
@@ -17,6 +18,7 @@ import {
 } from "../components"
 import { useAdminCategories } from "../features/hooks/useAdminCategories"
 import { AdminField, FormCard } from "./AdminSharedComponents"
+import { convertImageToWebP } from "../utils/imageConverter"
 
 export function CategoriesPage() {
   const {
@@ -27,6 +29,7 @@ export function CategoriesPage() {
     createCategory,
     updateCategory,
     deleteCategory,
+    uploadCategoryImage,
     refetch,
   } = useAdminCategories()
 
@@ -35,6 +38,7 @@ export function CategoriesPage() {
     name: "",
     slug: "",
     description: "",
+    imageUrl: "",
     parentId: "",
     sortOrder: 0,
     isActive: true,
@@ -44,12 +48,26 @@ export function CategoriesPage() {
   const [viewState, setViewState] = useState<"list" | "editor">("list")
   const [form, setForm] = useState(emptyCategory)
   const [formError, setFormError] = useState<string | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [convertingImage, setConvertingImage] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all")
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 15
+
+  useEffect(() => {
+    if (!imageFile) {
+      setImagePreview(null)
+      return
+    }
+
+    const previewUrl = URL.createObjectURL(imageFile)
+    setImagePreview(previewUrl)
+    return () => URL.revokeObjectURL(previewUrl)
+  }, [imageFile])
 
   // Filtered categories matching AdminProductsPage style
   const filteredCategories = useMemo(() => {
@@ -86,6 +104,7 @@ export function CategoriesPage() {
 
   const openCreateModal = () => {
     setForm(emptyCategory)
+    setImageFile(null)
     setFormError(null)
     setViewState("editor")
     window.scrollTo({ top: 0, behavior: "smooth" })
@@ -97,13 +116,46 @@ export function CategoriesPage() {
       name: cat.name,
       slug: cat.slug,
       description: cat.description || "",
+      imageUrl: cat.image_url || cat.imageUrl || "",
       parentId: cat.parentId || cat.parent_id || "",
       sortOrder: cat.sortOrder ?? cat.sort_order ?? 0,
       isActive: cat.isActive !== false,
     })
+    setImageFile(null)
     setFormError(null)
     setViewState("editor")
     window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  const handleImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setFormError(null)
+    if (file.type && !file.type.startsWith("image/")) {
+      setFormError("Select a valid image file.")
+      event.target.value = ""
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setFormError("Image file must not exceed 5MB.")
+      event.target.value = ""
+      return
+    }
+
+    setConvertingImage(true)
+    try {
+      const webpFile = await convertImageToWebP(file)
+      if (webpFile.type !== "image/webp") {
+        throw new Error("This image could not be converted to WebP. Try another image.")
+      }
+      setImageFile(webpFile)
+    } catch (err: any) {
+      setFormError(err?.message || "Failed to convert image to WebP.")
+    } finally {
+      setConvertingImage(false)
+      event.target.value = ""
+    }
   }
 
   const submit = async (event: React.FormEvent) => {
@@ -126,28 +178,33 @@ export function CategoriesPage() {
       return
     }
 
+    const payload = {
+      name: form.name.trim(),
+      slug,
+      description: form.description.trim() || undefined,
+      parentId: form.parentId.trim() || null,
+      sortOrder: Number(form.sortOrder) || 0,
+      isActive: form.isActive,
+    }
+
     try {
-      if (form.id) {
-        await updateCategory(form.id, {
-          name: form.name.trim(),
-          slug,
-          description: form.description.trim() || undefined,
-          parentId: form.parentId.trim() || null,
-          sortOrder: Number(form.sortOrder) || 0,
-          isActive: form.isActive,
-        })
+      let categoryId = form.id
+      if (categoryId) {
+        await updateCategory(categoryId, payload)
       } else {
-        await createCategory({
-          name: form.name.trim(),
-          slug,
-          description: form.description.trim() || undefined,
-          parentId: form.parentId.trim() || null,
-          sortOrder: Number(form.sortOrder) || 0,
-          isActive: form.isActive,
-        })
+        const created = await createCategory(payload)
+        categoryId = created?.id || ""
+        if (categoryId) setForm((current) => ({ ...current, id: categoryId }))
+      }
+      if (imageFile) {
+        if (!categoryId) {
+          throw new Error("Category was saved, but its image could not be uploaded. Reopen it and try again.")
+        }
+        await uploadCategoryImage(categoryId, imageFile)
       }
       setViewState("list")
       setForm(emptyCategory)
+      setImageFile(null)
     } catch (err: any) {
       setFormError(err?.message || "Failed to persist category.")
     }
@@ -251,6 +308,36 @@ export function CategoriesPage() {
           </div>
 
           <aside className="space-y-6">
+            <FormCard title="Category image">
+              <div className="overflow-hidden rounded-xl border border-border bg-slate-50">
+                {imagePreview || form.imageUrl ? (
+                  <img
+                    src={imagePreview || form.imageUrl}
+                    alt={`${form.name || "Category"} preview`}
+                    className="h-44 w-full object-contain p-3"
+                  />
+                ) : (
+                  <div className="grid h-44 place-items-center text-xs font-semibold text-slate-400">
+                    No category image selected
+                  </div>
+                )}
+              </div>
+              <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[#D4AF37] bg-amber-50/20 px-4 py-3 text-xs font-bold text-ink transition hover:bg-amber-50/40">
+                <Upload size={16} className="text-[#D4AF37]" />
+                <span>{convertingImage ? "Converting to WebP..." : imageFile || form.imageUrl ? "Choose another image" : "Choose category image"}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  disabled={convertingImage || actionLoading}
+                  className="hidden"
+                />
+              </label>
+              <p className="mt-2 text-[11px] text-slate-400">
+                Images are converted to WebP before upload. Maximum file size: 5MB.
+              </p>
+            </FormCard>
+
             <FormCard title="Catalog Ordering">
               <AdminField
                 label="Sort Order (Catalog Priority)"
@@ -286,6 +373,7 @@ export function CategoriesPage() {
                 onClick={() => {
                   setViewState("list")
                   setForm(emptyCategory)
+                  setImageFile(null)
                 }}
               >
                 Cancel
@@ -386,9 +474,17 @@ export function CategoriesPage() {
                     <tr key={item.id}>
                       <td>
                         <div className="flex min-w-56 items-center gap-3">
-                          <div className="h-11 w-11 place-items-center rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 text-amber-900 font-black text-xs uppercase shrink-0 border border-amber-200/60 grid">
-                            {item.name.slice(0, 2)}
-                          </div>
+                          {item.image_url || item.imageUrl ? (
+                            <img
+                              src={item.image_url || item.imageUrl || ""}
+                              alt={item.name}
+                              className="h-11 w-11 shrink-0 rounded-lg border border-border bg-white object-contain p-1"
+                            />
+                          ) : (
+                            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-amber-200/60 bg-gradient-to-br from-amber-50 to-amber-100 text-xs font-black uppercase text-amber-900">
+                              {item.name.slice(0, 2)}
+                            </div>
+                          )}
                           <div className="min-w-0">
                             <b className="block font-semibold text-slate-900 truncate">{item.name}</b>
                             {item.description ? (
@@ -452,9 +548,17 @@ export function CategoriesPage() {
               {paginatedCategories.map((item) => (
                 <div key={item.id} className="p-3.5 space-y-3">
                   <div className="flex items-start gap-3">
-                    <div className="h-12 w-12 place-items-center rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 text-amber-900 font-black text-xs uppercase shrink-0 border border-amber-200/60 grid">
-                      {item.name.slice(0, 2)}
-                    </div>
+                    {item.image_url || item.imageUrl ? (
+                      <img
+                        src={item.image_url || item.imageUrl || ""}
+                        alt={item.name}
+                        className="h-12 w-12 shrink-0 rounded-lg border border-border bg-white object-contain p-1"
+                      />
+                    ) : (
+                      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg border border-amber-200/60 bg-gradient-to-br from-amber-50 to-amber-100 text-xs font-black uppercase text-amber-900">
+                        {item.name.slice(0, 2)}
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1">
                       <b className="block text-xs font-bold text-slate-900 leading-snug">{item.name}</b>
                       <span className="block font-mono text-[11px] text-slate-400 mt-0.5">/{item.slug}</span>

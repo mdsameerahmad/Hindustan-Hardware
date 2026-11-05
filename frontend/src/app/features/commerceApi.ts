@@ -405,6 +405,16 @@ export const adminApi = {
     })
   },
 
+  uploadCategoryImage: async (id: string, file: File) => {
+    const formData = new FormData()
+    formData.append("image", file)
+    return apiRequest<import("./commerceTypes").AdminCategory>(`/admin/categories/${id}/image`, {
+      method: "POST",
+      requiresAuth: true,
+      body: formData,
+    })
+  },
+
   deleteCategory: async (id: string) => {
     return apiRequest<void>(`/admin/categories/${id}`, {
       method: "DELETE",
@@ -669,7 +679,6 @@ export const adminApi = {
     })
   },
 }
-
 
 
 
