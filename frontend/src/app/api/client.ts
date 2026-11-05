@@ -51,15 +51,38 @@ export class ApiError extends Error {
   }
 }
 
-const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000
+const SESSION_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+const LEGACY_SESSION_RETENTION_MS = 10 * 24 * 60 * 60 * 1000
 
 interface StoredAuthSession {
   accessToken: string
   refreshToken?: string | null
-  expiresAt: number // Timestamp when the 10-day session window expires
+  expiresAt: number
+  version?: 2
 }
 
 let cachedSession: StoredAuthSession | null = null
+
+function readStoredSession(): StoredAuthSession | null {
+  const raw = localStorage.getItem("hh_auth_session")
+  if (!raw) return null
+
+  const session = JSON.parse(raw) as StoredAuthSession
+  if (!session.accessToken) return null
+
+  if (session.version !== 2) {
+    const previousExpiry = Number(session.expiresAt)
+    session.expiresAt =
+      session.refreshToken && Number.isFinite(previousExpiry)
+        ? previousExpiry + SESSION_RETENTION_MS - LEGACY_SESSION_RETENTION_MS
+        : Date.now() + SESSION_RETENTION_MS
+    session.version = 2
+    localStorage.setItem("hh_auth_session", JSON.stringify(session))
+  }
+
+  if (!Number.isFinite(session.expiresAt)) return null
+  return session
+}
 
 export const tokenStorage = {
   get: (): string | null => {
@@ -72,15 +95,13 @@ export const tokenStorage = {
     }
 
     try {
-      const raw = localStorage.getItem("hh_auth_session")
-      if (!raw) return null
-      const parsed: StoredAuthSession = JSON.parse(raw)
-      if (!parsed.accessToken || Date.now() > parsed.expiresAt) {
+      const session = readStoredSession()
+      if (!session || Date.now() > session.expiresAt) {
         tokenStorage.clear()
         return null
       }
-      cachedSession = parsed
-      return parsed.accessToken
+      cachedSession = session
+      return session.accessToken
     } catch {
       tokenStorage.clear()
       return null
@@ -97,15 +118,13 @@ export const tokenStorage = {
     }
 
     try {
-      const raw = localStorage.getItem("hh_auth_session")
-      if (!raw) return null
-      const parsed: StoredAuthSession = JSON.parse(raw)
-      if (!parsed.refreshToken || Date.now() > parsed.expiresAt) {
+      const session = readStoredSession()
+      if (!session || !session.refreshToken || Date.now() > session.expiresAt) {
         tokenStorage.clear()
         return null
       }
-      cachedSession = parsed
-      return parsed.refreshToken
+      cachedSession = session
+      return session.refreshToken
     } catch {
       return null
     }
@@ -120,7 +139,8 @@ export const tokenStorage = {
     const session: StoredAuthSession = {
       accessToken,
       refreshToken: refreshToken || tokenStorage.getRefreshToken(),
-      expiresAt: Date.now() + TEN_DAYS_MS, // Token automatically deleted after 10 days
+      expiresAt: Date.now() + SESSION_RETENTION_MS,
+      version: 2,
     }
     cachedSession = session
 
@@ -148,6 +168,52 @@ export const tokenStorage = {
 interface RequestOptions extends RequestInit {
   requiresAuth?: boolean
   _isRetry?: boolean
+}
+
+type RefreshResult = "refreshed" | "invalid" | "unavailable"
+let refreshInFlight: Promise<RefreshResult> | null = null
+
+function refreshSession(): Promise<RefreshResult> {
+  if (refreshInFlight) return refreshInFlight
+
+  const refreshToken = tokenStorage.getRefreshToken()
+  if (!refreshToken) {
+    tokenStorage.clear()
+    return Promise.resolve("invalid")
+  }
+
+  refreshInFlight = (async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      })
+
+      if (response.ok) {
+        const body = await response.json()
+        const session = body?.data?.session
+        if (session?.accessToken && session?.refreshToken) {
+          tokenStorage.set(session.accessToken, session.refreshToken)
+          return "refreshed"
+        }
+        return "unavailable"
+      }
+
+      if ([400, 401, 403].includes(response.status)) {
+        tokenStorage.clear()
+        return "invalid"
+      }
+
+      return "unavailable"
+    } catch {
+      return "unavailable"
+    } finally {
+      refreshInFlight = null
+    }
+  })()
+
+  return refreshInFlight
 }
 
 /**
@@ -196,29 +262,19 @@ export async function apiRequest<T = any>(
     )
   }
 
-  // Handle 401: Attempt silent token refresh via refreshToken if within 10-day window
-  if (response.status === 401 && !_isRetry && !cleanEndpoint.includes("/auth/")) {
-    const refreshToken = tokenStorage.getRefreshToken()
-    if (refreshToken) {
-      try {
-        const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken }),
-        })
-        if (refreshRes.ok) {
-          const refreshJson = await refreshRes.json()
-          const newSession = refreshJson?.data?.session
-          if (newSession?.accessToken) {
-            tokenStorage.set(newSession.accessToken, newSession.refreshToken || refreshToken)
-            // Retry original request with new token
-            return apiRequest<T>(endpoint, { ...options, _isRetry: true })
-          }
-        }
-      } catch {
-        // Refresh failed, proceed to error handling
-      }
+  const authEndpoint = cleanEndpoint.split("?")[0]
+  const skipsRefresh = [
+    "/auth/login",
+    "/auth/register",
+    "/auth/refresh",
+    "/auth/logout",
+  ].includes(authEndpoint)
+  if (response.status === 401 && !_isRetry && !skipsRefresh) {
+    const refreshResult = await refreshSession()
+    if (refreshResult === "refreshed") {
+      return apiRequest<T>(endpoint, { ...options, _isRetry: true })
     }
+  } else if (response.status === 401 && _isRetry) {
     tokenStorage.clear()
   }
 
@@ -246,10 +302,6 @@ export async function apiRequest<T = any>(
       `Request failed with HTTP status ${response.status}`
     const code = body?.error?.code || (response.status === 401 ? "UNAUTHORIZED" : "HTTP_ERROR")
     const details = body?.error?.details || null
-
-    if (response.status === 401) {
-      tokenStorage.clear()
-    }
 
     throw new ApiError(message, response.status, code, details)
   }

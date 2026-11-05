@@ -68,13 +68,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           profile: res.user.profile,
         })
       }
-    } catch (err: any) {
-      // Only clear if confirmed 401 Unauthorized (invalid/expired beyond 10-day refresh window)
-      if (err?.statusCode === 401 || err?.status === 401) {
-        tokenStorage.clear()
+    } catch {
+      // The API client clears the session only after a definitive refresh rejection.
+      // Preserve cached identity when a temporary network/server error prevents refresh.
+      if (!tokenStorage.get()) {
         saveUser(null)
       }
-      // For network errors or temporary glitches on refresh, keep cached user intact
     } finally {
       setLoading(false)
     }

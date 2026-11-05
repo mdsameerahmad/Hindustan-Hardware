@@ -1,4 +1,4 @@
-import { createBrowserRouter, Link, RouterProvider, useRouteError } from "react-router"
+import { createBrowserRouter, Link, Navigate, RouterProvider, useRouteError } from "react-router"
 import {
     AdminLayout,
     AdminOrderDetailPage,
@@ -12,7 +12,7 @@ import {
     InventoryPage,
     ProductFormPage,
 } from "./admin"
-import { AuthProvider } from "./authContext"
+import { AuthProvider, useAuth } from "./authContext"
 import { Button, EmptyState } from "./components"
 import { AppSplashScreen } from "./components/AppSplashScreen"
 import { InstallPwaBanner } from "./components/InstallPwaBanner"
@@ -67,12 +67,36 @@ function NotFound() {
   )
 }
 
+function SignedInHome() {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="container-wide flex min-h-[50vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#D4AF37] border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (user?.role === "admin" || user?.role === "staff") {
+    return <Navigate to="/admin" replace />
+  }
+  if (user?.role === "delivery_partner") {
+    return <Navigate to="/partner/dashboard" replace />
+  }
+  if (user?.role === "customer") {
+    return <Navigate to="/account" replace />
+  }
+
+  return <HomePage />
+}
+
 const router = createBrowserRouter([
   {
     Component: StorefrontLayout,
     errorElement: <RouteErrorBoundary />,
     children: [
-      { index: true, Component: HomePage },
+      { index: true, Component: SignedInHome },
       { path: "products", Component: ProductsPage },
       { path: "category/:slug", Component: ProductsPage },
       { path: "product/:id", Component: ProductDetailPage },
