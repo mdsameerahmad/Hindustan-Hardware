@@ -109,6 +109,23 @@ adminRouter.delete('/categories/:id', async (req: Request, res: Response, next: 
   }
 });
 
+adminRouter.post(
+  '/categories/:id/image',
+  uploadImageMiddleware,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = String(req.params.id);
+      if (!req.file) {
+        throw new BadRequestError('Category image file is required in the "image" form field.');
+      }
+      const updated = await CategoryService.uploadCategoryImage(id, req.file.buffer);
+      return sendSuccess(res, updated, 'Category image uploaded successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // ----------------- Brands Admin CRUD -----------------
 adminRouter.get('/brands', async (_req: Request, res: Response, next: NextFunction) => {
   try {
@@ -614,6 +631,5 @@ adminRouter.delete('/delivery-partners/:id', async (req: Request, res: Response,
     next(err);
   }
 });
-
 
 

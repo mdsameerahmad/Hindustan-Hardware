@@ -1,6 +1,10 @@
 import { getSupabaseClient, getSupabaseAdminClient } from '../config/supabase';
 import { InternalServerError, NotFoundError, ConflictError, BadRequestError } from '../common/errors';
 import { Category } from '../types';
+import { v4 as uuidv4 } from 'uuid';
+import { PRODUCT_STORAGE_BUCKET, ImageService } from './imageService';
+import { validateImageMagicBytes } from '../common/middleware/imageUpload';
+import { logger } from '../common/utils/logger';
 
 export class CategoryService {
   /**
@@ -157,6 +161,55 @@ export class CategoryService {
       throw new InternalServerError(`Failed to update category: ${error.message}`);
     }
     if (!data) throw new NotFoundError('Category not found');
+
+    return data;
+  }
+
+  /**
+   * Upload a category image to Supabase Storage and link it to the category.
+   */
+  static async uploadCategoryImage(categoryId: string, fileBuffer: Buffer): Promise<Category> {
+    const adminClient = getSupabaseAdminClient();
+    if (!adminClient) throw new InternalServerError('Administrative database client is unavailable.');
+
+    const { data: category, error: categoryError } = await adminClient
+      .from('categories')
+      .select('id')
+      .eq('id', categoryId)
+      .single();
+    if (categoryError || !category) throw new NotFoundError('Category not found.');
+
+    const magic = validateImageMagicBytes(fileBuffer);
+    if (!magic.isValid) {
+      throw new BadRequestError('File content is corrupted or not a valid image format.');
+    }
+
+    const storagePath = `categories/${categoryId}/category-${uuidv4()}.${magic.extension}`;
+    const { error: uploadError } = await adminClient.storage
+      .from(PRODUCT_STORAGE_BUCKET)
+      .upload(storagePath, fileBuffer, {
+        contentType: magic.mimeType,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      logger.error('Failed to upload category image to storage', { error: uploadError.message, storagePath });
+      throw new InternalServerError(`Failed to upload category image: ${uploadError.message}`);
+    }
+
+    const publicUrl = ImageService.getPublicUrl(storagePath);
+    const { data, error: updateError } = await adminClient
+      .from('categories')
+      .update({ image_url: publicUrl })
+      .eq('id', categoryId)
+      .select('*')
+      .single();
+
+    if (updateError || !data) {
+      logger.warn('Failed to update category record with image URL, rolling back storage object', { storagePath });
+      await adminClient.storage.from(PRODUCT_STORAGE_BUCKET).remove([storagePath]).catch(() => {});
+      throw new InternalServerError(`Failed to save category image: ${updateError?.message || 'Category update returned no data.'}`);
+    }
 
     return data;
   }
