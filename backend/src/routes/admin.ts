@@ -24,6 +24,7 @@ import { BrandService } from '../services/brandService';
 import { ProductService } from '../services/productService';
 import { ImageService } from '../services/imageService';
 import { AdminService } from '../services/adminService';
+import { BulkInquiryService } from '../services/bulkInquiryService';
 import { DeliveryTrackingService } from '../services/deliveryTrackingService';
 import {
   createDeliveryAssignmentSchema,
@@ -342,6 +343,33 @@ adminRouter.get('/dashboard', async (_req: Request, res: Response, next: NextFun
 });
 
 // ----------------- Phase 8 Admin Orders Management -----------------
+adminRouter.get('/bulk-inquiries', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const inquiries = await BulkInquiryService.list();
+    return sendSuccess(res, inquiries, 'Bulk inquiries retrieved successfully');
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.patch('/bulk-inquiries/:id/read', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const inquiry = await BulkInquiryService.markRead(String(req.params.id));
+    return sendSuccess(res, inquiry, 'Bulk inquiry marked as read');
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.delete('/bulk-inquiries/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await BulkInquiryService.delete(String(req.params.id));
+    return sendSuccess(res, null, 'Bulk inquiry deleted successfully');
+  } catch (err) {
+    next(err);
+  }
+});
+
 adminRouter.get('/orders', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = adminOrderQuerySchema.safeParse(req.query);
@@ -631,5 +659,4 @@ adminRouter.delete('/delivery-partners/:id', async (req: Request, res: Response,
     next(err);
   }
 });
-
 

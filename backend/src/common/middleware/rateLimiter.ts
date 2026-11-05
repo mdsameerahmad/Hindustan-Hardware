@@ -39,6 +39,24 @@ export const checkoutRateLimiter = rateLimit({
 });
 
 /**
+ * Limits public bulk-inquiry submissions to reduce automated spam.
+ */
+export const bulkInquiryRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    return sendError(
+      res,
+      'TOO_MANY_REQUESTS',
+      'Too many inquiry submissions. Please try again shortly.',
+      429
+    );
+  },
+});
+
+/**
  * Rate limiter for order cancellation requests.
  */
 export const cancellationRateLimiter = rateLimit({
@@ -92,4 +110,3 @@ export const trackingRateLimiter = rateLimit({
     );
   },
 });
-

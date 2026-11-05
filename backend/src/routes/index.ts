@@ -10,6 +10,7 @@ import { cartRouter } from './cart';
 import { checkoutRouter } from './checkout';
 import { deliveryRouter } from './delivery';
 import { locationRouter } from './location';
+import { bulkInquiryRouter } from './bulkInquiry';
 
 export const apiV1Router = Router();
 
@@ -24,6 +25,9 @@ apiV1Router.use('/customers', customerRouter);
 
 // Mount location and geocoding routes under /api/v1/location
 apiV1Router.use('/location', locationRouter);
+
+// Mount public bulk inquiry submission routes
+apiV1Router.use('/bulk-inquiries', bulkInquiryRouter);
 
 // Mount public catalogue routes
 apiV1Router.use('/categories', publicCategoryRouter);
@@ -41,5 +45,4 @@ apiV1Router.use('/deliveries', deliveryRouter);
 
 // Mount admin management routes under /api/v1/admin
 apiV1Router.use('/admin', adminRouter);
-
 
