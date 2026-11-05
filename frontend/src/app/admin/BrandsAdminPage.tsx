@@ -248,8 +248,8 @@ export function BrandsAdminPage() {
           </div>
         )}
 
-        <form onSubmit={submit} className="grid gap-6 xl:grid-cols-[1fr_360px]">
-          <div className="space-y-6">
+        <form onSubmit={submit} className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="min-w-0 space-y-6">
             <FormCard title="Brand details">
               <div className="grid gap-4 sm:grid-cols-2">
                 <AdminField
@@ -331,6 +331,8 @@ export function BrandsAdminPage() {
                       value={form.logoUrl}
                       onChange={(value) => setForm({ ...form, logoUrl: value })}
                       placeholder="https://... or upload from your device below"
+                      inputClassName="truncate"
+                      inputTitle={form.logoUrl}
                     />
                   </div>
                   <div className="sm:pt-5">

@@ -9,7 +9,7 @@ export function FormCard({
   children: React.ReactNode
 }) {
   return (
-    <section className="rounded-xl border border-border bg-white p-6 shadow-xs">
+    <section className="min-w-0 rounded-xl border border-border bg-white p-6 shadow-xs">
       <h2 className="mb-5 text-lg font-black text-slate-900">{title}</h2>
       <div className="space-y-4">{children}</div>
     </section>
@@ -24,6 +24,8 @@ export function AdminField(props: {
   type?: string
   disabled?: boolean
   placeholder?: string
+  inputClassName?: string
+  inputTitle?: string
 }) {
   return (
     <label className="field-label block text-xs font-bold uppercase tracking-wider text-slate-600">
@@ -31,7 +33,8 @@ export function AdminField(props: {
       <input
         {...props}
         onChange={(event) => props.onChange?.(event.target.value)}
-        className="field mt-2 w-full disabled:bg-slate-100"
+        title={props.inputTitle}
+        className={`field mt-2 w-full disabled:bg-slate-100 ${props.inputClassName || ""}`}
       />
     </label>
   )
