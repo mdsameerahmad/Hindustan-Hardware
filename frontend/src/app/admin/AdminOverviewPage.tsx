@@ -61,10 +61,17 @@ export function AdminOverviewPage() {
       positive: true,
     },
     {
-      label: "Collected COD Revenue",
-      value: formatPrice(stats.financials.collectedCodRevenue),
+      label: "Total Amount Collected",
+      value: formatPrice(stats.financials.totalAmountCollected),
       Icon: CheckCircle2,
-      subtitle: `₹${stats.financials.pendingCodRevenue.toLocaleString()} pending collection`,
+      subtitle: "Payments received",
+      positive: true,
+    },
+    {
+      label: "Total Remaining Due",
+      value: formatPrice(stats.financials.totalAmountDue),
+      Icon: IndianRupee,
+      subtitle: "Across active orders",
       positive: true,
     },
     {

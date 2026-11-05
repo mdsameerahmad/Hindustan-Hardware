@@ -61,15 +61,15 @@ export function useAdminOrderDetail(orderId?: string) {
   )
 
   const collectCodPayment = useCallback(
-    async (notes?: string) => {
+    async (amount: number, method: "cash" | "online", notes?: string) => {
       if (!orderId) return
       setActionLoading(true)
       try {
-        const updated = await adminApi.collectCodPayment(orderId, notes)
+        const updated = await adminApi.collectCodPayment(orderId, amount, method, notes)
         setOrder(updated)
         return updated
       } catch (err: any) {
-        throw new Error(err?.message || "Failed to record COD cash payment.")
+        throw new Error(err?.message || "Failed to record payment collection.")
       } finally {
         setActionLoading(false)
       }

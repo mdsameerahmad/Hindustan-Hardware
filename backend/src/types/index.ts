@@ -364,6 +364,8 @@ export interface OrderSummary {
   status: OrderStatus;
   paymentMethod: 'cod';
   paymentStatus: PaymentStatus;
+  amountCollected?: number;
+  amountDue?: number;
   currency: string;
   itemCount: number;
   totalQuantity: number;
@@ -375,6 +377,16 @@ export interface OrderSummary {
 }
 
 export interface OrderDetailsResponse extends OrderResponse {
+  amountCollected?: number;
+  amountDue?: number;
+  paymentCollections?: {
+    id: string;
+    amount: number;
+    method: 'cash' | 'online';
+    notes: string | null;
+    actorId: string | null;
+    createdAt: string;
+  }[];
   statusHistory: OrderStatusHistoryItem[];
   canCancel: boolean;
 }
@@ -418,6 +430,8 @@ export interface AdminDashboardStats {
     totalOrderValue: number;
     collectedCodRevenue: number;
     pendingCodRevenue: number;
+    totalAmountCollected: number;
+    totalAmountDue: number;
     currency: string;
   };
   recentOrders: OrderSummary[];
@@ -656,4 +670,3 @@ export interface DeliveryEtaResponse {
     accuracyMeters: number | null;
   };
 }
-

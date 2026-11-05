@@ -2,6 +2,7 @@ import { Pool, PoolClient } from 'pg';
 import dotenv from 'dotenv';
 import path from 'path';
 import { describe, it, beforeAll, afterAll, expect } from 'vitest';
+import { randomUUID } from 'crypto';
 import {
   resolveCataloguePaths,
   loadExcelProducts,
@@ -16,9 +17,10 @@ import { executeSafeCatalogueRollback } from '../scripts/catalogue/catalogue-rol
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-const TEST_SCHEMA = 'test_catalogue_phase_g';
+const TEST_SCHEMA = `test_catalogue_${randomUUID().replace(/-/g, '')}`;
+const runDatabaseIntegrationTests = process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true';
 
-describe('Phase I: Batch Ownership & Rollback Isolation Runner', () => {
+describe.skipIf(!runDatabaseIntegrationTests)('Phase I: Batch Ownership & Rollback Isolation Runner', () => {
   let pool: Pool;
   let client: PoolClient;
   let sampleProducts: ValidatedProduct[];

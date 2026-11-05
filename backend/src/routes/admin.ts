@@ -448,10 +448,12 @@ adminRouter.post('/orders/:orderId/collect-cod', async (req: Request, res: Respo
     const updated = await AdminService.collectCodPayment(
       paramParsed.data.orderId,
       req.user!.id,
+      bodyParsed.data.amount,
+      bodyParsed.data.method,
       bodyParsed.data.notes
     );
 
-    return sendSuccess(res, updated, 'COD cash payment recorded successfully');
+    return sendSuccess(res, updated, 'Payment collection recorded successfully');
   } catch (err) {
     next(err);
   }
@@ -659,4 +661,3 @@ adminRouter.delete('/delivery-partners/:id', async (req: Request, res: Response,
     next(err);
   }
 });
-

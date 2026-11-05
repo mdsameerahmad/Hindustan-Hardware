@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:api": "node scripts/production-smoke.mjs",
+    "test:production": "node scripts/production-check.mjs",
     "simulate:delivery": "tsx scripts/simulate-delivery.ts",
     "catalogue:validate": "tsx scripts/catalogue/validate-catalogue.ts",
     "catalogue:seed": "tsx scripts/catalogue/seed-catalogue.ts"

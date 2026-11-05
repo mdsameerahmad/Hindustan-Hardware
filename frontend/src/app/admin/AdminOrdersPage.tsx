@@ -15,6 +15,18 @@ import {
 } from "../components"
 import { useAdminOrders } from "../features/hooks/useAdminOrders"
 
+function getRemainingDue(order: {
+  amountDue?: number
+  amountCollected?: number
+  totalAmount: number
+  paymentStatus: string
+  status: string
+}) {
+  if (order.amountDue != null) return order.amountDue
+  if (order.paymentStatus === "paid" || order.status === "cancelled") return 0
+  return Math.max(0, order.totalAmount - (order.amountCollected ?? 0))
+}
+
 export function AdminOrdersPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("")
   const [searchTerm, setSearchTerm] = useState<string>("")
@@ -50,7 +62,7 @@ export function AdminOrdersPage() {
     <>
       <PageHeader
         title="Order management"
-        description="Review customer orders, monitor fulfillment, and record COD payments from actual database records."
+        description="Review orders, monitor fulfillment, and track collected payments and outstanding balances."
         action={
           <Button variant="ghost" onClick={refetch} title="Refresh orders">
             <RefreshCcw size={15} />
@@ -141,9 +153,14 @@ export function AdminOrdersPage() {
                         </span>
                       </td>
                       <td>
-                        <Badge tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "cancelled" ? "danger" : "warning"}>
-                          {order.paymentStatus}
-                        </Badge>
+                        <div className="space-y-1">
+                          <Badge tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "cancelled" ? "danger" : "warning"}>
+                            {order.paymentStatus}
+                          </Badge>
+                          <small className="block font-semibold text-amber-700">
+                            Due: {formatPrice(getRemainingDue(order))}
+                          </small>
+                        </div>
                       </td>
                       <td>
                         <Badge tone={statusTone(order.status as any)}>
@@ -192,6 +209,9 @@ export function AdminOrdersPage() {
                       </Badge>
                     </div>
                   </div>
+                  <p className="text-right text-[11px] font-semibold text-amber-700">
+                    Remaining / Due: {formatPrice(getRemainingDue(order))}
+                  </p>
 
                   <div className="flex items-center justify-end pt-1 border-t border-slate-100">
                     <Link to={`/admin/orders/${order.id}`} className="w-full">

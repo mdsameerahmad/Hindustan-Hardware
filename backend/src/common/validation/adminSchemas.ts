@@ -20,6 +20,8 @@ export const updateOrderStatusSchema = z.object({
 });
 
 export const collectCodPaymentSchema = z.object({
+  amount: z.number().positive().multipleOf(0.01),
+  method: z.enum(['cash', 'online']),
   notes: z.string().trim().max(500).optional(),
 });
 
@@ -79,4 +81,3 @@ export const updateDeliveryPartnerSchema = z.object({
   phone: z.string().trim().min(7).max(20).optional(),
   avatarUrl: z.string().nullable().optional(),
 });
-

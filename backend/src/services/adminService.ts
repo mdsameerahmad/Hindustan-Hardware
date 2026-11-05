@@ -23,6 +23,24 @@ import { broadcastOrderStatus } from '../common/socket/trackingSocket';
 import { HINDUSTAN_HARDWARE_STORE } from '../config/store';
 import { randomUUID } from 'crypto';
 
+function getOrderPaymentAmounts(order: {
+  total_amount: unknown;
+  amount_collected?: unknown;
+  payment_status?: string;
+  status?: string;
+}): { amountCollected: number; amountDue: number } {
+  const totalAmount = Math.max(0, Number(order.total_amount) || 0);
+  const recordedAmount = order.amount_collected == null
+    ? (order.payment_status === 'paid' ? totalAmount : 0)
+    : Number(order.amount_collected) || 0;
+  const amountCollected = Math.round(Math.min(Math.max(recordedAmount, 0), totalAmount) * 100) / 100;
+  const amountDue = order.status === 'cancelled' || order.payment_status === 'cancelled'
+    ? 0
+    : Math.round(Math.max(totalAmount - amountCollected, 0) * 100) / 100;
+
+  return { amountCollected, amountDue };
+}
+
 export class AdminService {
   /**
    * Allowed state transitions for store administrators
@@ -77,7 +95,7 @@ export class AdminService {
     // 4. Orders Counts & Aggregation
     const { data: allOrders, error: orderErr } = await client
       .from('orders')
-      .select('id, order_number, status, payment_method, payment_status, currency, subtotal, total_amount, created_at, updated_at')
+      .select('id, order_number, status, payment_method, payment_status, currency, subtotal, total_amount, amount_collected, created_at, updated_at')
       .order('created_at', { ascending: false });
 
     if (orderErr) {
@@ -121,12 +139,11 @@ export class AdminService {
         pendingFulfillment++;
       }
 
-      // COD payment status metrics
       if (ord.payment_method === 'cod') {
-        if (ord.payment_status === 'paid') {
-          collectedCodRevenue += totalAmt;
-        } else if (ord.payment_status === 'pending' && st !== 'cancelled') {
-          pendingCodRevenue += totalAmt;
+        const paymentAmounts = getOrderPaymentAmounts(ord);
+        collectedCodRevenue += paymentAmounts.amountCollected;
+        pendingCodRevenue += paymentAmounts.amountDue;
+        if (paymentAmounts.amountDue > 0) {
           awaitingCodCollection++;
         }
       }
@@ -139,6 +156,7 @@ export class AdminService {
       status: row.status as OrderStatus,
       paymentMethod: 'cod',
       paymentStatus: row.payment_status as PaymentStatus,
+      ...getOrderPaymentAmounts(row),
       currency: row.currency || 'INR',
       itemCount: 0,
       totalQuantity: 0,
@@ -171,6 +189,8 @@ export class AdminService {
         totalOrderValue: Math.round(totalOrderValue * 100) / 100,
         collectedCodRevenue: Math.round(collectedCodRevenue * 100) / 100,
         pendingCodRevenue: Math.round(pendingCodRevenue * 100) / 100,
+        totalAmountCollected: Math.round(collectedCodRevenue * 100) / 100,
+        totalAmountDue: Math.round(pendingCodRevenue * 100) / 100,
         currency: 'INR',
       },
       recentOrders,
@@ -208,6 +228,7 @@ export class AdminService {
       status,
       payment_method,
       payment_status,
+      amount_collected,
       currency,
       subtotal,
       total_amount,
@@ -269,6 +290,7 @@ export class AdminService {
         status: row.status as OrderStatus,
         paymentMethod: 'cod',
         paymentStatus: row.payment_status as PaymentStatus,
+        ...getOrderPaymentAmounts(row),
         currency: row.currency || 'INR',
         itemCount: orderItems.length,
         totalQuantity,
@@ -322,6 +344,22 @@ export class AdminService {
       .eq('order_id', orderId)
       .order('created_at', { ascending: true });
 
+    const { data: rawCollections, error: collectionsErr } = await client
+      .from('order_payment_collections')
+      .select('id, amount, method, notes, actor_id, created_at')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false });
+
+    if (collectionsErr) {
+      logger.error('Failed to retrieve order payment collection history', {
+        error: collectionsErr.message,
+        orderId,
+      });
+      throw new InternalServerError(
+        'Unable to retrieve payment history. Verify that migration 016_partial_order_payment_collection.sql has been applied.'
+      );
+    }
+
     const items: OrderItemRecord[] = (rawItems || []).map((row: any) => ({
       id: row.id,
       orderId: row.order_id,
@@ -347,6 +385,15 @@ export class AdminService {
       createdAt: h.created_at,
     }));
 
+    const paymentCollections = (rawCollections || []).map((collection: any) => ({
+      id: collection.id,
+      amount: Number(collection.amount),
+      method: collection.method as 'cash' | 'online',
+      notes: collection.notes || null,
+      actorId: collection.actor_id || null,
+      createdAt: collection.created_at,
+    }));
+
     const invoiceData = (order.shipping_address_snapshot as any)?._invoice;
 
     return {
@@ -356,6 +403,7 @@ export class AdminService {
       status: order.status as OrderStatus,
       paymentMethod: 'cod',
       paymentStatus: order.payment_status as PaymentStatus,
+      ...getOrderPaymentAmounts(order),
       currency: order.currency || 'INR',
       subtotal: Number(order.subtotal),
       discountAmount: Number(order.discount_amount || 0),
@@ -369,6 +417,7 @@ export class AdminService {
       invoiceUploadedAt: invoiceData?.uploadedAt || null,
       items,
       statusHistory,
+      paymentCollections,
       canCancel: ['pending', 'confirmed'].includes(order.status),
       createdAt: order.created_at,
       updatedAt: order.updated_at,
@@ -592,49 +641,48 @@ export class AdminService {
   }
 
   /**
-   * Records cash collection for a COD order.
-   * Strictly verifies that the order uses COD and payment is pending.
+   * Records an atomic partial or full payment collection for a COD order.
    */
   static async collectCodPayment(
     orderId: string,
     adminId: string,
+    amount: number,
+    method: 'cash' | 'online',
     notes?: string
   ): Promise<OrderDetailsResponse> {
     const client = getSupabaseAdminClient() || getSupabaseClient();
     if (!client) throw new InternalServerError('Database service is unavailable.');
 
-    const { data: order, error: orderErr } = await client
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
-      .single();
+    const { data: result, error: collectionErr } = await client.rpc('record_order_payment_collection', {
+      p_order_id: orderId,
+      p_amount: amount,
+      p_method: method,
+      p_actor_id: adminId,
+      p_notes: notes || null,
+    });
 
-    if (orderErr || !order) throw new NotFoundError('Order not found.');
-
-    if (order.payment_method !== 'cod') {
-      throw new BadRequestError('Only Cash on Delivery (COD) orders support manual cash collection recording.');
+    if (collectionErr) {
+      logger.error('Failed to record order payment collection', { error: collectionErr.message, orderId });
+      throw new InternalServerError(
+        'Failed to record payment collection. Verify that migration 016_partial_order_payment_collection.sql has been applied.'
+      );
     }
 
-    if (order.status === 'cancelled') {
-      throw new BadRequestError('Cannot collect payment for a cancelled order.');
-    }
-
-    if (order.payment_status === 'paid') {
-      throw new BadRequestError('COD payment for this order has already been recorded as paid.');
-    }
-
-    const { error: updateErr } = await client
-      .from('orders')
-      .update({
-        payment_status: 'paid',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', orderId)
-      .eq('payment_status', 'pending');
-
-    if (updateErr) {
-      logger.error('Failed to record COD payment', { error: updateErr.message, orderId });
-      throw new InternalServerError('Failed to record COD payment collection.');
+    if (!result?.success) {
+      switch (result?.code) {
+        case 'ORDER_NOT_FOUND':
+          throw new NotFoundError('Order not found.');
+        case 'AMOUNT_EXCEEDS_DUE':
+          throw new BadRequestError(`Amount exceeds the remaining balance of ${result.amountDue}.`);
+        case 'ORDER_CANCELLED':
+          throw new BadRequestError('Cannot collect payment for a cancelled order.');
+        case 'PAYMENT_COMPLETE':
+          throw new BadRequestError('This order has no remaining balance.');
+        case 'UNSUPPORTED_PAYMENT_METHOD':
+          throw new BadRequestError('Only Cash on Delivery orders support manual payment recording.');
+        default:
+          throw new BadRequestError('Unable to record this payment. Check the amount and payment method.');
+      }
     }
 
     // Audit log
@@ -644,13 +692,19 @@ export class AdminService {
       resourceType: 'order',
       resourceId: orderId,
       details: {
-        collectedAmount: Number(order.total_amount),
-        currency: order.currency || 'INR',
+        collectedAmount: amount,
+        collectionMethod: method,
         notes: notes || null,
       },
     });
 
-    logger.info('COD cash payment successfully recorded by admin', { orderId, adminId, total: order.total_amount });
+    logger.info('Order payment collection successfully recorded by admin', {
+      orderId,
+      adminId,
+      amount,
+      method,
+      amountDue: result.amountDue,
+    });
     return this.getAdminOrderById(orderId);
   }
 
@@ -1415,4 +1469,3 @@ export class AdminService {
     });
   }
 }
-

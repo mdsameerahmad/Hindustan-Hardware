@@ -546,11 +546,16 @@ export const adminApi = {
     })
   },
 
-  collectCodPayment: async (orderId: string, notes?: string) => {
+  collectCodPayment: async (
+    orderId: string,
+    amount: number,
+    method: "cash" | "online",
+    notes?: string,
+  ) => {
     return apiRequest<import("./commerceTypes").OrderDetailsResponse>(`/admin/orders/${orderId}/collect-cod`, {
       method: "POST",
       requiresAuth: true,
-      body: JSON.stringify({ notes }),
+      body: JSON.stringify({ amount, method, notes }),
     })
   },
 
@@ -679,7 +684,6 @@ export const adminApi = {
     })
   },
 }
-
 
 
 

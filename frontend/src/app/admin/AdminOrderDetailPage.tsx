@@ -61,11 +61,17 @@ export function AdminOrderDetailPage() {
   const [cancelReason, setCancelReason] = useState("")
   const [codModalOpen, setCodModalOpen] = useState(false)
   const [codNotes, setCodNotes] = useState("")
+  const [codAmount, setCodAmount] = useState("")
+  const [codMethod, setCodMethod] = useState<"cash" | "online">("cash")
   const [actionError, setActionError] = useState<string | null>(null)
   const [trackingInfo, setTrackingInfo] = useState<OrderLiveTrackingResponse | null>(null)
   const [partnersList, setPartnersList] = useState<any[]>([])
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>("")
   const [assigningPartner, setAssigningPartner] = useState<boolean>(false)
+  const amountCollected = order?.amountCollected ?? (order?.paymentStatus === "paid" ? order.totalAmount : 0)
+  const amountDue = order?.amountDue ?? (
+    order?.status === "cancelled" ? 0 : Math.max(0, (order?.totalAmount ?? 0) - amountCollected)
+  )
 
   // Real-Time Delivery Partner Tracking & Route state
   const [routeData, setRouteData] = useState<DeliveryRouteResponse | null>(null)
@@ -345,12 +351,20 @@ export function AdminOrderDetailPage() {
 
   const handleCollectCod = async () => {
     setActionError(null)
+    const amount = Number(codAmount)
+    if (!Number.isFinite(amount) || amount <= 0 || amount > amountDue) {
+      setActionError("Enter an amount greater than zero and no more than the remaining due.")
+      return
+    }
+
     try {
-      await collectCodPayment(codNotes.trim() || undefined)
+      await collectCodPayment(amount, codMethod, codNotes.trim() || undefined)
       setCodModalOpen(false)
       setCodNotes("")
+      setCodAmount("")
+      setCodMethod("cash")
     } catch (err: any) {
-      setActionError(err?.message || "Failed to record COD cash payment.")
+      setActionError(err?.message || "Failed to record payment collection.")
     }
   }
 
@@ -977,21 +991,61 @@ export function AdminOrderDetailPage() {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-slate-500">Amount Due / Collected:</span>
-                <b className="text-slate-900 text-sm font-black">{formatPrice(order.totalAmount)}</b>
+                <span className="text-slate-500">Order total:</span>
+                <b className="text-slate-900">{formatPrice(order.totalAmount)}</b>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Amount collected:</span>
+                <b className="text-emerald-700">{formatPrice(amountCollected)}</b>
+              </div>
+              <div className="flex justify-between items-center border-t border-border pt-2">
+                <span className="font-bold text-slate-700">Remaining / Due:</span>
+                <b className="text-amber-700 text-sm font-black">{formatPrice(amountDue)}</b>
               </div>
             </div>
 
-            {order.paymentStatus === "pending" && order.status !== "cancelled" && (
+            {amountDue > 0 && order.paymentStatus === "pending" && order.status !== "cancelled" && (
               <Button
                 className="mt-4 w-full text-xs font-bold"
                 variant="primary"
                 disabled={actionLoading}
-                onClick={() => setCodModalOpen(true)}
+                onClick={() => {
+                  setCodAmount(amountDue.toFixed(2))
+                  setCodMethod("cash")
+                  setCodModalOpen(true)
+                }}
               >
-                <CheckCircle2 size={15} /> Record Cash Collected
+                <CheckCircle2 size={15} /> Record Payment
               </Button>
             )}
+
+            <div className="mt-4 border-t border-border pt-3">
+              <h4 className="text-xs font-bold text-slate-700">Collection history</h4>
+              {order.paymentCollections?.length ? (
+                <div className="mt-2 max-h-40 space-y-2 overflow-y-auto">
+                  {order.paymentCollections.map((payment) => (
+                    <div key={payment.id} className="flex items-start justify-between gap-3 text-xs">
+                      <div className="min-w-0">
+                        <b className="block capitalize text-slate-800">{payment.method}</b>
+                        <span className="block text-slate-500">
+                          {new Date(payment.createdAt).toLocaleString()}
+                        </span>
+                        {payment.notes && (
+                          <span className="block break-words text-slate-500">{payment.notes}</span>
+                        )}
+                      </div>
+                      <b className="shrink-0 text-emerald-700">{formatPrice(payment.amount)}</b>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {amountCollected > 0
+                    ? "This payment was recorded before collection history was enabled."
+                    : "No payments recorded yet."}
+                </p>
+              )}
+            </div>
           </section>
 
           {/* Card 4: Order Milestone Status Controller */}
@@ -1151,10 +1205,54 @@ export function AdminOrderDetailPage() {
             <span className="grid h-12 w-12 place-items-center rounded-full bg-emerald-50 text-emerald-600">
               <IndianRupee />
             </span>
-            <h2 className="mt-4 text-xl font-black">Record cash collection</h2>
+            <h2 className="mt-4 text-xl font-black">Record payment collection</h2>
             <p className="mt-2 text-sm text-slate-500">
-              Confirm cash payment of <strong>{formatPrice(order.totalAmount)}</strong> received from the customer for {order.orderNumber}.
+              Record a partial or final payment for {order.orderNumber}. The remaining balance updates automatically.
             </p>
+
+            <div className="mt-4 grid grid-cols-2 gap-3 text-left">
+              <div className="rounded-lg bg-slate-50 p-3">
+                <span className="block text-xs text-slate-500">Total amount</span>
+                <b className="text-sm text-slate-900">{formatPrice(order.totalAmount)}</b>
+              </div>
+              <div className="rounded-lg bg-amber-50 p-3">
+                <span className="block text-xs text-amber-700">Currently due</span>
+                <b className="text-sm text-amber-800">{formatPrice(amountDue)}</b>
+              </div>
+            </div>
+
+            <label className="field-label mt-4 block text-left">
+              Amount collected
+              <input
+                className="field mt-1.5"
+                type="number"
+                min="0.01"
+                max={amountDue}
+                step="0.01"
+                value={codAmount}
+                onChange={(e) => setCodAmount(e.target.value)}
+                required
+              />
+            </label>
+
+            <label className="field-label mt-4 block text-left">
+              Collected via
+              <select
+                className="field mt-1.5"
+                value={codMethod}
+                onChange={(e) => setCodMethod(e.target.value as "cash" | "online")}
+              >
+                <option value="cash">Cash</option>
+                <option value="online">Online</option>
+              </select>
+            </label>
+
+            <div className="mt-3 flex items-center justify-between rounded-lg border border-border p-3 text-sm">
+              <span className="font-semibold text-slate-600">Remaining after this payment</span>
+              <b className="text-amber-700">
+                {formatPrice(Math.max(0, amountDue - (Number(codAmount) || 0)))}
+              </b>
+            </div>
 
             <label className="field-label mt-4 block text-left">
               Collection notes (optional)
@@ -1176,10 +1274,15 @@ export function AdminOrderDetailPage() {
               </Button>
               <Button
                 variant="primary"
-                disabled={actionLoading}
+                disabled={
+                  actionLoading ||
+                  !Number.isFinite(Number(codAmount)) ||
+                  Number(codAmount) <= 0 ||
+                  Number(codAmount) > amountDue
+                }
                 onClick={handleCollectCod}
               >
-                {actionLoading ? "Recording..." : "Confirm Payment"}
+                {actionLoading ? "Recording..." : "Record Amount"}
               </Button>
             </div>
           </div>
