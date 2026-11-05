@@ -63,7 +63,9 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
   const customerMarkerRef = useRef<L.Marker | null>(null)
   const routePolylineRef = useRef<L.Polyline | null>(null)
   const routeGlowPolylineRef = useRef<L.Polyline | null>(null)
-  const prevPartnerLocationRef = useRef<Coordinate | null>(null)
+  const targetPartnerLocationRef = useRef<Coordinate | null>(null)
+  const lastPartnerTargetTimeRef = useRef<number | null>(null)
+  const partnerMarkerStyleRef = useRef<string | null>(null)
   const currentRenderedPosRef = useRef<Coordinate | null>(null)
   const currentRenderedHeadingRef = useRef<number>(0)
   const animFrameIdRef = useRef<number | null>(null)
@@ -156,7 +158,7 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
           "></div>
           
           <!-- Outer Floating Halo Ring -->
-          <div style="
+          <div class="tracking-marker-rotation" style="
             position: absolute;
             width: 40px;
             height: 40px;
@@ -393,16 +395,15 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
       let targetHeading = lastHeadingRef.current
       if (partnerHeading != null && Number.isFinite(partnerHeading)) {
         targetHeading = partnerHeading
-        lastHeadingRef.current = partnerHeading
       } else if (
-        prevPartnerLocationRef.current &&
-        (prevPartnerLocationRef.current.latitude !== effectivePartnerLocation.latitude ||
-          prevPartnerLocationRef.current.longitude !== effectivePartnerLocation.longitude)
+        targetPartnerLocationRef.current &&
+        (targetPartnerLocationRef.current.latitude !== effectivePartnerLocation.latitude ||
+          targetPartnerLocationRef.current.longitude !== effectivePartnerLocation.longitude)
       ) {
-        const computed = calculateBearing(prevPartnerLocationRef.current, effectivePartnerLocation)
+        const computed = calculateBearing(targetPartnerLocationRef.current, effectivePartnerLocation)
         targetHeading = computed
-        lastHeadingRef.current = computed
       }
+      const markerStyle = `${markerMode}:${isStale}`
 
       // Calculate shortest angular rotation distance (-180 to +180) to prevent 360-degree spins
       const getShortestAngle = (start: number, end: number) => {
@@ -416,6 +417,10 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
       if (!partnerMarkerRef.current || !currentRenderedPosRef.current) {
         currentRenderedPosRef.current = effectivePartnerLocation
         currentRenderedHeadingRef.current = targetHeading
+        lastHeadingRef.current = targetHeading
+        targetPartnerLocationRef.current = effectivePartnerLocation
+        lastPartnerTargetTimeRef.current = performance.now()
+        partnerMarkerStyleRef.current = markerStyle
         const icon =
           markerMode === "navigation"
             ? createNavigationArrowIcon(targetHeading, isStale)
@@ -440,58 +445,81 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
           partnerMarkerRef.current = marker
         }
       } else {
-        // Smooth continuous 60fps interpolation from current rendered position to new target location
-        if (animFrameIdRef.current) {
-          cancelAnimationFrame(animFrameIdRef.current)
-          animFrameIdRef.current = null
-        }
+        const targetChanged =
+          targetPartnerLocationRef.current?.latitude !== effectivePartnerLocation.latitude ||
+          targetPartnerLocationRef.current?.longitude !== effectivePartnerLocation.longitude
+        const styleChanged = partnerMarkerStyleRef.current !== markerStyle
+        const headingChanged =
+          Math.abs(getShortestAngle(lastHeadingRef.current, targetHeading)) > 0.1
 
-        const startLat = currentRenderedPosRef.current.latitude
-        const startLng = currentRenderedPosRef.current.longitude
-        const endLat = effectivePartnerLocation.latitude
-        const endLng = effectivePartnerLocation.longitude
-
-        const startHeading = currentRenderedHeadingRef.current
-        const deltaAngle = getShortestAngle(startHeading, targetHeading)
-
-        const startTime = performance.now()
-        // 900ms smooth duration matches live GPS / WebSocket pulse intervals
-        const animDuration = 900
-
-        const animateStep = (now: number) => {
-          const elapsed = now - startTime
-          const progress = Math.min(elapsed / animDuration, 1)
-
-          // Smooth cubic ease-out
-          const ease = 1 - Math.pow(1 - progress, 3)
-
-          const currLat = startLat + (endLat - startLat) * ease
-          const currLng = startLng + (endLng - startLng) * ease
-          const currHeading = (startHeading + deltaAngle * ease + 360) % 360
-
-          currentRenderedPosRef.current = { latitude: currLat, longitude: currLng }
-          currentRenderedHeadingRef.current = currHeading
-
-          if (partnerMarkerRef.current) {
-            partnerMarkerRef.current.setLatLng([currLat, currLng])
-            const currentIcon =
-              markerMode === "navigation"
-                ? createNavigationArrowIcon(currHeading, isStale)
-                : createTruckIcon(currHeading, isStale)
-            partnerMarkerRef.current.setIcon(currentIcon)
-          }
-
-          if (progress < 1) {
-            animFrameIdRef.current = requestAnimationFrame(animateStep)
-          } else {
+        if (targetChanged) {
+          if (animFrameIdRef.current) {
+            cancelAnimationFrame(animFrameIdRef.current)
             animFrameIdRef.current = null
           }
-        }
 
-        animFrameIdRef.current = requestAnimationFrame(animateStep)
+          const now = performance.now()
+          const previousTargetTime = lastPartnerTargetTimeRef.current
+          const updateInterval = previousTargetTime == null ? 3000 : now - previousTargetTime
+          const startLat = currentRenderedPosRef.current.latitude
+          const startLng = currentRenderedPosRef.current.longitude
+          const endLat = effectivePartnerLocation.latitude
+          const endLng = effectivePartnerLocation.longitude
+          const startHeading = currentRenderedHeadingRef.current
+          const deltaAngle = getShortestAngle(startHeading, targetHeading)
+          const animDuration = Math.min(Math.max(updateInterval, 1200), 12000)
+
+          partnerMarkerRef.current.setIcon(
+            markerMode === "navigation"
+              ? createNavigationArrowIcon(startHeading, isStale)
+              : createTruckIcon(startHeading, isStale),
+          )
+          partnerMarkerStyleRef.current = markerStyle
+          lastHeadingRef.current = targetHeading
+
+          targetPartnerLocationRef.current = effectivePartnerLocation
+          lastPartnerTargetTimeRef.current = now
+
+          const animateStep = (frameTime: number) => {
+            const progress = Math.min((frameTime - now) / animDuration, 1)
+            const currLat = startLat + (endLat - startLat) * progress
+            const currLng = startLng + (endLng - startLng) * progress
+            const currHeading = (startHeading + deltaAngle * progress + 360) % 360
+
+            currentRenderedPosRef.current = { latitude: currLat, longitude: currLng }
+            currentRenderedHeadingRef.current = currHeading
+
+            if (partnerMarkerRef.current) {
+              partnerMarkerRef.current.setLatLng([currLat, currLng])
+              const rotationNode = partnerMarkerRef.current
+                .getElement()
+                ?.querySelector<HTMLElement>(".tracking-marker-rotation")
+              if (rotationNode) {
+                const rotation = markerMode === "navigation" ? currHeading : (currHeading + 180) % 360
+                rotationNode.style.transform = `rotate(${rotation}deg)`
+              }
+            }
+
+            if (progress < 1) {
+              animFrameIdRef.current = requestAnimationFrame(animateStep)
+            } else {
+              animFrameIdRef.current = null
+            }
+          }
+
+          animFrameIdRef.current = requestAnimationFrame(animateStep)
+        } else if (styleChanged || headingChanged) {
+          partnerMarkerRef.current.setIcon(
+            markerMode === "navigation"
+              ? createNavigationArrowIcon(targetHeading, isStale)
+              : createTruckIcon(targetHeading, isStale),
+          )
+          partnerMarkerStyleRef.current = markerStyle
+          currentRenderedHeadingRef.current = targetHeading
+          lastHeadingRef.current = targetHeading
+        }
       }
 
-      prevPartnerLocationRef.current = effectivePartnerLocation
       bounds.extend(partnerLatLng)
       hasPoints = true
     } else if (partnerMarkerRef.current) {
@@ -502,6 +530,9 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
       map.removeLayer(partnerMarkerRef.current)
       partnerMarkerRef.current = null
       currentRenderedPosRef.current = null
+      targetPartnerLocationRef.current = null
+      lastPartnerTargetTimeRef.current = null
+      partnerMarkerStyleRef.current = null
     }
 
     // 3. Destination Marker (Customer Shipping Address)

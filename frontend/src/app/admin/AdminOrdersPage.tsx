@@ -1,5 +1,6 @@
 import {
   Loader2,
+  Phone,
   RefreshCcw,
   Search,
   ShoppingBag,
@@ -64,9 +65,14 @@ export function AdminOrdersPage() {
         title="Order management"
         description="Review orders, monitor fulfillment, and track collected payments and outstanding balances."
         action={
-          <Button variant="ghost" onClick={refetch} title="Refresh orders">
-            <RefreshCcw size={15} />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link to="/admin/orders/new-phone">
+              <Button><Phone size={15} /> Phone order</Button>
+            </Link>
+            <Button variant="ghost" onClick={refetch} title="Refresh orders">
+              <RefreshCcw size={15} />
+            </Button>
+          </div>
         }
       />
 

@@ -182,7 +182,7 @@ export interface OrderItemSnapshot {
 export interface OrderResponse {
   id: string
   orderNumber: string
-  userId: string
+  userId: string | null
   status: string
   paymentMethod: "cod" | string
   paymentStatus: "pending" | "paid" | string

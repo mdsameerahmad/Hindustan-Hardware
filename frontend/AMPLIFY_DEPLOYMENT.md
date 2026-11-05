@@ -25,6 +25,7 @@ in this Amplify build and must be deployed separately.
 | --- | --- |
 | `VITE_API_BASE_URL` | Public HTTPS backend API URL, including the version path, for example `https://api.example.com/api/v1`. |
 | `VITE_SOCKET_URL` | Optional when Socket.IO uses the same backend origin. Otherwise, set the public HTTPS backend origin, for example `https://api.example.com` (no `/api/v1` path). If omitted, the frontend derives it from `VITE_API_BASE_URL`. |
+| `VITE_PUBLIC_APP_URL` | Recommended canonical public storefront origin (for example `https://shop.example.com`, without a trailing path). Shared tracking links use this origin; otherwise they use the browser's current origin. |
 
 Use the actual URLs of your deployed backend; the example domain is a
 placeholder. The backend must allow requests from the Amplify site origin via

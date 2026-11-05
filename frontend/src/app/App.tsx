@@ -2,6 +2,7 @@ import { createBrowserRouter, Link, Navigate, RouterProvider, useRouteError } fr
 import {
     AdminLayout,
     AdminOrderDetailPage,
+    AdminPhoneOrderPage,
     AdminOrdersPage,
     AdminOverviewPage,
     AdminProductsPage,
@@ -26,7 +27,7 @@ import {
     BrandsPage, CartPage,
     CheckoutPage, ComparePage, ContactPage, HomePage, LiveTrackingDetailPage, OrderDetailPage,
     OrdersPage,
-    OrderSuccessPage, ProductDetailPage, ProductsPage, StorefrontLayout, TrackingPage, WishlistPage
+    OrderSuccessPage, ProductDetailPage, ProductsPage, SharedTrackingPage, StorefrontLayout, TrackingPage, WishlistPage
 } from "./user"
 
 function RouteErrorBoundary() {
@@ -108,6 +109,7 @@ const router = createBrowserRouter([
       { path: "order-success/:id", Component: OrderSuccessPage },
       { path: "track-order/:id", Component: TrackingPage },
       { path: "track-order/:id/live", Component: LiveTrackingDetailPage },
+      { path: "shared-tracking/:token", Component: SharedTrackingPage },
       { path: "wishlist", Component: WishlistPage },
       { path: "login", Component: AuthPage },
       { path: "signup", Component: AuthPage },
@@ -143,6 +145,7 @@ const router = createBrowserRouter([
           { path: "brands", Component: BrandsAdminPage },
           { path: "inventory", Component: InventoryPage },
           { path: "orders", Component: AdminOrdersPage },
+          { path: "orders/new-phone", Component: AdminPhoneOrderPage },
           { path: "orders/:id", Component: AdminOrderDetailPage },
           { path: "customers", element: <GenericAdminPage kind="customers" /> },
           { path: "deliveries", element: <GenericAdminPage kind="deliveries" /> },

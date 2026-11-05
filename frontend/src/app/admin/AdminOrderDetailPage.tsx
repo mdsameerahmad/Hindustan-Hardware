@@ -29,6 +29,7 @@ import {
     statusTone,
 } from "../components"
 import { LiveTrackingMap } from "../components/LiveTrackingMap"
+import { TrackingSharePanel } from "./TrackingSharePanel"
 import {
     deliveryTrackingApi,
     type DeliveryRouteResponse,
@@ -486,6 +487,16 @@ export function AdminOrderDetailPage() {
       {actionError && (
         <div className="mb-6 rounded-lg bg-red-50 p-4 border border-red-200 text-sm text-red-700">
           {actionError}
+        </div>
+      )}
+
+      {id && (
+        <div className="mb-6">
+          <TrackingSharePanel
+            orderId={id}
+            orderNumber={order.orderNumber}
+            disabled={order.status === "cancelled"}
+          />
         </div>
       )}
 

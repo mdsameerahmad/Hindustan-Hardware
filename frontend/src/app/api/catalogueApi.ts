@@ -39,6 +39,16 @@ export interface BackendInventory {
   low_stock_threshold?: number
 }
 
+export interface BackendProductVariant {
+  id: string
+  product_id: string
+  sku?: string | null
+  name: string
+  price_override?: number | null
+  variant_attributes?: Record<string, string>
+  is_active: boolean
+}
+
 export interface BackendProduct {
   id: string
   name: string
@@ -79,6 +89,7 @@ export interface BackendProduct {
     slug: string
   } | null
   inventory?: BackendInventory | null
+  variants?: BackendProductVariant[]
   image_url?: string | null
   product_images?: string[] | any[] | null
 }

@@ -18,9 +18,11 @@ export interface GeocodingSuggestion {
   state: string
   postalCode?: string
   country: string
-  latitude: number
-  longitude: number
+  latitude?: number
+  longitude?: number
   extent?: [number, number, number, number]
+  provider?: "Google-Places" | "Photon-OSM"
+  placeId?: string
 }
 
 export interface ReverseGeocodeResult {
@@ -61,7 +63,8 @@ export const locationApi = {
     query: string,
     cityBias?: string,
     limit: number = 10,
-    coords?: { lat?: number; lon?: number }
+    coords?: { lat?: number; lon?: number },
+    sessionToken?: string
   ): Promise<GeocodingSuggestion[]> => {
     const params = new URLSearchParams({
       q: query,
@@ -70,10 +73,23 @@ export const locationApi = {
     if (cityBias) params.set("city", cityBias)
     if (coords?.lat) params.set("lat", String(coords.lat))
     if (coords?.lon) params.set("lon", String(coords.lon))
+    if (sessionToken) params.set("sessionToken", sessionToken)
 
     return apiRequest<GeocodingSuggestion[]>(`/location/search?${params.toString()}`, {
       method: "GET",
     })
+  },
+
+  getPlaceDetails: async (placeId: string, sessionToken?: string): Promise<GeocodingSuggestion> => {
+    const params = new URLSearchParams()
+    if (sessionToken) params.set("sessionToken", sessionToken)
+    const queryString = params.toString()
+    const query = queryString ? `?${queryString}` : ""
+
+    return apiRequest<GeocodingSuggestion>(
+      `/location/place/${encodeURIComponent(placeId)}${query}`,
+      { method: "GET" }
+    )
   },
 
   /**

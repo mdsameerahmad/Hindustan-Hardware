@@ -50,6 +50,7 @@ export interface OrderLiveTrackingResponse {
   orderId: string
   orderNumber: string
   orderStatus: string
+  deliveryOtp?: string | null
   assignment: DeliveryAssignmentInfo | null
   latestLocation: DeliveryLocationRecord | null
   store: StoreOriginInfo
@@ -285,4 +286,3 @@ export interface AssignedDeliveryItem {
     variantTitle?: string | null
   }[]
 }
-

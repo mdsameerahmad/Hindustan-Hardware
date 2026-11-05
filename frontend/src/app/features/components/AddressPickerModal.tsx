@@ -54,7 +54,10 @@ export function AddressPickerModal({
   const [searchQuery, setSearchQuery] = useState("")
   const [suggestions, setSuggestions] = useState<GeocodingSuggestion[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [isSelectingSuggestion, setIsSelectingSuggestion] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
+  const searchRequestIdRef = useRef(0)
+  const searchSessionTokenRef = useRef(crypto.randomUUID())
 
   // Map state
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
@@ -122,13 +125,14 @@ export function AddressPickerModal({
     }
   }, [selectedCity])
 
-  // Debounced address search (Hybrid OSM + Nominatim Google Maps style search)
+  // Debounced address search using Google Places when configured, with Photon fallback.
   useEffect(() => {
     const trimmed = searchQuery.trim()
-    if (trimmed.length < 2) {
+    if (step !== 1 || trimmed.length < 2) {
       setSuggestions([])
       setIsSearching(false)
       setSearchError(null)
+      searchRequestIdRef.current += 1
       return
     }
 
@@ -136,24 +140,31 @@ export function AddressPickerModal({
     setSearchError(null)
 
     const timer = setTimeout(async () => {
+      const requestId = ++searchRequestIdRef.current
       try {
         const results = await locationApi.searchAddresses(trimmed, selectedCity, 12, {
           lat: pinCoords.latitude,
           lon: pinCoords.longitude,
-        })
+        }, searchSessionTokenRef.current)
+        if (requestId !== searchRequestIdRef.current) return
         setSuggestions(results)
         if (results.length === 0) {
           setSearchError("No matching street, road or landmark found. You can place the pin directly on the map.")
         }
       } catch (err: any) {
-        setSearchError("Address search unavailable. You can locate your address manually on the map.")
+        if (requestId === searchRequestIdRef.current) {
+          setSearchError("Address search unavailable. You can locate your address manually on the map.")
+        }
       } finally {
-        setIsSearching(false)
+        if (requestId === searchRequestIdRef.current) setIsSearching(false)
       }
     }, 300)
 
-    return () => clearTimeout(timer)
-  }, [searchQuery, selectedCity, pinCoords.latitude, pinCoords.longitude])
+    return () => {
+      clearTimeout(timer)
+      searchRequestIdRef.current += 1
+    }
+  }, [searchQuery, selectedCity, pinCoords.latitude, pinCoords.longitude, step])
 
   // Reverse geocode when pin moves
   const runReverseGeocode = useCallback(async (lat: number, lon: number) => {
@@ -322,20 +333,42 @@ export function AddressPickerModal({
   }
 
   // Select an autocomplete suggestion
-  const handleSelectSuggestion = (sug: GeocodingSuggestion) => {
-    setPinCoords({ latitude: sug.latitude, longitude: sug.longitude })
-    setAddressForm((prev) => ({
-      ...prev,
-      latitude: sug.latitude,
-      longitude: sug.longitude,
-      city: sug.city || selectedCity,
-      state: sug.state || "Bihar",
-      postalCode: sug.postalCode || prev.postalCode,
-      addressLine1: sug.street || sug.name,
-      addressLine2: sug.locality || "",
-      formattedAddress: sug.formattedAddress,
-    }))
-    setStep(2)
+  const handleSelectSuggestion = async (suggestion: GeocodingSuggestion) => {
+    setIsSelectingSuggestion(true)
+    setSearchError(null)
+    try {
+      const selected = suggestion.provider === "Google-Places" && suggestion.placeId
+        ? await locationApi.getPlaceDetails(suggestion.placeId, searchSessionTokenRef.current)
+        : suggestion
+      const latitude = selected.latitude
+      const longitude = selected.longitude
+      if (latitude == null || longitude == null) {
+        throw new Error("The selected map result does not include exact coordinates.")
+      }
+
+      if (suggestion.provider === "Google-Places") {
+        searchSessionTokenRef.current = crypto.randomUUID()
+      }
+
+      setPinCoords({ latitude, longitude })
+      setAddressForm((prev) => ({
+        ...prev,
+        latitude,
+        longitude,
+        city: selected.city || selectedCity,
+        state: selected.state || "Bihar",
+        postalCode: selected.postalCode || prev.postalCode,
+        addressLine1: selected.street || selected.name,
+        addressLine2: selected.locality || "",
+        formattedAddress: selected.formattedAddress,
+        geocodingProvider: selected.provider || "Photon-OSM",
+      }))
+      setStep(2)
+    } catch (err: any) {
+      setSearchError(err?.message || "Could not resolve the selected map result. Please try another result.")
+    } finally {
+      setIsSelectingSuggestion(false)
+    }
   }
 
   // Save final confirmed address
@@ -504,10 +537,27 @@ export function AddressPickerModal({
                 </div>
               </div>
 
+              {isSelectingSuggestion && (
+                <div className="flex items-center gap-2 text-xs text-amber-300" role="status">
+                  <Loader2 size={14} className="animate-spin" />
+                  Getting the exact map location...
+                </div>
+              )}
+
               {/* Suggestions List - Google Maps Style */}
               {suggestions.length > 0 && (
-                <div className="space-y-1.5 max-h-64 overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/80 p-2 scrollbar-thin">
-                  {suggestions.map((sug) => {
+                <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-2">
+                  {suggestions.some((suggestion) => suggestion.provider === "Google-Places") && (
+                    <div className="flex justify-end pb-2">
+                      <img
+                        src="https://maps.gstatic.com/mapfiles/api-3/images/powered-by-google-on-white3.png"
+                        alt="Powered by Google"
+                        className="h-4 rounded bg-white px-1"
+                      />
+                    </div>
+                  )}
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto scrollbar-thin">
+                    {suggestions.map((sug) => {
                     const lowerName = sug.name.toLowerCase()
                     const lowerAddr = sug.formattedAddress.toLowerCase()
 
@@ -542,8 +592,11 @@ export function AddressPickerModal({
                     return (
                       <div
                         key={sug.id}
-                        onClick={() => handleSelectSuggestion(sug)}
-                        className="p-2.5 rounded-lg hover:bg-slate-800/90 cursor-pointer transition flex items-start gap-2.5 text-xs group border border-transparent hover:border-slate-700"
+                        onClick={() => !isSelectingSuggestion && handleSelectSuggestion(sug)}
+                        aria-disabled={isSelectingSuggestion}
+                        className={`p-2.5 rounded-lg hover:bg-slate-800/90 transition flex items-start gap-2.5 text-xs group border border-transparent hover:border-slate-700 ${
+                          isSelectingSuggestion ? "cursor-wait opacity-60" : "cursor-pointer"
+                        }`}
                       >
                         <span className="grid h-7 w-7 place-items-center rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0 mt-0.5 group-hover:bg-amber-500 group-hover:text-black transition">
                           {isStation ? (
@@ -597,7 +650,8 @@ export function AddressPickerModal({
                         <ChevronRight size={14} className="text-slate-500 shrink-0 self-center group-hover:text-amber-400 transition" />
                       </div>
                     )
-                  })}
+                    })}
+                  </div>
                 </div>
               )}
 
