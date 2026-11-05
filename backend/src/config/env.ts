@@ -22,6 +22,7 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().url('SUPABASE_URL must be a valid URL').optional().or(z.literal('')),
   SUPABASE_ANON_KEY: z.string().min(1).optional().or(z.literal('')),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional().or(z.literal('')),
+  GOOGLE_MAPS_API_KEY: z.string().trim().optional().or(z.literal('')),
   DELIVERY_OTP_ENCRYPTION_KEY: z.string().optional().or(z.literal('')),
   REQUEST_BODY_LIMIT: z.string().default('1mb'),
   // Live Delivery Tracking configuration

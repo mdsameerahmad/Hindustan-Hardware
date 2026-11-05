@@ -24,6 +24,8 @@ import { BrandService } from '../services/brandService';
 import { ProductService } from '../services/productService';
 import { ImageService } from '../services/imageService';
 import { AdminService } from '../services/adminService';
+import { AdminPhoneOrderService } from '../services/adminPhoneOrderService';
+import { TrackingShareService } from '../services/trackingShareService';
 import { BulkInquiryService } from '../services/bulkInquiryService';
 import { DeliveryTrackingService } from '../services/deliveryTrackingService';
 import {
@@ -41,6 +43,9 @@ import {
   adminAuditLogQuerySchema,
   createDeliveryPartnerSchema,
   updateDeliveryPartnerSchema,
+  createPhoneOrderSchema,
+  createTrackingShareSchema,
+  trackingShareIdParamSchema,
 } from '../common/validation/adminSchemas';
 import { orderIdParamSchema, cancelOrderSchema } from '../common/validation/orderSchemas';
 import { adminRateLimiter } from '../common/middleware/rateLimiter';
@@ -381,6 +386,82 @@ adminRouter.get('/orders', async (req: Request, res: Response, next: NextFunctio
     next(err);
   }
 });
+
+adminRouter.post('/orders/phone', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = createPhoneOrderSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+
+    const created = await AdminPhoneOrderService.createOrder({
+      actorId: req.user!.id,
+      shippingAddress: parsed.data.shippingAddress,
+      items: parsed.data.items,
+      customerNotes: parsed.data.customerNotes,
+      idempotencyKey: parsed.data.idempotencyKey,
+    });
+    const order = await AdminService.getAdminOrderById(created.orderId);
+    return sendSuccess(
+      res,
+      { ...order, deliveryOtp: created.deliveryOtp },
+      'Phone order created successfully',
+      201
+    );
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.post(
+  '/orders/:orderId/tracking-share',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const orderParsed = orderIdParamSchema.safeParse(req.params);
+      if (!orderParsed.success) return next(orderParsed.error);
+
+      const bodyParsed = createTrackingShareSchema.safeParse(req.body || {});
+      if (!bodyParsed.success) return next(bodyParsed.error);
+
+      const share = await TrackingShareService.createShareLink({
+        orderId: orderParsed.data.orderId,
+        actorId: req.user!.id,
+        expiresInHours: bodyParsed.data.expiresInHours,
+      });
+      return sendSuccess(res, share, 'Order tracking link created successfully', 201);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.get(
+  '/orders/:orderId/tracking-shares',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const orderParsed = orderIdParamSchema.safeParse(req.params);
+      if (!orderParsed.success) return next(orderParsed.error);
+
+      const shares = await TrackingShareService.listShareLinks(orderParsed.data.orderId);
+      return sendSuccess(res, shares, 'Order tracking links retrieved successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+adminRouter.delete(
+  '/orders/:orderId/tracking-shares/:shareId',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = trackingShareIdParamSchema.safeParse(req.params);
+      if (!parsed.success) return next(parsed.error);
+
+      await TrackingShareService.revokeShareLink(parsed.data.orderId, parsed.data.shareId);
+      return sendSuccess(res, null, 'Order tracking link revoked successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 adminRouter.get('/orders/:orderId', async (req: Request, res: Response, next: NextFunction) => {
   try {

@@ -989,7 +989,28 @@ npx vitest run tests/delivery_tracking.test.ts tests/socket_tracking.test.ts tes
 
 ---
 
-## 13. Catalogue Seeding System, Cross-Batch Idempotency & Rollback Safety
+## 13. Phone Orders & Shareable Live Tracking
+
+Migration `017_phone_orders_and_tracking_shares.sql` adds phone-created guest orders and bearer-token tracking links without changing the order, order-item, payment, delivery-assignment, or delivery-status lifecycle. Guest orders have no synthetic customer account; recipient name, phone, and destination remain in the order's shipping-address snapshot.
+
+### Admin endpoints
+
+| Endpoint | Method | Purpose |
+| :--- | :--- | :--- |
+| `/api/v1/admin/orders/phone` | `POST` | Create a COD order for a phone recipient. The server calculates prices, locks/checks stock, writes order snapshots, and deducts inventory atomically. |
+| `/api/v1/admin/orders/:orderId/tracking-share` | `POST` | Create a one-time-returned share token. Optional `expiresInHours` is 1–720 (default 168). The response includes `trackingPath` for sharing. |
+| `/api/v1/admin/orders/:orderId/tracking-shares` | `GET` | List link metadata without returning any token. |
+| `/api/v1/admin/orders/:orderId/tracking-shares/:shareId` | `DELETE` | Revoke a share link immediately. |
+
+Phone-order requests supply `shippingAddress`, product/variant IDs and quantities, plus optional notes and an idempotency key. Prices and inventory are never trusted from the caller. The admin-only create response includes the delivery OTP so staff can relay it separately to the recipient; it is never included in the public tracking response.
+
+### Public tracking endpoint
+
+`GET /api/v1/public/tracking/:token` returns order number/status, delivery-partner name, current GPS position, destination/store coordinates, road route, ETA, and link expiry. It does not expose recipient/partner phone numbers, order item details, or prices. It requires no customer login; possession of the high-entropy link is the access credential. The raw token is returned only on link creation, only its SHA-256 digest is stored, links expire, and admins can revoke them. Anonymous reads are rate-limited and responses are non-cacheable. Tracking-link tokens are redacted from backend request/error logs.
+
+Public tracking pages should poll this endpoint to stay current; existing authenticated Socket.IO subscriptions and customer tracking routes remain unchanged.
+
+## 14. Catalogue Seeding System, Cross-Batch Idempotency & Rollback Safety
 
 The backend includes a catalogue seeding and idempotency engine located in `scripts/catalogue/` designed to ingest 1,944 hardware products from `Combined_Product_Price_List .xlsx` and `catalogue_import_clean.csv`.
 
@@ -1041,6 +1062,9 @@ or in Bash/sh:
 CATALOGUE_IMPORT_APPROVED=true npm run catalogue:seed -- --commit
 ```
 
+## Map Search Provider
 
+The shared address picker uses Photon/OpenStreetMap search by default. To enable broader Google Places street, road, station, and landmark results, set `GOOGLE_MAPS_API_KEY` in the backend environment. Enable Places API (New), configure billing and usage quotas in Google Cloud, and restrict the server-side key to the backend's egress IP and Places API. Keep the key server-side; it is never returned to the frontend. Google Places autocomplete sessions are paired with place-detail lookups, and Photon remains the fallback if Google is not configured or unavailable.
 
+Search quality and street completeness still depend on the map provider's data; neither provider guarantees every named path or address.
 

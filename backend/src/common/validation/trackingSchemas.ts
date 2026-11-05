@@ -94,6 +94,10 @@ export const orderTrackingParamSchema = z.object({
   orderId: z.string().uuid({ message: 'Order ID must be a valid UUID.' }),
 });
 
+export const trackingTokenParamSchema = z.object({
+  token: z.string().regex(/^[A-Za-z0-9_-]{43}$/, 'Invalid tracking link token.'),
+});
+
 export const createDeliveryAssignmentSchema = z.object({
   orderId: z.string().uuid({ message: 'Order ID must be a valid UUID.' }),
   deliveryPartnerId: z.string().uuid({ message: 'Delivery partner ID must be a valid UUID.' }),

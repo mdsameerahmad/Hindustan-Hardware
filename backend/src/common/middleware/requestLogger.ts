@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
+import { redactTrackingShareToken } from '../utils/requestPath';
 
 export function requestLogger(req: Request, res: Response, next: NextFunction): void {
   const start = Date.now();
@@ -10,7 +11,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
     logger.info('HTTP Request handled', {
       requestId,
       method: req.method,
-      url: req.originalUrl || req.url,
+      url: redactTrackingShareToken(req.originalUrl || req.url),
       statusCode: res.statusCode,
       durationMs,
       ip: req.ip,

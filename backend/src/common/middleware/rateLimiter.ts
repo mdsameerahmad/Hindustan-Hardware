@@ -110,3 +110,54 @@ export const trackingRateLimiter = rateLimit({
     );
   },
 });
+
+/**
+ * Limits anonymous requests made through bearer-style shared tracking links.
+ */
+export const trackingShareRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    return sendError(
+      res,
+      'TOO_MANY_REQUESTS',
+      'Too many shared tracking requests. Please wait a moment.',
+      429
+    );
+  },
+});
+
+/**
+ * Limits public geocoding lookups to protect upstream map-provider quotas.
+ */
+export const locationSearchRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    return sendError(
+      res,
+      'TOO_MANY_REQUESTS',
+      'Too many map searches. Please wait a moment and try again.',
+      429
+    );
+  },
+});
+
+export const locationDetailsRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    return sendError(
+      res,
+      'TOO_MANY_REQUESTS',
+      'Too many map place lookups. Please wait a moment and try again.',
+      429
+    );
+  },
+});

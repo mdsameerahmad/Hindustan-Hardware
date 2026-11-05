@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { GeocodingService } from '../services/geocodingService';
 import { ServiceabilityService } from '../services/serviceabilityService';
 import { sendSuccess } from '../common/utils/response';
-import { BadRequestError } from '../common/errors';
+import { locationDetailsRateLimiter, locationSearchRateLimiter } from '../common/middleware/rateLimiter';
 
 export const locationRouter = Router();
 
@@ -22,6 +22,7 @@ const searchSchema = z.object({
     .string()
     .optional()
     .transform((val) => (val ? parseFloat(val) : undefined)),
+  sessionToken: z.string().uuid().optional(),
 });
 
 const reverseSchema = z.object({
@@ -33,6 +34,11 @@ const reverseSchema = z.object({
     .string()
     .transform((val) => parseFloat(val))
     .refine((val) => !isNaN(val) && val >= -180 && val <= 180, 'Longitude must be between -180 and 180'),
+});
+
+const placeDetailsSchema = z.object({
+  placeId: z.string().regex(/^[A-Za-z0-9_-]{1,256}$/, 'Invalid map place ID'),
+  sessionToken: z.string().uuid().optional(),
 });
 
 const serviceabilitySchema = z.object({
@@ -59,9 +65,10 @@ locationRouter.get('/cities', (req: Request, res: Response) => {
 
 /**
  * GET /api/v1/location/search
- * Autocomplete address and locality search backed by Photon.
+ * Autocomplete address and locality search backed by Google Places when configured,
+ * with Photon as the OpenStreetMap fallback.
  */
-locationRouter.get('/search', async (req: Request, res: Response, next: NextFunction) => {
+locationRouter.get('/search', locationSearchRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = searchSchema.safeParse(req.query);
     if (!parsed.success) {
@@ -73,9 +80,31 @@ locationRouter.get('/search', async (req: Request, res: Response, next: NextFunc
       limit: parsed.data.limit,
       lat: parsed.data.lat,
       lon: parsed.data.lon,
+      sessionToken: parsed.data.sessionToken,
     });
 
     return sendSuccess(res, suggestions, 'Address suggestions retrieved successfully');
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/v1/location/place/:placeId
+ * Resolves a selected Google Places suggestion to an exact map coordinate.
+ */
+locationRouter.get('/place/:placeId', locationDetailsRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = placeDetailsSchema.safeParse({
+      placeId: req.params.placeId,
+      sessionToken: req.query.sessionToken,
+    });
+    if (!parsed.success) {
+      return next(parsed.error);
+    }
+
+    const result = await GeocodingService.getGooglePlaceDetails(parsed.data.placeId, parsed.data.sessionToken);
+    return sendSuccess(res, result, 'Map place details retrieved successfully');
   } catch (err) {
     next(err);
   }

@@ -75,7 +75,7 @@ export class RoadRoutingService {
     assignment: {
       id: string;
       orderId: string;
-      customerId: string;
+      customerId: string | null;
       deliveryPartnerId: string;
       status: string;
     };

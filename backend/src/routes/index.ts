@@ -11,6 +11,7 @@ import { checkoutRouter } from './checkout';
 import { deliveryRouter } from './delivery';
 import { locationRouter } from './location';
 import { bulkInquiryRouter } from './bulkInquiry';
+import { trackingShareRouter } from './trackingShare';
 
 export const apiV1Router = Router();
 
@@ -29,6 +30,9 @@ apiV1Router.use('/location', locationRouter);
 // Mount public bulk inquiry submission routes
 apiV1Router.use('/bulk-inquiries', bulkInquiryRouter);
 
+// Public bearer-token access for admin-shared order tracking links
+apiV1Router.use('/public/tracking', trackingShareRouter);
+
 // Mount public catalogue routes
 apiV1Router.use('/categories', publicCategoryRouter);
 apiV1Router.use('/brands', publicBrandRouter);
@@ -45,4 +49,3 @@ apiV1Router.use('/deliveries', deliveryRouter);
 
 // Mount admin management routes under /api/v1/admin
 apiV1Router.use('/admin', adminRouter);
-

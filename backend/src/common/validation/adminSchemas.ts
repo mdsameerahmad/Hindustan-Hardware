@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createAddressSchema } from './customerSchemas';
 
 export const adminOrderQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -17,6 +18,39 @@ export const adminOrderQuerySchema = z.object({
 export const updateOrderStatusSchema = z.object({
   status: z.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']),
   reason: z.string().trim().min(3).max(500).optional(),
+});
+
+export const createPhoneOrderSchema = z.object({
+  shippingAddress: createAddressSchema,
+  items: z.array(z.object({
+    productId: z.string().uuid('Product ID must be a valid UUID'),
+    variantId: z.string().uuid('Variant ID must be a valid UUID').nullable().optional(),
+    quantity: z.number().int().min(1).max(999),
+  })).min(1).max(100).superRefine((items, context) => {
+    const seen = new Set<string>();
+    items.forEach((item, index) => {
+      const key = `${item.productId}:${item.variantId || ''}`;
+      if (seen.has(key)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'productId'],
+          message: 'A product and variant may only appear once; update its quantity instead.',
+        });
+      }
+      seen.add(key);
+    });
+  }),
+  customerNotes: z.string().trim().max(500).optional().nullable(),
+  idempotencyKey: z.string().uuid().optional(),
+});
+
+export const createTrackingShareSchema = z.object({
+  expiresInHours: z.number().int().min(1).max(720).default(168),
+});
+
+export const trackingShareIdParamSchema = z.object({
+  orderId: z.string().uuid('Order ID must be a valid UUID'),
+  shareId: z.string().uuid('Tracking share ID must be a valid UUID'),
 });
 
 export const collectCodPaymentSchema = z.object({

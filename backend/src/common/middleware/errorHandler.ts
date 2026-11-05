@@ -4,6 +4,7 @@ import { AppError } from '../errors';
 import { sendError } from '../utils/response';
 import { logger } from '../utils/logger';
 import { env } from '../../config/env';
+import { redactTrackingShareToken } from '../utils/requestPath';
 
 export function errorHandler(
   err: Error,
@@ -20,7 +21,7 @@ export function errorHandler(
     name: err.name,
     message: err.message,
     stack: env.NODE_ENV !== 'production' ? err.stack : undefined,
-    path: req.originalUrl || req.url,
+    path: redactTrackingShareToken(req.originalUrl || req.url),
     method: req.method,
   });
 

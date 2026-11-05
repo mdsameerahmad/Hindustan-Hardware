@@ -300,7 +300,7 @@ export interface OrderItemRecord {
 export interface OrderResponse {
   id: string;
   orderNumber: string;
-  userId: string;
+  userId: string | null;
   status: OrderStatus;
   paymentMethod: 'cod';
   paymentStatus: PaymentStatus;
@@ -495,7 +495,7 @@ export interface DeliveryAssignmentRecord {
   id: string;
   orderId: string;
   deliveryPartnerId: string;
-  customerId: string;
+  customerId: string | null;
   status: DeliveryAssignmentStatus;
   notes: string | null;
   assignedAt: string;
@@ -589,6 +589,7 @@ export interface OrderLiveTrackingResponse {
   orderId: string;
   orderNumber: string;
   orderStatus: OrderStatus;
+  deliveryOtp?: string | null;
   assignment: {
     id: string;
     status: DeliveryAssignmentStatus;
