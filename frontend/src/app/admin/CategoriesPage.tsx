@@ -137,8 +137,8 @@ export function CategoriesPage() {
       event.target.value = ""
       return
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setFormError("Image file must not exceed 5MB.")
+    if (file.size > 20 * 1024 * 1024) {
+      setFormError("Image file must not exceed 20MB.")
       event.target.value = ""
       return
     }
@@ -334,7 +334,7 @@ export function CategoriesPage() {
                 />
               </label>
               <p className="mt-2 text-[11px] text-slate-400">
-                Images are converted to WebP before upload. Maximum file size: 5MB.
+                Images are converted to WebP and compressed before upload. Maximum file size: 20MB.
               </p>
             </FormCard>
 

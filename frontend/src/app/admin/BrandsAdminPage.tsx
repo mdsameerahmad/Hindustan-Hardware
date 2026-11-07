@@ -748,7 +748,7 @@ export function BrandsAdminPage() {
             </span>
             <h2 className="mt-4 text-xl font-black">Delete this brand?</h2>
             <p className="mt-2 text-sm text-slate-500">
-              <strong className="text-slate-800">{pendingDelete.name}</strong> will be permanently deleted from the database. This action cannot be undone if products reference it.
+              <strong className="text-slate-800">{pendingDelete.name}</strong> will be permanently deleted. Products will remain, but will no longer be linked to this brand.
             </p>
             {deleteError && (
               <div className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-red-700 border border-red-200">

@@ -1,10 +1,9 @@
+import { AlertCircle, CheckCircle2, Image as ImageIcon, Trash2, Upload } from 'lucide-react'
 import React, { useState } from 'react'
-import { Upload, Trash2, CheckCircle2, Image as ImageIcon, AlertCircle } from 'lucide-react'
-import { Button } from '../../components'
-import { productImagesApi } from '../api'
-import { ProductImage } from './ProductImage'
 import { convertImageToWebP } from '../../utils/imageConverter'
+import { productImagesApi } from '../api'
 import type { BackendProductImage } from '../types'
+import { ProductImage } from './ProductImage'
 
 interface AdminImageManagerProps {
   productId: string
@@ -34,9 +33,9 @@ export const AdminImageManager: React.FC<AdminImageManagerProps> = ({
       return
     }
 
-    const maxSize = 5 * 1024 * 1024 // 5MB
+    const maxSize = 20 * 1024 * 1024 // 20MB
     if (file.size > maxSize) {
-      setError('Image file must not exceed 5MB.')
+      setError('Image file must not exceed 20MB.')
       return
     }
 
@@ -194,7 +193,7 @@ export const AdminImageManager: React.FC<AdminImageManagerProps> = ({
         <div className="mt-3">
           <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[#D4AF37] bg-amber-50/20 px-4 py-4 text-xs font-bold text-ink hover:bg-amber-50/40 transition">
             <Upload size={16} className="text-[#D4AF37]" />
-            <span>{uploading ? 'Uploading to Supabase Storage...' : 'Choose JPG, PNG, or WebP image to upload'}</span>
+            <span>{uploading ? 'Uploading....!!!' : 'Choose JPG, PNG, or WebP image to upload'}</span>
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
@@ -204,7 +203,7 @@ export const AdminImageManager: React.FC<AdminImageManagerProps> = ({
             />
           </label>
           <p className="mt-1 text-[11px] text-slate-400">
-            Max file size: 5MB. Uploaded images are served directly from the public <code>product-images</code> Supabase bucket.
+            Max file size: 20MB. Images are converted to WebP and compressed before being stored.
           </p>
         </div>
       </div>

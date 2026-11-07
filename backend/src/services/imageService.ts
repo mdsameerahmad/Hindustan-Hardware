@@ -4,6 +4,7 @@ import { InternalServerError, NotFoundError, BadRequestError } from '../common/e
 import { validateImageMagicBytes } from '../common/middleware/imageUpload';
 import { ProductImage } from '../types';
 import { logger } from '../common/utils/logger';
+import { compressImageToWebp } from './imageProcessor';
 
 export const PRODUCT_STORAGE_BUCKET = 'product-images';
 
@@ -82,15 +83,17 @@ export class ImageService {
       throw new BadRequestError('File content is corrupted or does not match a valid JPEG, PNG, or WebP image.');
     }
 
+    const compressedImage = await compressImageToWebp(fileBuffer);
+
     // 4. Generate stable, secure storage path
     const imageId = uuidv4();
-    const storagePath = `products/${productId}/${imageId}.${magic.extension}`;
+    const storagePath = `products/${productId}/${imageId}.webp`;
 
     // 5. Upload to Supabase Storage
     const { error: uploadError } = await adminClient.storage
       .from(PRODUCT_STORAGE_BUCKET)
-      .upload(storagePath, fileBuffer, {
-        contentType: magic.mimeType,
+      .upload(storagePath, compressedImage, {
+        contentType: 'image/webp',
         upsert: false,
       });
 

@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { PRODUCT_STORAGE_BUCKET, ImageService } from './imageService';
 import { validateImageMagicBytes } from '../common/middleware/imageUpload';
 import { logger } from '../common/utils/logger';
+import { compressImageToWebp } from './imageProcessor';
 
 export class BrandService {
   /**
@@ -291,11 +292,6 @@ export class BrandService {
     const adminClient = getSupabaseAdminClient();
     if (!adminClient) throw new InternalServerError('Administrative database client is unavailable.');
 
-    const productsCount = await adminClient.from('products').select('id', { count: 'exact', head: true }).eq('brand_id', id);
-    if ((productsCount.count || 0) > 0) {
-      throw new BadRequestError('Cannot delete brand: existing products reference this brand. Deactivate it instead.');
-    }
-
     const { error } = await adminClient.from('brands').delete().eq('id', id);
     if (error) throw new InternalServerError(`Failed to delete brand: ${error.message}`);
   }
@@ -317,14 +313,16 @@ export class BrandService {
       throw new BadRequestError('File content is corrupted or not a valid image format.');
     }
 
+    const compressedImage = await compressImageToWebp(fileBuffer);
+
     // 3. Upload to storage bucket
     const fileId = uuidv4();
-    const storagePath = `brands/${brandId}/logo-${fileId}.${magic.extension}`;
+    const storagePath = `brands/${brandId}/logo-${fileId}.webp`;
 
     const { error: uploadError } = await adminClient.storage
       .from(PRODUCT_STORAGE_BUCKET)
-      .upload(storagePath, fileBuffer, {
-        contentType: magic.mimeType,
+      .upload(storagePath, compressedImage, {
+        contentType: 'image/webp',
         upsert: true,
       });
 
@@ -352,4 +350,3 @@ export class BrandService {
     return this.parseBrandRow(data);
   }
 }
-

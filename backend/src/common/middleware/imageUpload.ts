@@ -1,8 +1,8 @@
 import multer from 'multer';
 import { BadRequestError } from '../errors';
 
-// Max file size: 5 Megabytes
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+// Cap source uploads while keeping enough room for high-resolution originals.
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 

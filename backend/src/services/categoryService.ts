@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { PRODUCT_STORAGE_BUCKET, ImageService } from './imageService';
 import { validateImageMagicBytes } from '../common/middleware/imageUpload';
 import { logger } from '../common/utils/logger';
+import { compressImageToWebp } from './imageProcessor';
 
 export class CategoryService {
   /**
@@ -184,11 +185,12 @@ export class CategoryService {
       throw new BadRequestError('File content is corrupted or not a valid image format.');
     }
 
-    const storagePath = `categories/${categoryId}/category-${uuidv4()}.${magic.extension}`;
+    const compressedImage = await compressImageToWebp(fileBuffer);
+    const storagePath = `categories/${categoryId}/category-${uuidv4()}.webp`;
     const { error: uploadError } = await adminClient.storage
       .from(PRODUCT_STORAGE_BUCKET)
-      .upload(storagePath, fileBuffer, {
-        contentType: magic.mimeType,
+      .upload(storagePath, compressedImage, {
+        contentType: 'image/webp',
         upsert: true,
       });
 
