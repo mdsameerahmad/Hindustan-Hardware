@@ -6,8 +6,31 @@ import { AddressService } from './addressService';
 import { CartService } from './cartService';
 import { logger } from '../common/utils/logger';
 import { createDeliveryOtp, decryptDeliveryOtp, DeliveryOtpBundle } from './deliveryOtpService';
+import { broadcastNewOrderToAdmins } from '../common/socket/trackingSocket';
+import { getDeliveryFeeByOrderId } from './deliveryFeeService';
 
 export class CheckoutService {
+  private static async isDeliveryPincodeAvailable(postalCode: unknown): Promise<boolean> {
+    const pincode = String(postalCode || '').trim().replace(/\D/g, '');
+    if (!/^\d{6}$/.test(pincode)) return false;
+
+    const client = getSupabaseAdminClient() || getSupabaseClient();
+    if (!client) throw new InternalServerError('Database service is unavailable.');
+
+    const { data, error } = await client
+      .from('serviceable_postcodes')
+      .select('pincode')
+      .eq('pincode', pincode)
+      .maybeSingle();
+
+    if (error) {
+      logger.error('Failed to check delivery postcode coverage', { pincode, error: error.message });
+      throw new InternalServerError('Unable to verify delivery availability right now.');
+    }
+
+    return Boolean(data);
+  }
+
   /**
    * Generates a safe, unguessable, human-readable order number.
    * e.g., "HH-20261019-A3F9B1"
@@ -111,6 +134,24 @@ export class CheckoutService {
     const client = getSupabaseAdminClient() || getSupabaseClient();
     if (!client) throw new InternalServerError('Database service is unavailable.');
 
+    const pincode = String(shippingAddress.postal_code || '').trim();
+    if (!(await this.isDeliveryPincodeAvailable(pincode))) {
+      return {
+        isValid: true,
+        canCheckout: false,
+        deliveryAvailable: false,
+        deliveryMessage: 'Delivery is not available in your location. Contact the shop for assistance.',
+        deliveryPincode: pincode,
+        itemCount: 0,
+        subtotal: 0,
+        totalAmount: 0,
+        currency: 'INR',
+        paymentMethod: 'cod',
+        shippingAddress,
+        items: [],
+      };
+    }
+
     // 1. Fetch active customer cart
     const cart = await CartService.getOrCreateCustomerCart(userId);
     if (!cart.items || cart.items.length === 0) {
@@ -126,7 +167,7 @@ export class CheckoutService {
     for (const item of cart.items) {
       const { data: product, error: prodErr } = await client
         .from('products')
-        .select('id, name, base_price, is_active, specs, brand:brands(id, name, description)')
+        .select('id, name, base_price, compare_at_price, is_active, specs, brand:brands(id, name, description)')
         .eq('id', item.productId)
         .single();
 
@@ -169,9 +210,14 @@ export class CheckoutService {
         }
       }
 
+      const discountBasisPrice = item.variantId
+        ? rawUnitPrice
+        : Number(product.compare_at_price) > 0
+          ? Number(product.compare_at_price)
+          : rawUnitPrice;
       let unitPrice = rawUnitPrice;
       if (effectiveDiscount && effectiveDiscount > 0) {
-        unitPrice = Math.round(rawUnitPrice * (1 - effectiveDiscount / 100) * 100) / 100;
+        unitPrice = Math.round(discountBasisPrice * (1 - effectiveDiscount / 100) * 100) / 100;
       }
 
       // Check stock
@@ -224,6 +270,9 @@ export class CheckoutService {
       paymentMethod: 'cod',
       shippingAddress,
       items: validatedItems,
+      deliveryAvailable: true,
+      deliveryMessage: 'Delivery is available to this PIN code.',
+      deliveryPincode: pincode,
       priceDiscrepancies: priceDiscrepancies.length > 0 ? priceDiscrepancies : undefined,
     };
   }
@@ -274,6 +323,9 @@ export class CheckoutService {
       params.addressId,
       params.shippingAddress
     );
+    if (!(await this.isDeliveryPincodeAvailable(shippingAddress.postal_code))) {
+      throw new BadRequestError('Delivery is not available in your location. Contact the shop for assistance.');
+    }
 
     // 3. Fetch active customer cart
     const cart = await CartService.getOrCreateCustomerCart(userId);
@@ -300,7 +352,15 @@ export class CheckoutService {
       });
 
       if (!rpcError && rpcResult && rpcResult.order_id) {
-        return this.getOrderById(rpcResult.order_id, userId);
+        const order = await this.getOrderById(rpcResult.order_id, userId);
+        if (!rpcResult.is_duplicate) {
+          broadcastNewOrderToAdmins({
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            createdAt: order.createdAt,
+          });
+        }
+        return order;
       }
 
       // If RPC is unavailable or returns an error that is a known business error:
@@ -524,7 +584,13 @@ export class CheckoutService {
     // 6. Clear Cart
     await client.from('cart_items').delete().eq('cart_id', cartId);
 
-    return this.getOrderById(orderId, userId);
+    const orderResponse = await this.getOrderById(orderId, userId);
+    broadcastNewOrderToAdmins({
+      orderId: orderResponse.id,
+      orderNumber: orderResponse.orderNumber,
+      createdAt: orderResponse.createdAt,
+    });
+    return orderResponse;
   }
 
   /**
@@ -553,6 +619,7 @@ export class CheckoutService {
 
     if (itemsErr) throw new InternalServerError(`Failed to query order items: ${itemsErr.message}`);
 
+    const deliveryFee = await getDeliveryFeeByOrderId(client, orderId);
     const formattedItems: OrderItemRecord[] = (items || []).map((row: any) => ({
       id: row.id,
       orderId: row.order_id,
@@ -581,6 +648,8 @@ export class CheckoutService {
       taxAmount: Number(order.tax_amount || 0),
       shippingAmount: Number(order.shipping_amount || 0),
       totalAmount: Number(order.total_amount),
+      deliveryFee,
+      totalPayable: Number(order.total_amount) + deliveryFee,
       shippingAddress: order.shipping_address_snapshot,
       customerNotes: order.customer_notes || null,
       items: formattedItems,

@@ -123,6 +123,7 @@ describe('Phase 5 — Full E2E Delivery Tracking Lifecycle & Security Audit', ()
         .send({
           orderId: mockOrderId,
           deliveryPartnerId: mockPartnerId,
+          deliveryFee: 250,
           notes: 'Fragile sanitaryware package',
         });
 
@@ -624,6 +625,7 @@ describe('Phase 5 — Full E2E Delivery Tracking Lifecycle & Security Audit', ()
                         delivery_partner_id: mockPartnerId,
                         customer_id: mockCustomerId,
                         status: 'assigned',
+                        delivery_fee: 100,
                         notes: 'Fragile package',
                         assigned_at: new Date().toISOString(),
                         picked_up_at: null,
@@ -634,6 +636,7 @@ describe('Phase 5 — Full E2E Delivery Tracking Lifecycle & Security Audit', ()
                           id: mockOrderId,
                           order_number: 'ORD-98765',
                           total_amount: 1450.0,
+                          amount_collected: 0,
                           payment_method: 'cod',
                           payment_status: 'pending',
                           shipping_address_snapshot: {
@@ -674,7 +677,11 @@ describe('Phase 5 — Full E2E Delivery Tracking Lifecycle & Security Audit', ()
       expect(res.body.data.items).toHaveLength(1);
       expect(res.body.data.items[0].id).toBe(mockDeliveryId);
       expect(res.body.data.items[0].orderNumber).toBe('ORD-98765');
-      expect(res.body.data.items[0].codAmount).toBe(1450.0);
+      expect(res.body.data.items[0].codAmount).toBe(1550.0);
+      expect(res.body.data.items[0].orderAmountToCollect).toBe(1450.0);
+      expect(res.body.data.items[0].deliveryFeeToCollect).toBe(100.0);
+      expect(res.body.data.items[0].deliveryFee).toBe(100);
+      expect(res.body.data.items[0].totalPayable).toBe(1550);
       expect(res.body.data.items[0].destination.recipientName).toBe('Rajesh Sharma');
     });
 
@@ -971,6 +978,10 @@ describe('Phase 5 — Full E2E Delivery Tracking Lifecycle & Security Audit', ()
               update: (payload: any) => ({
                 eq: () => ({
                   eq: async () => {
+                    if (payload.status) parentOrderStatus = payload.status;
+                    return { error: null };
+                  },
+                  in: async () => {
                     if (payload.status) parentOrderStatus = payload.status;
                     return { error: null };
                   },

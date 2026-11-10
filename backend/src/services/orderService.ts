@@ -16,6 +16,7 @@ import {
 } from '../types';
 import { logger } from '../common/utils/logger';
 import { decryptDeliveryOtp } from './deliveryOtpService';
+import { getDeliveryFeeByOrderId, getDeliveryFeesByOrderIds } from './deliveryFeeService';
 
 export class OrderService {
   /**
@@ -115,10 +116,12 @@ export class OrderService {
       throw new InternalServerError('Unable to retrieve customer orders.');
     }
 
+    const deliveryFees = await getDeliveryFeesByOrderIds(client, (rows || []).map((row: any) => row.id));
     const items: OrderSummary[] = (rows || []).map((row: any) => {
       const orderItems = Array.isArray(row.order_items) ? row.order_items : [];
       const totalQuantity = orderItems.reduce((acc: number, item: any) => acc + (Number(item.quantity) || 0), 0);
       const invoiceData = row.shipping_address_snapshot?._invoice;
+      const deliveryFee = deliveryFees.get(row.id) || 0;
 
       return {
         id: row.id,
@@ -131,6 +134,8 @@ export class OrderService {
         totalQuantity,
         subtotal: Number(row.subtotal),
         totalAmount: Number(row.total_amount),
+        deliveryFee,
+        totalPayable: Number(row.total_amount) + deliveryFee,
         invoiceUrl: invoiceData?.url || null,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -194,6 +199,7 @@ export class OrderService {
       throw new InternalServerError('Failed to retrieve order status history.');
     }
 
+    const deliveryFee = await getDeliveryFeeByOrderId(client, orderId);
     const items: OrderItemRecord[] = (rawItems || []).map((row: any) => ({
       id: row.id,
       orderId: row.order_id,
@@ -235,6 +241,8 @@ export class OrderService {
       taxAmount: Number(order.tax_amount || 0),
       shippingAmount: Number(order.shipping_amount || 0),
       totalAmount: Number(order.total_amount),
+      deliveryFee,
+      totalPayable: Number(order.total_amount) + deliveryFee,
       shippingAddress: order.shipping_address_snapshot,
       customerNotes: order.customer_notes || null,
       invoiceUrl: invoiceData?.url || null,
@@ -261,6 +269,8 @@ export class OrderService {
       currentStatus: details.status,
       paymentMethod: 'cod',
       paymentStatus: details.paymentStatus,
+      deliveryFee: details.deliveryFee || 0,
+      totalPayable: details.totalPayable || details.totalAmount,
       canCancel: details.canCancel,
       history: details.statusHistory,
       shippingAddress: details.shippingAddress,

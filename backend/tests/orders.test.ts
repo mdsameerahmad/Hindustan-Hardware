@@ -4,6 +4,11 @@ import { createApp } from '../src/app';
 import * as supabaseConfig from '../src/config/supabase';
 import { createDeliveryOtp } from '../src/services/deliveryOtpService';
 
+vi.mock('../src/services/deliveryFeeService', () => ({
+  getDeliveryFeeByOrderId: async () => 0,
+  getDeliveryFeesByOrderIds: async () => new Map(),
+}));
+
 describe('Phase 7 — Customer Order Management, Order History & Status Tracking', () => {
   const app = createApp();
   const customerUser = {

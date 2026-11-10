@@ -22,23 +22,27 @@ import { AuditLogService } from './auditLogService';
 import { broadcastOrderStatus } from '../common/socket/trackingSocket';
 import { HINDUSTAN_HARDWARE_STORE } from '../config/store';
 import { randomUUID } from 'crypto';
+import { getDeliveryFeeByOrderId, getDeliveryFeesByOrderIds } from './deliveryFeeService';
 
 function getOrderPaymentAmounts(order: {
   total_amount: unknown;
   amount_collected?: unknown;
   payment_status?: string;
   status?: string;
-}): { amountCollected: number; amountDue: number } {
+  delivery_fee?: unknown;
+}): { amountCollected: number; amountDue: number; totalPayable: number; deliveryFee: number } {
   const totalAmount = Math.max(0, Number(order.total_amount) || 0);
+  const deliveryFee = Math.max(0, Number(order.delivery_fee) || 0);
+  const totalPayable = totalAmount + deliveryFee;
   const recordedAmount = order.amount_collected == null
     ? (order.payment_status === 'paid' ? totalAmount : 0)
     : Number(order.amount_collected) || 0;
-  const amountCollected = Math.round(Math.min(Math.max(recordedAmount, 0), totalAmount) * 100) / 100;
+  const amountCollected = Math.round(Math.min(Math.max(recordedAmount, 0), totalPayable) * 100) / 100;
   const amountDue = order.status === 'cancelled' || order.payment_status === 'cancelled'
     ? 0
-    : Math.round(Math.max(totalAmount - amountCollected, 0) * 100) / 100;
+    : Math.round(Math.max(totalPayable - amountCollected, 0) * 100) / 100;
 
-  return { amountCollected, amountDue };
+  return { amountCollected, amountDue, totalPayable, deliveryFee };
 }
 
 export class AdminService {
@@ -104,6 +108,7 @@ export class AdminService {
     }
 
     const orders = allOrders || [];
+    const deliveryFees = await getDeliveryFeesByOrderIds(client, orders.map((order: any) => order.id));
     const totalOrders = orders.length;
 
     const byStatus: Record<OrderStatus, number> = {
@@ -116,6 +121,8 @@ export class AdminService {
     };
 
     let totalOrderValue = 0;
+    let totalAmountCollected = 0;
+    let totalAmountDue = 0;
     let collectedCodRevenue = 0;
     let pendingCodRevenue = 0;
     let pendingFulfillment = 0;
@@ -127,7 +134,9 @@ export class AdminService {
         byStatus[st]++;
       }
 
-      const totalAmt = Number(ord.total_amount) || 0;
+      const deliveryFee = deliveryFees.get(ord.id) || 0;
+      const paymentAmounts = getOrderPaymentAmounts({ ...ord, delivery_fee: deliveryFee });
+      const totalAmt = paymentAmounts.totalPayable;
 
       // Exclude cancelled orders from total order value
       if (st !== 'cancelled') {
@@ -139,32 +148,40 @@ export class AdminService {
         pendingFulfillment++;
       }
 
+      if (ord.payment_status === 'paid') {
+        totalAmountCollected += paymentAmounts.amountCollected;
+      } else if (ord.payment_status === 'pending') {
+        totalAmountDue += paymentAmounts.amountDue;
+      }
+
       if (ord.payment_method === 'cod') {
-        const paymentAmounts = getOrderPaymentAmounts(ord);
         collectedCodRevenue += paymentAmounts.amountCollected;
         pendingCodRevenue += paymentAmounts.amountDue;
-        if (paymentAmounts.amountDue > 0) {
-          awaitingCodCollection++;
-        }
+        if (paymentAmounts.amountDue > 0) awaitingCodCollection++;
       }
     }
 
     // 5. Recent 5 orders
-    const recentOrders: OrderSummary[] = orders.slice(0, 5).map((row: any) => ({
-      id: row.id,
-      orderNumber: row.order_number,
-      status: row.status as OrderStatus,
-      paymentMethod: 'cod',
-      paymentStatus: row.payment_status as PaymentStatus,
-      ...getOrderPaymentAmounts(row),
-      currency: row.currency || 'INR',
-      itemCount: 0,
-      totalQuantity: 0,
-      subtotal: Number(row.subtotal),
-      totalAmount: Number(row.total_amount),
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }));
+    const recentOrders: OrderSummary[] = orders.slice(0, 5).map((row: any) => {
+      const deliveryFee = deliveryFees.get(row.id) || 0;
+      return {
+        id: row.id,
+        orderNumber: row.order_number,
+        status: row.status as OrderStatus,
+        paymentMethod: 'cod',
+        paymentStatus: row.payment_status as PaymentStatus,
+        ...getOrderPaymentAmounts({ ...row, delivery_fee: deliveryFee }),
+        currency: row.currency || 'INR',
+        itemCount: 0,
+        totalQuantity: 0,
+        subtotal: Number(row.subtotal),
+        totalAmount: Number(row.total_amount),
+        deliveryFee,
+        totalPayable: Number(row.total_amount) + deliveryFee,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      };
+    });
 
     return {
       customers: {
@@ -189,8 +206,8 @@ export class AdminService {
         totalOrderValue: Math.round(totalOrderValue * 100) / 100,
         collectedCodRevenue: Math.round(collectedCodRevenue * 100) / 100,
         pendingCodRevenue: Math.round(pendingCodRevenue * 100) / 100,
-        totalAmountCollected: Math.round(collectedCodRevenue * 100) / 100,
-        totalAmountDue: Math.round(pendingCodRevenue * 100) / 100,
+        totalAmountCollected: Math.round(totalAmountCollected * 100) / 100,
+        totalAmountDue: Math.round(totalAmountDue * 100) / 100,
         currency: 'INR',
       },
       recentOrders,
@@ -279,10 +296,12 @@ export class AdminService {
       throw new InternalServerError('Unable to retrieve orders.');
     }
 
+    const deliveryFees = await getDeliveryFeesByOrderIds(client, (rows || []).map((row: any) => row.id));
     const items: OrderSummary[] = (rows || []).map((row: any) => {
       const orderItems = Array.isArray(row.order_items) ? row.order_items : [];
       const totalQuantity = orderItems.reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
       const invoiceData = row.shipping_address_snapshot?._invoice;
+      const deliveryFee = deliveryFees.get(row.id) || 0;
 
       return {
         id: row.id,
@@ -290,12 +309,14 @@ export class AdminService {
         status: row.status as OrderStatus,
         paymentMethod: 'cod',
         paymentStatus: row.payment_status as PaymentStatus,
-        ...getOrderPaymentAmounts(row),
+        ...getOrderPaymentAmounts({ ...row, delivery_fee: deliveryFee }),
         currency: row.currency || 'INR',
         itemCount: orderItems.length,
         totalQuantity,
         subtotal: Number(row.subtotal),
         totalAmount: Number(row.total_amount),
+        deliveryFee,
+        totalPayable: Number(row.total_amount) + deliveryFee,
         invoiceUrl: invoiceData?.url || null,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -332,6 +353,7 @@ export class AdminService {
       throw new NotFoundError('Order not found.');
     }
 
+    const deliveryFee = await getDeliveryFeeByOrderId(client, orderId);
     const { data: rawItems } = await client
       .from('order_items')
       .select('*')
@@ -403,13 +425,15 @@ export class AdminService {
       status: order.status as OrderStatus,
       paymentMethod: 'cod',
       paymentStatus: order.payment_status as PaymentStatus,
-      ...getOrderPaymentAmounts(order),
+      ...getOrderPaymentAmounts({ ...order, delivery_fee: deliveryFee }),
       currency: order.currency || 'INR',
       subtotal: Number(order.subtotal),
       discountAmount: Number(order.discount_amount || 0),
       taxAmount: Number(order.tax_amount || 0),
       shippingAmount: Number(order.shipping_amount || 0),
       totalAmount: Number(order.total_amount),
+      deliveryFee,
+      totalPayable: Number(order.total_amount) + deliveryFee,
       shippingAddress: order.shipping_address_snapshot,
       customerNotes: order.customer_notes || null,
       invoiceUrl: invoiceData?.url || null,
@@ -1222,7 +1246,7 @@ export class AdminService {
     data: {
       fullName: string;
       phone: string;
-      email?: string;
+      email: string;
       avatarUrl?: string | null;
       password?: string;
     },
@@ -1232,47 +1256,46 @@ export class AdminService {
     const fallbackClient = getSupabaseClient();
     const client = adminClient || fallbackClient;
     if (!client) throw new InternalServerError('Database service is unavailable.');
+    if (!adminClient?.auth?.admin) {
+      throw new InternalServerError('Delivery partner login service is unavailable.');
+    }
 
-    const partnerEmail =
-      data.email?.toLowerCase().trim() ||
-      `partner.${data.phone.replace(/[^0-9]/g, '') || randomUUID().slice(0, 6)}@hindustanhardware.in`;
+    const partnerEmail = data.email.toLowerCase().trim();
     const partnerPassword = data.password || 'Partner@123456';
 
     let userId: string = '';
 
-    // If Supabase Admin Client is available, create auth.user
-    if (adminClient?.auth?.admin) {
-      try {
-        const { data: usersData } = await adminClient.auth.admin.listUsers();
-        const existing = (usersData?.users || []).find(
-          (u) => u.email?.toLowerCase() === partnerEmail.toLowerCase()
-        );
-
-        if (existing) {
-          userId = existing.id;
-          await adminClient.auth.admin.updateUserById(userId, {
-            password: partnerPassword,
-            user_metadata: { full_name: data.fullName, phone: data.phone, avatar_url: data.avatarUrl || null },
-          });
-        } else {
-          const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
-            email: partnerEmail,
-            password: partnerPassword,
-            email_confirm: true,
-            user_metadata: { full_name: data.fullName, phone: data.phone, avatar_url: data.avatarUrl || null },
-          });
-          if (createErr || !newUser.user) {
-            throw new BadRequestError(createErr?.message || 'Failed to create partner auth user.');
-          }
-          userId = newUser.user.id;
-        }
-      } catch (authErr: any) {
-        logger.warn('Auth admin creation error, checking direct profile insert', { error: authErr.message });
-      }
+    const { data: usersData, error: listUsersError } = await adminClient.auth.admin.listUsers();
+    if (listUsersError) {
+      logger.error('Failed to check existing delivery partner login', { error: listUsersError.message });
+      throw new InternalServerError('Failed to verify delivery partner login account.');
     }
+    const existing = (usersData?.users || []).find(
+      (user) => user.email?.toLowerCase() === partnerEmail.toLowerCase()
+    );
 
-    if (!userId) {
-      userId = randomUUID();
+    if (existing) {
+      userId = existing.id;
+      const { error: updateError } = await adminClient.auth.admin.updateUserById(userId, {
+        password: partnerPassword,
+        user_metadata: { full_name: data.fullName, phone: data.phone, avatar_url: data.avatarUrl || null },
+      });
+      if (updateError) {
+        logger.error('Failed to update delivery partner login', { error: updateError.message, userId });
+        throw new BadRequestError(updateError.message || 'Failed to update partner login account.');
+      }
+    } else {
+      const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
+        email: partnerEmail,
+        password: partnerPassword,
+        email_confirm: true,
+        user_metadata: { full_name: data.fullName, phone: data.phone, avatar_url: data.avatarUrl || null },
+      });
+      if (createErr || !newUser.user) {
+        logger.error('Failed to create delivery partner login', { error: createErr?.message });
+        throw new BadRequestError(createErr?.message || 'Failed to create partner login account.');
+      }
+      userId = newUser.user.id;
     }
 
     // Upsert delivery partner into public.profiles

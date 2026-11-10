@@ -3,6 +3,11 @@ import request from 'supertest';
 import { createApp } from '../src/app';
 import * as supabaseConfig from '../src/config/supabase';
 
+vi.mock('../src/services/deliveryFeeService', () => ({
+  getDeliveryFeeByOrderId: async () => 0,
+  getDeliveryFeesByOrderIds: async () => new Map(),
+}));
+
 describe('Phase 8 — Complete Admin Panel Backend & Store Management', () => {
   const app = createApp();
 
@@ -144,7 +149,7 @@ describe('Phase 8 — Complete Admin Panel Backend & Store Management', () => {
   });
 
   describe('2. Admin Dashboard & Business Statistics (GET /api/v1/admin/dashboard)', () => {
-    it('aggregates live database statistics for customers, products, orders, and COD revenue', async () => {
+    it('aggregates paid collections and pending balances across payment methods', async () => {
       setupAuthMocks(adminUser, adminProfile);
 
       vi.spyOn(supabaseConfig, 'getSupabaseAdminClient').mockReturnValue({
@@ -202,7 +207,9 @@ describe('Phase 8 — Complete Admin Panel Backend & Store Management', () => {
                         ...sampleOrder,
                         status: 'delivered',
                         payment_status: 'paid',
+                        payment_method: 'online',
                         total_amount: 1000.0,
+                        amount_collected: 900.0,
                       },
                       {
                         ...sampleOrder,
@@ -210,6 +217,7 @@ describe('Phase 8 — Complete Admin Panel Backend & Store Management', () => {
                         status: 'pending',
                         payment_status: 'pending',
                         total_amount: 500.0,
+                        amount_collected: 100.0,
                       },
                     ],
                     error: null,
@@ -229,8 +237,8 @@ describe('Phase 8 — Complete Admin Panel Backend & Store Management', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data.customers.total).toBe(42);
       expect(res.body.data.orders.total).toBe(2);
-      expect(res.body.data.financials.collectedCodRevenue).toBe(1000.0);
-      expect(res.body.data.financials.pendingCodRevenue).toBe(500.0);
+      expect(res.body.data.financials.totalAmountCollected).toBe(900.0);
+      expect(res.body.data.financials.totalAmountDue).toBe(400.0);
       expect(res.body.data.financials.totalOrderValue).toBe(1500.0);
     });
   });

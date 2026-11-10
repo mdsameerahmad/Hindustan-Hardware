@@ -217,7 +217,7 @@ export class TrackingShareService {
 
     const { data: assignment, error: assignmentError } = await client
       .from('delivery_assignments')
-      .select('id, status, assigned_at, picked_up_at, completed_at, delivery_partner_id')
+      .select('id, status, assigned_at, picked_up_at, completed_at, delivery_partner_id, delivery_fee')
       .eq('order_id', order.id)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -350,6 +350,7 @@ export class TrackingShareService {
               assignedAt: assignment.assigned_at,
               pickedUpAt: assignment.picked_up_at,
               completedAt: assignment.completed_at,
+              deliveryFee: Number(assignment.delivery_fee) || 0,
               deliveryPartner,
             }
           : null,

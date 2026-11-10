@@ -45,7 +45,7 @@ export const createPhoneOrderSchema = z.object({
 });
 
 export const createTrackingShareSchema = z.object({
-  expiresInHours: z.number().int().min(1).max(720).default(168),
+  expiresInHours: z.number().int().min(1).max(720).default(24),
 });
 
 export const trackingShareIdParamSchema = z.object({
@@ -106,6 +106,7 @@ export const adminAuditLogQuerySchema = z.object({
 export const createDeliveryPartnerSchema = z.object({
   fullName: z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
   phone: z.string().trim().min(7, 'Mobile number must be at least 7 characters').max(20),
+  email: z.string().trim().toLowerCase().email('A valid email address is required').max(254),
   avatarUrl: z.string().nullable().optional(),
   password: z.string().min(6, 'Password must be at least 6 characters').optional(),
 });

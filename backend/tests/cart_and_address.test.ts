@@ -345,8 +345,10 @@ describe('Phase 5 — Customer Panel, Guest Cart, Persistent Cart & Address Mana
       const productRecord = {
         id: '22222222-2222-2222-2222-222222222222',
         name: 'PVC Pipe 1 inch',
-        base_price: '250.00',
+        base_price: '6175.00',
+        compare_at_price: '9500.00',
         is_active: true,
+        specs: { discount_percentage: 35 },
         product_images: [{ public_url: 'https://img.co/p1.png', is_primary: true }],
         inventory: [{ quantity_available: 50 }],
       };
@@ -432,7 +434,7 @@ describe('Phase 5 — Customer Panel, Guest Cart, Persistent Cart & Address Mana
       expect(res.body.success).toBe(true);
       expect(res.body.data.itemCount).toBe(1);
       expect(res.body.data.totalQuantity).toBe(2);
-      expect(res.body.data.subtotal).toBe(500); // 250 * 2 calculated by server
+      expect(res.body.data.subtotal).toBe(12350); // 6175 sale price * 2, no duplicate discount
     });
 
     it('rejects adding inactive product to guest cart (400 Bad Request)', async () => {

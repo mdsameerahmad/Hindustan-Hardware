@@ -101,6 +101,7 @@ export const trackingTokenParamSchema = z.object({
 export const createDeliveryAssignmentSchema = z.object({
   orderId: z.string().uuid({ message: 'Order ID must be a valid UUID.' }),
   deliveryPartnerId: z.string().uuid({ message: 'Delivery partner ID must be a valid UUID.' }),
+  deliveryFee: z.coerce.number().finite().min(0, 'Delivery fee cannot be negative.').max(100000),
   notes: z.string().max(500, 'Notes cannot exceed 500 characters.').nullable().optional(),
 });
 

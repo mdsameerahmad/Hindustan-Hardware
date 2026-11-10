@@ -32,7 +32,7 @@ describe('Phase 6 — Checkout, Cash on Delivery & Order Creation', () => {
     address_line1: 'Near Jama Masjid',
     city: 'Darbhanga',
     state: 'Bihar',
-    postal_code: '846004',
+    postal_code: '804408',
     country: 'India',
     address_type: 'Home',
     is_default: true,
@@ -100,6 +100,15 @@ describe('Phase 6 — Checkout, Cash on Delivery & Order Creation', () => {
 
       vi.spyOn(supabaseConfig, 'getSupabaseAdminClient').mockReturnValue({
         from: (table: string) => {
+          if (table === 'serviceable_postcodes') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: { pincode: '800001' }, error: null }),
+                }),
+              }),
+            };
+          }
           if (table === 'profiles') {
             return {
               select: () => ({
@@ -153,10 +162,81 @@ describe('Phase 6 — Checkout, Cash on Delivery & Order Creation', () => {
       expect(res.body.error.message).toContain('empty cart');
     });
 
+    it('rejects checkout validation outside the seeded delivery PIN area', async () => {
+      setupAuthMocks();
+
+      vi.spyOn(supabaseConfig, 'getSupabaseAdminClient').mockReturnValue({
+        from: (table: string) => {
+          if (table === 'profiles') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  single: vi.fn().mockResolvedValue({ data: mockProfile, error: null }),
+                }),
+              }),
+            };
+          }
+          if (table === 'serviceable_postcodes') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
+            };
+          }
+          return {} as any;
+        },
+      } as any);
+
+      const res = await request(app)
+        .post('/api/v1/checkout/validate')
+        .set('Authorization', 'Bearer test-token')
+        .send({
+          paymentMethod: 'cod',
+          shippingAddress: {
+            recipientName: 'Sameer Ahmad',
+            phone: '9876543210',
+            addressLine1: 'Main Road',
+            city: 'Darbhanga',
+            state: 'Bihar',
+            postalCode: '846004',
+          },
+        });
+
+      expect(res.status, JSON.stringify(res.body)).toBe(200);
+      expect(res.body.data.canCheckout).toBe(false);
+      expect(res.body.data.deliveryAvailable).toBe(false);
+      expect(res.body.data.deliveryPincode).toBe('846004');
+
+      const createRes = await request(app)
+        .post('/api/v1/checkout')
+        .set('Authorization', 'Bearer test-token')
+        .send({
+          paymentMethod: 'cod',
+          shippingAddress: {
+            recipientName: 'Sameer Ahmad',
+            phone: '9876543210',
+            addressLine1: 'Main Road',
+            city: 'Darbhanga',
+            state: 'Bihar',
+            postalCode: '846004',
+          },
+        });
+      expect(createRes.status).toBe(400);
+      expect(createRes.body.error.message).toContain('Delivery is not available');
+    });
+
     it('validates checkout and computes authoritative live prices and inventory availability', async () => {
       setupAuthMocks();
 
       const userCart = { id: '11111111-1111-1111-1111-111111111111', status: 'active' };
+      const discountedProduct = {
+        ...activeProduct,
+        base_price: '6175.00',
+        compare_at_price: '9500.00',
+        specs: { discount_percentage: 35 },
+      };
       const cartItems = [
         {
           id: 'item-1',
@@ -164,13 +244,22 @@ describe('Phase 6 — Checkout, Cash on Delivery & Order Creation', () => {
           product_id: '22222222-2222-2222-2222-222222222222',
           variant_id: null,
           quantity: 2,
-          product: activeProduct,
+          product: discountedProduct,
           variant: null,
         },
       ];
 
       vi.spyOn(supabaseConfig, 'getSupabaseAdminClient').mockReturnValue({
         from: (table: string) => {
+          if (table === 'serviceable_postcodes') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: { pincode: '800001' }, error: null }),
+                }),
+              }),
+            };
+          }
           if (table === 'profiles') {
             return {
               select: () => ({
@@ -211,7 +300,7 @@ describe('Phase 6 — Checkout, Cash on Delivery & Order Creation', () => {
             return {
               select: () => ({
                 eq: () => ({
-                  single: vi.fn().mockResolvedValue({ data: activeProduct, error: null }),
+                  single: vi.fn().mockResolvedValue({ data: discountedProduct, error: null }),
                 }),
               }),
             };
@@ -250,7 +339,7 @@ describe('Phase 6 — Checkout, Cash on Delivery & Order Creation', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data.canCheckout).toBe(true);
       expect(res.body.data.itemCount).toBe(1);
-      expect(res.body.data.totalAmount).toBe(1040); // 520 * 2 calculated by backend
+      expect(res.body.data.totalAmount).toBe(12350); // ₹6,175 sale price * 2
       expect(res.body.data.paymentMethod).toBe('cod');
     });
 
@@ -259,6 +348,15 @@ describe('Phase 6 — Checkout, Cash on Delivery & Order Creation', () => {
 
       vi.spyOn(supabaseConfig, 'getSupabaseAdminClient').mockReturnValue({
         from: (table: string) => {
+          if (table === 'serviceable_postcodes') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: { pincode: '800001' }, error: null }),
+                }),
+              }),
+            };
+          }
           if (table === 'profiles') {
             return {
               select: () => ({
@@ -347,6 +445,15 @@ describe('Phase 6 — Checkout, Cash on Delivery & Order Creation', () => {
 
       vi.spyOn(supabaseConfig, 'getSupabaseAdminClient').mockReturnValue({
         from: (table: string) => {
+          if (table === 'serviceable_postcodes') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: { pincode: '800001' }, error: null }),
+                }),
+              }),
+            };
+          }
           if (table === 'profiles') {
             return {
               select: () => ({
@@ -468,12 +575,12 @@ describe('Phase 6 — Checkout, Cash on Delivery & Order Creation', () => {
             addressLine1: 'Near Jama Masjid',
             city: 'Darbhanga',
             state: 'Bihar',
-            postalCode: '846004',
+            postalCode: '800001',
           },
           customerNotes: 'Leave at front desk',
         });
 
-      expect(res.status).toBe(201);
+      expect(res.status, JSON.stringify(res.body)).toBe(201);
       expect(res.body.success).toBe(true);
       expect(res.body.data.orderNumber).toBeDefined();
       expect(res.body.data.paymentMethod).toBe('cod');
@@ -494,6 +601,15 @@ describe('Phase 6 — Checkout, Cash on Delivery & Order Creation', () => {
 
       vi.spyOn(supabaseConfig, 'getSupabaseAdminClient').mockReturnValue({
         from: (table: string) => {
+          if (table === 'serviceable_postcodes') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: { pincode: '800001' }, error: null }),
+                }),
+              }),
+            };
+          }
           if (table === 'profiles') {
             return {
               select: () => ({

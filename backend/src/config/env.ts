@@ -15,7 +15,7 @@ const envSchema = z.object({
     return parsed;
   }),
   HOST: z.string().default('0.0.0.0'),
-  CORS_ORIGIN: z.string().default('http://localhost:3000,http://localhost:5173,http://localhost:8443').transform((val) => {
+  CORS_ORIGIN: z.string().default('http://localhost:3000,http://localhost:5173,http://localhost:8443,https://localhost:8443').transform((val) => {
     return val.split(',').map((origin) => origin.trim()).filter(Boolean);
   }),
   // Supabase configurations - optional in development/test, but if set must be valid URLs/strings

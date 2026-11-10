@@ -641,6 +641,7 @@ adminRouter.post('/deliveries/assign', async (req: Request, res: Response, next:
     const assignment = await DeliveryTrackingService.assignDeliveryPartner({
       orderId: parsed.data.orderId,
       deliveryPartnerId: parsed.data.deliveryPartnerId,
+      deliveryFee: parsed.data.deliveryFee,
       actorId: req.user!.id,
       notes: parsed.data.notes,
     });
@@ -694,7 +695,7 @@ adminRouter.get('/delivery-partners', async (req: Request, res: Response, next: 
 
 /**
  * POST /api/v1/admin/delivery-partners
- * Registers a new delivery partner with name, mobile number, and initial shop coordinates.
+ * Registers a new delivery partner with name, mobile number, email, and initial shop coordinates.
  */
 adminRouter.post('/delivery-partners', async (req: Request, res: Response, next: NextFunction) => {
   try {

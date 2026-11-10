@@ -56,10 +56,15 @@ export class CartService {
       let compareAtPrice = product.compare_at_price != null ? Number(product.compare_at_price) : null;
 
       if (effectiveDiscount && effectiveDiscount > 0) {
+        const discountBasisPrice = variant?.price_override != null
+          ? rawUnitPrice
+          : compareAtPrice && compareAtPrice > 0
+            ? compareAtPrice
+            : rawUnitPrice;
         if (!compareAtPrice || compareAtPrice <= rawUnitPrice) {
-          compareAtPrice = rawUnitPrice;
+          compareAtPrice = discountBasisPrice;
         }
-        unitPrice = Math.round(rawUnitPrice * (1 - effectiveDiscount / 100) * 100) / 100;
+        unitPrice = Math.round(discountBasisPrice * (1 - effectiveDiscount / 100) * 100) / 100;
       }
 
       const quantity = Number(item.quantity);

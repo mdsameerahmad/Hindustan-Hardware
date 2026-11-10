@@ -310,6 +310,8 @@ export interface OrderResponse {
   taxAmount: number;
   shippingAmount: number;
   totalAmount: number;
+  deliveryFee?: number;
+  totalPayable?: number;
   shippingAddress: CustomerAddress | Record<string, unknown>;
   customerNotes: string | null;
   invoiceUrl?: string | null;
@@ -324,6 +326,9 @@ export interface OrderResponse {
 export interface CheckoutValidationResult {
   isValid: boolean;
   canCheckout: boolean;
+  deliveryAvailable?: boolean;
+  deliveryMessage?: string;
+  deliveryPincode?: string;
   itemCount: number;
   subtotal: number;
   totalAmount: number;
@@ -366,6 +371,8 @@ export interface OrderSummary {
   paymentStatus: PaymentStatus;
   amountCollected?: number;
   amountDue?: number;
+  deliveryFee?: number;
+  totalPayable?: number;
   currency: string;
   itemCount: number;
   totalQuantity: number;
@@ -397,6 +404,8 @@ export interface OrderStatusTrackingResponse {
   currentStatus: OrderStatus;
   paymentMethod: 'cod';
   paymentStatus: PaymentStatus;
+  deliveryFee?: number;
+  totalPayable?: number;
   canCancel: boolean;
   history: OrderStatusHistoryItem[];
   shippingAddress?: any;
@@ -497,6 +506,7 @@ export interface DeliveryAssignmentRecord {
   deliveryPartnerId: string;
   customerId: string | null;
   status: DeliveryAssignmentStatus;
+  deliveryFee?: number;
   notes: string | null;
   assignedAt: string;
   pickedUpAt: string | null;
@@ -533,6 +543,10 @@ export interface AssignedDeliveryItem {
     longitude?: number | null;
   };
   codAmount: number | null;
+  orderAmountToCollect: number;
+  deliveryFeeToCollect: number;
+  deliveryFee: number;
+  totalPayable: number;
   paymentMethod: string;
   paymentStatus: string;
   itemsSummary: {
@@ -593,6 +607,7 @@ export interface OrderLiveTrackingResponse {
   assignment: {
     id: string;
     status: DeliveryAssignmentStatus;
+    deliveryFee: number;
     assignedAt: string;
     pickedUpAt: string | null;
     completedAt: string | null;

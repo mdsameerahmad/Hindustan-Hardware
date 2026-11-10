@@ -6,8 +6,42 @@ import {
   updateAssignmentStatusSchema
 } from '../src/common/validation/trackingSchemas';
 import { isLocationStale } from '../src/services/deliveryTrackingService';
+import { getDeliveryFeesByOrderIds } from '../src/services/deliveryFeeService';
 
 describe('Delivery Tracking Validation & Domain Logic', () => {
+  describe('Delivery fee lookup', () => {
+    it('uses the latest assignment fee for each order', async () => {
+      const query = {
+        in: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({
+          data: [
+            { order_id: 'order-1', delivery_fee: '250.00', status: 'assigned' },
+            { order_id: 'order-1', delivery_fee: '100.00', status: 'assigned' },
+            { order_id: 'order-2', delivery_fee: '0.00', status: 'delivered' },
+          ],
+          error: null,
+        }),
+      };
+      const client = {
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue(query),
+        }),
+      };
+
+      const fees = await getDeliveryFeesByOrderIds(client as any, ['order-1', 'order-2']);
+
+      expect(fees.get('order-1')).toBe(250);
+      expect(fees.get('order-2')).toBe(0);
+      expect(query.in).toHaveBeenNthCalledWith(2, 'status', [
+        'assigned',
+        'picked_up',
+        'out_for_delivery',
+        'delivered',
+        'failed',
+      ]);
+    });
+  });
+
   describe('Coordinate Validation', () => {
     it('accepts valid geographic coordinates within range', () => {
       const validCoordinates = [
@@ -144,6 +178,7 @@ describe('Delivery Tracking Validation & Domain Logic', () => {
       const valid = {
         orderId: '550e8400-e29b-41d4-a716-446655440001',
         deliveryPartnerId: '550e8400-e29b-41d4-a716-446655440002',
+        deliveryFee: 250,
         notes: 'Handle with fragile sanitaryware'
       };
       expect(createDeliveryAssignmentSchema.safeParse(valid).success).toBe(true);
@@ -238,4 +273,3 @@ describe('Delivery Tracking Validation & Domain Logic', () => {
     });
   });
 });
-

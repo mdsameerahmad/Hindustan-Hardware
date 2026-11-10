@@ -49,6 +49,7 @@ export class DeliveryTrackingService {
     orderId: string;
     deliveryPartnerId: string;
     actorId: string;
+    deliveryFee: number;
     notes?: string | null;
   }): Promise<DeliveryAssignmentRecord> {
     const client = getSupabaseAdminClient() || getSupabaseClient();
@@ -106,6 +107,7 @@ export class DeliveryTrackingService {
         delivery_partner_id: params.deliveryPartnerId,
         customer_id: order.user_id,
         status: 'assigned',
+        delivery_fee: params.deliveryFee,
         notes: params.notes || null,
         assigned_at: now,
       })
@@ -144,6 +146,7 @@ export class DeliveryTrackingService {
       deliveryPartnerId: newAssignment.delivery_partner_id,
       customerId: newAssignment.customer_id,
       status: newAssignment.status as DeliveryAssignmentStatus,
+      deliveryFee: Number(newAssignment.delivery_fee) || 0,
       notes: newAssignment.notes,
       assignedAt: newAssignment.assigned_at,
       pickedUpAt: newAssignment.picked_up_at,
@@ -208,6 +211,7 @@ export class DeliveryTrackingService {
         customer_id,
         status,
         notes,
+        delivery_fee,
         assigned_at,
         picked_up_at,
         completed_at,
@@ -217,6 +221,7 @@ export class DeliveryTrackingService {
           id,
           order_number,
           total_amount,
+          amount_collected,
           payment_method,
           payment_status,
           shipping_address_snapshot,
@@ -265,7 +270,17 @@ export class DeliveryTrackingService {
       const rawItems = Array.isArray(order.order_items) ? order.order_items : [];
 
       const isCod = order.payment_method === 'cod';
-      const codAmount = isCod && order.payment_status === 'pending' ? Number(order.total_amount) : null;
+      const deliveryFee = Math.max(0, Number(row.delivery_fee) || 0);
+      const orderTotal = Math.max(0, Number(order.total_amount) || 0);
+      const collected = order.amount_collected == null
+        ? (order.payment_status === 'paid' ? orderTotal : 0)
+        : Math.max(0, Number(order.amount_collected) || 0);
+      const orderAmountToCollect = isCod ? Math.max(0, orderTotal - collected) : 0;
+      const totalAmountToCollect = isCod
+        ? Math.max(0, orderTotal + deliveryFee - collected)
+        : deliveryFee;
+      const deliveryFeeToCollect = Math.max(0, totalAmountToCollect - orderAmountToCollect);
+      const codAmount = totalAmountToCollect > 0 ? totalAmountToCollect : null;
 
       return {
         id: row.id,
@@ -292,6 +307,10 @@ export class DeliveryTrackingService {
           };
         })(),
         codAmount,
+        orderAmountToCollect,
+        deliveryFeeToCollect,
+        deliveryFee,
+        totalPayable: orderTotal + deliveryFee,
         paymentMethod: order.payment_method || 'cod',
         paymentStatus: order.payment_status || 'pending',
         itemsSummary: rawItems.map((item: any) => ({
@@ -731,7 +750,7 @@ export class DeliveryTrackingService {
     // 2. Fetch active delivery assignment
     const { data: assignment } = await client
       .from('delivery_assignments')
-      .select('id, status, assigned_at, picked_up_at, completed_at, delivery_partner_id')
+      .select('id, status, assigned_at, picked_up_at, completed_at, delivery_partner_id, delivery_fee')
       .eq('order_id', orderId)
       .in('status', ['assigned', 'picked_up', 'out_for_delivery', 'delivered'])
       .order('created_at', { ascending: false })
@@ -809,10 +828,12 @@ export class DeliveryTrackingService {
       orderStatus: order.status as OrderStatus,
       assignment: {
         id: assignment.id,
+        deliveryPartnerId: assignment.delivery_partner_id,
         status: assignment.status as DeliveryAssignmentStatus,
         assignedAt: assignment.assigned_at,
         pickedUpAt: assignment.picked_up_at,
         completedAt: assignment.completed_at,
+        deliveryFee: Number(assignment.delivery_fee) || 0,
         deliveryPartner: partnerInfo,
       },
       latestLocation,

@@ -56,6 +56,11 @@ export interface ClientToServerEvents {
  */
 export interface ServerToClientEvents {
   /**
+   * Broadcasted to authenticated admins when a customer places a new order.
+   */
+  'admin:order_created': (payload: NewOrderNotificationPayload) => void;
+
+  /**
    * Broadcasted when a new valid location has been persisted in the database
    */
   'delivery:location_update': (payload: DeliveryLocationBroadcastPayload) => void;
@@ -79,6 +84,12 @@ export interface ServerToClientEvents {
    * Standard socket error notification
    */
   'error': (error: { code: string; message: string }) => void;
+}
+
+export interface NewOrderNotificationPayload {
+  orderId: string;
+  orderNumber: string;
+  createdAt: string;
 }
 
 /**
