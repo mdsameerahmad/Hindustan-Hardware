@@ -606,6 +606,7 @@ export interface OrderLiveTrackingResponse {
   deliveryOtp?: string | null;
   assignment: {
     id: string;
+    deliveryPartnerId: string;
     status: DeliveryAssignmentStatus;
     deliveryFee: number;
     assignedAt: string;

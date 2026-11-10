@@ -346,6 +346,7 @@ export class TrackingShareService {
         assignment: assignment
           ? {
               id: assignment.id,
+              deliveryPartnerId: assignment.delivery_partner_id,
               status: assignmentStatus!,
               assignedAt: assignment.assigned_at,
               pickedUpAt: assignment.picked_up_at,
