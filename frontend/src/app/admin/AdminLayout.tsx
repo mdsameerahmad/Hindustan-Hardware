@@ -17,6 +17,7 @@ import { useState } from "react"
 import { Link, NavLink, Outlet, useNavigate } from "react-router"
 import { useAuth } from "../authContext"
 import { Badge, Button } from "../components"
+import { AdminOrderNotifications } from "../features/components/AdminOrderNotifications"
 
 export function AdminHeaderUser() {
   const { user, logout } = useAuth()
@@ -145,7 +146,10 @@ export function AdminLayout() {
               Operations Control
             </h2>
           </div>
-          <AdminHeaderUser />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <AdminOrderNotifications />
+            <AdminHeaderUser />
+          </div>
         </header>
         <main className="p-3 sm:p-6 lg:p-8 min-w-0">
           <Outlet />

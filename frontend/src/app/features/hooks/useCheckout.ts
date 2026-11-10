@@ -92,6 +92,11 @@ export function useCheckout() {
       const res = await checkoutApi.validateCheckout(payload)
       setValidationResult(res)
 
+      if (res.deliveryAvailable === false) {
+        setValidationError(res.deliveryMessage || "Delivery is not available in your location.")
+        return false
+      }
+
       if (!res.canCheckout) {
         const outOfStockItems = (res.items || []).filter((i: any) => !i.inStock)
         if (outOfStockItems.length > 0) {

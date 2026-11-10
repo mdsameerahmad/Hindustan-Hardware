@@ -5,6 +5,9 @@ import {
   Camera,
   CheckCircle2,
   Edit2,
+  Eye,
+  EyeOff,
+  Mail,
   MapPin,
   Navigation,
   Phone,
@@ -64,8 +67,10 @@ export function DeliveryPartnersPage() {
   const [editingPartner, setEditingPartner] = useState<DeliveryPartnerItem | null>(null)
   const [formName, setFormName] = useState<string>("")
   const [formPhone, setFormPhone] = useState<string>("")
+  const [formEmail, setFormEmail] = useState<string>("")
   const [formAvatarUrl, setFormAvatarUrl] = useState<string>("")
   const [formPassword, setFormPassword] = useState<string>("")
+  const [showPassword, setShowPassword] = useState<boolean>(false)
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -130,8 +135,10 @@ export function DeliveryPartnersPage() {
     setEditingPartner(null)
     setFormName("")
     setFormPhone("")
+    setFormEmail("")
     setFormAvatarUrl("")
     setFormPassword("Partner@123456")
+    setShowPassword(false)
     setFormError(null)
     setShowModal(true)
   }
@@ -140,6 +147,7 @@ export function DeliveryPartnersPage() {
     setEditingPartner(partner)
     setFormName(partner.fullName)
     setFormPhone(partner.phone)
+    setFormEmail(partner.email || "")
     setFormAvatarUrl(partner.avatarUrl || "")
     setFormPassword("")
     setFormError(null)
@@ -179,8 +187,8 @@ export function DeliveryPartnersPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setFormError(null)
-    if (!formName.trim() || !formPhone.trim()) {
-      setFormError("Partner Full Name and Mobile Number are required.")
+    if (!formName.trim() || !formPhone.trim() || (!editingPartner && !formEmail.trim())) {
+      setFormError("Partner Full Name, Mobile Number, and Email Address are required.")
       return
     }
 
@@ -197,6 +205,7 @@ export function DeliveryPartnersPage() {
         await adminApi.createDeliveryPartner({
           fullName: formName.trim(),
           phone: formPhone.trim(),
+          email: formEmail.trim(),
           avatarUrl: formAvatarUrl.trim() || null,
           password: formPassword.trim() || undefined,
         })
@@ -585,6 +594,23 @@ export function DeliveryPartnersPage() {
                 />
               </div>
 
+              {!editingPartner && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Email Address <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    autoComplete="email"
+                    placeholder="e.g. ramesh@example.com"
+                    value={formEmail}
+                    onChange={(e) => setFormEmail(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-sm focus:outline-hidden focus:border-[#D4AF37] transition"
+                  />
+                </div>
+              )}
+
               {/* Photo Upload & Preview Field */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
@@ -647,15 +673,25 @@ export function DeliveryPartnersPage() {
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                     Initial App Password
                   </label>
-                  <input
-                    type="password"
-                    placeholder="Default: Partner@123456"
-                    value={formPassword}
-                    onChange={(e) => setFormPassword(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-sm focus:outline-hidden focus:border-[#D4AF37] transition font-mono"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Default: Partner@123456"
+                      value={formPassword}
+                      onChange={(e) => setFormPassword(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3.5 py-2 pr-10 text-sm focus:outline-hidden focus:border-[#D4AF37] transition font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((visible) => !visible)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 hover:text-slate-800"
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                   <p className="text-[10px] text-slate-400 mt-1">
-                    Partner uses mobile number & this password to sign in to the Partner Portal.
+                    Partner uses this email address and password to sign in to the Partner Portal.
                   </p>
                 </div>
               )}

@@ -7,7 +7,6 @@ import {
   Clock,
   Compass,
   Crosshair,
-  Eye,
   LogOut,
   MapPin,
   Maximize2,
@@ -19,7 +18,7 @@ import {
   Shield,
   Truck
 } from "lucide-react"
-import { useCallback, useEffect, useState, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useAuth } from "../authContext"
 import { Badge } from "../components"
 import {
@@ -320,10 +319,6 @@ export function DeliveryPartnerPortalPage() {
                 <span className="text-[10px] font-black uppercase tracking-wider text-[#D4AF37] bg-white/5 border border-[#D4AF37]/30 px-1.5 py-0.5 rounded">
                   Hindustan Rider
                 </span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-300 font-mono">
-                  <Shield size={10} className="text-[#D4AF37]" />
-                  Verified
-                </span>
               </div>
               <h1 className="text-sm sm:text-base font-black text-white leading-tight truncate">
                 {user?.profile?.full_name || user?.email?.split("@")[0] || "Partner"}
@@ -407,11 +402,11 @@ export function DeliveryPartnerPortalPage() {
             </div>
           </div>
 
-          {/* COD Collectable */}
+          {/* Cash and delivery fee still to collect */}
           <div className="rounded-2xl bg-white border border-[#E8E8E8] p-3 sm:p-4 shadow-xs flex flex-col justify-between hover:border-[#D4AF37]/50 transition-colors">
             <div className="flex items-center justify-between">
               <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-400">
-                COD Cash
+                Total to Collect
               </span>
               <span className="h-6 w-6 rounded-lg bg-[#FFF9E6] text-[#B89124] border border-[#F3E5AB] flex items-center justify-center font-bold text-xs">
                 <Banknote size={13} />
@@ -420,6 +415,14 @@ export function DeliveryPartnerPortalPage() {
             <div className="mt-2 flex items-baseline gap-1">
               <span className="text-xl sm:text-2xl font-black text-[#0B0B0B] leading-none font-mono truncate">
                 ₹{activeDeliveries.reduce((acc, d) => acc + (d.codAmount || 0), 0).toLocaleString("en-IN")}
+              </span>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2 border-t border-slate-100 pt-2 text-[10px] font-semibold">
+              <span className="text-slate-500">
+                Order balance: ₹{activeDeliveries.reduce((acc, d) => acc + d.orderAmountToCollect, 0).toLocaleString("en-IN")}
+              </span>
+              <span className="text-amber-800">
+                Delivery fees: ₹{activeDeliveries.reduce((acc, d) => acc + d.deliveryFeeToCollect, 0).toLocaleString("en-IN")}
               </span>
             </div>
           </div>
@@ -564,7 +567,7 @@ export function DeliveryPartnerPortalPage() {
                               {item.codAmount != null ? (
                                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-black">
                                   <Banknote size={13} className="text-amber-700" />
-                                  <span>COD: ₹{item.codAmount.toLocaleString("en-IN")}</span>
+                                  <span>Total to collect: ₹{item.codAmount.toLocaleString("en-IN")}</span>
                                 </div>
                               ) : (
                                 <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-black">
@@ -572,6 +575,20 @@ export function DeliveryPartnerPortalPage() {
                                   <span>Prepaid</span>
                                 </div>
                               )}
+                              <div className="grid grid-cols-3 gap-2 pt-2 text-[10px]">
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2">
+                                  <span className="block font-semibold text-slate-600">Order balance</span>
+                                  <b className="mt-0.5 block text-slate-900">₹{item.orderAmountToCollect.toLocaleString("en-IN")}</b>
+                                </div>
+                                <div className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-2">
+                                  <span className="block font-semibold text-amber-800">Delivery fee</span>
+                                  <b className="mt-0.5 block text-amber-950">₹{item.deliveryFeeToCollect.toLocaleString("en-IN")}</b>
+                                </div>
+                                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-2">
+                                  <span className="block font-semibold text-emerald-800">Total to collect</span>
+                                  <b className="mt-0.5 block text-emerald-950">₹{(item.codAmount || 0).toLocaleString("en-IN")}</b>
+                                </div>
+                              </div>
 
                               {item.itemsSummary && item.itemsSummary.length > 0 && (
                                 <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 text-[11px] font-bold">
@@ -650,27 +667,35 @@ export function DeliveryPartnerPortalPage() {
                         </span>
                       </div>
 
-                      {/* Cash on Delivery Banner — Exact Brand Palette */}
-                      {currentDelivery.codAmount != null && (
-                        <div className="flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#FFF9E6] via-[#FFFDF5] to-white border border-[#E5C158] p-3.5 text-slate-900 shadow-xs">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#E5C158] via-[#D4AF37] to-[#AA841E] flex items-center justify-center shrink-0 text-[#0B0B0B] shadow-xs">
-                              <Banknote size={20} className="stroke-[2.5]" />
-                            </div>
-                            <div className="min-w-0">
-                              <span className="text-[11px] font-black uppercase tracking-wider block text-[#8F6B12] truncate">
-                                Cash on Delivery (COD)
-                              </span>
-                              <span className="text-[11px] text-slate-600 font-semibold block">
-                                Collect cash before marking delivered
-                              </span>
-                            </div>
-                          </div>
-                          <span className="text-xl sm:text-2xl font-black font-mono text-[#0B0B0B] shrink-0">
-                            ₹{currentDelivery.codAmount.toLocaleString("en-IN")}
+                      {/* Explicit collection breakdown, including fees on prepaid orders */}
+                      <div className="rounded-2xl border border-[#E5C158] bg-gradient-to-r from-[#FFF9E6] via-[#FFFDF5] to-white p-3.5 text-slate-900 shadow-xs">
+                        <div className="mb-3 flex items-center gap-2.5 border-b border-amber-200 pb-2.5">
+                          <Banknote size={20} className="shrink-0 text-[#AA841E]" />
+                          <span className="text-xs font-black uppercase tracking-wider text-[#8F6B12]">
+                            Cash on delivery breakdown
                           </span>
                         </div>
-                      )}
+                        <div className="space-y-2 text-xs">
+                          <div className="flex justify-between gap-3">
+                            <span className="text-slate-600">Order balance to collect</span>
+                            <b className="text-slate-900">₹{currentDelivery.orderAmountToCollect.toLocaleString("en-IN")}</b>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <span className="text-slate-600">Delivery fee to collect</span>
+                            <b className="text-amber-900">₹{currentDelivery.deliveryFeeToCollect.toLocaleString("en-IN")}</b>
+                          </div>
+                          <div className="flex justify-between gap-3 border-t border-amber-200 pt-2 text-sm">
+                            <span className="font-black text-slate-800">Total amount to collect</span>
+                            <b className="font-mono text-base font-black text-[#0B0B0B]">
+                              ₹{(currentDelivery.codAmount || 0).toLocaleString("en-IN")}
+                            </b>
+                          </div>
+                          <div className="flex justify-between gap-3 border-t border-dashed border-slate-200 pt-2 text-[11px]">
+                            <span className="text-slate-500">Full order + delivery total</span>
+                            <b className="text-slate-700">₹{currentDelivery.totalPayable.toLocaleString("en-IN")}</b>
+                          </div>
+                        </div>
+                      </div>
 
                       {/* Delivery Address & Contact */}
                       <div className="rounded-2xl bg-[#F8FAFC] border border-slate-200 p-4 space-y-3.5 min-w-0">
@@ -697,8 +722,8 @@ export function DeliveryPartnerPortalPage() {
                           </div>
                         </div>
 
-                        {/* Action buttons: Call Customer & Turn-by-Turn Directions in Maps */}
-                        <div className="pt-2 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {/* Customer call action */}
+                        <div className="pt-2 border-t border-slate-200">
                           {currentDelivery.destination.phone ? (
                             <a
                               href={`tel:${currentDelivery.destination.phone}`}
@@ -706,19 +731,7 @@ export function DeliveryPartnerPortalPage() {
                             >
                               <Phone size={16} className="stroke-[2.5]" /> Call Customer ({currentDelivery.destination.phone})
                             </a>
-                          ) : (
-                            <div />
-                          )}
-                          <a
-                            href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
-                              `${currentDelivery.destination.addressLine1}, ${currentDelivery.destination.city}, ${currentDelivery.destination.state}`
-                            )}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#0B0B0B] hover:bg-black px-4 py-3 text-xs font-black text-white transition shadow-sm active:scale-[0.99]"
-                          >
-                            <Navigation size={16} className="text-[#D4AF37] stroke-[2.5]" /> Open in Maps
-                          </a>
+                          ) : null}
                         </div>
                       </div>
 
@@ -1094,11 +1107,17 @@ export function DeliveryPartnerPortalPage() {
                     </span>
                   </div>
 
-                  {item.codAmount != null && (
-                    <div className="text-xs font-mono font-bold text-[#0B0B0B] flex items-center gap-1.5 bg-[#FFF9E6] border border-[#F3E5AB] px-2.5 py-1 rounded-lg w-fit">
-                      <Banknote size={14} className="text-[#B89124]" /> COD: ₹{item.codAmount.toLocaleString("en-IN")} ({item.paymentStatus})
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-bold text-slate-800">
+                      Order balance: ₹{item.orderAmountToCollect.toLocaleString("en-IN")}
                     </div>
-                  )}
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 font-bold text-amber-900">
+                      Delivery fee: ₹{item.deliveryFeeToCollect.toLocaleString("en-IN")}
+                    </div>
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 font-bold text-emerald-900">
+                      Total to collect: ₹{(item.codAmount || 0).toLocaleString("en-IN")}
+                    </div>
+                  </div>
                 </div>
               ))
             )}

@@ -5,8 +5,8 @@ import {
   Search,
   ShoppingBag,
 } from "lucide-react"
-import { useState } from "react"
-import { Link } from "react-router"
+import { useEffect, useState } from "react"
+import { Link, useSearchParams } from "react-router"
 import {
   Badge,
   Button,
@@ -20,22 +20,39 @@ function getRemainingDue(order: {
   amountDue?: number
   amountCollected?: number
   totalAmount: number
+  totalPayable?: number
   paymentStatus: string
   status: string
 }) {
   if (order.amountDue != null) return order.amountDue
   if (order.paymentStatus === "paid" || order.status === "cancelled") return 0
-  return Math.max(0, order.totalAmount - (order.amountCollected ?? 0))
+  return Math.max(0, (order.totalPayable ?? order.totalAmount) - (order.amountCollected ?? 0))
 }
 
 export function AdminOrdersPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialPaymentStatus = searchParams.get("paymentStatus") || ""
   const [selectedStatus, setSelectedStatus] = useState<string>("")
+  const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<string>(
+    ["pending", "paid", "failed", "cancelled"].includes(initialPaymentStatus)
+      ? initialPaymentStatus
+      : "",
+  )
   const [searchTerm, setSearchTerm] = useState<string>("")
   const { orders, pagination, setQuery, loading, error, refetch } = useAdminOrders({
     page: 1,
     limit: 10,
     status: undefined,
+    paymentStatus: selectedPaymentStatus
+      ? selectedPaymentStatus as "pending" | "paid" | "failed" | "cancelled"
+      : undefined,
   })
+
+  useEffect(() => {
+    const handleNewOrder = () => void refetch()
+    window.addEventListener("admin:new-order", handleNewOrder)
+    return () => window.removeEventListener("admin:new-order", handleNewOrder)
+  }, [refetch])
 
   const handleStatusChange = (status: string) => {
     setSelectedStatus(status)
@@ -43,6 +60,21 @@ export function AdminOrdersPage() {
       ...prev,
       page: 1,
       status: (status as any) || undefined,
+    }))
+  }
+
+  const handlePaymentStatusChange = (paymentStatus: string) => {
+    setSelectedPaymentStatus(paymentStatus)
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous)
+      if (paymentStatus) next.set("paymentStatus", paymentStatus)
+      else next.delete("paymentStatus")
+      return next
+    })
+    setQuery((prev) => ({
+      ...prev,
+      page: 1,
+      paymentStatus: (paymentStatus as "pending" | "paid" | "failed" | "cancelled") || undefined,
     }))
   }
 
@@ -96,19 +128,34 @@ export function AdminOrdersPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <select
-            className="field w-full sm:w-auto text-xs sm:text-sm"
-            value={selectedStatus}
-            onChange={(e) => handleStatusChange(e.target.value)}
-          >
-            <option value="">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="processing">Processing</option>
-            <option value="shipped">Shipped</option>
-            <option value="delivered">Delivered</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+          <div className="flex w-full gap-2 sm:w-auto">
+            <select
+              className="field min-w-0 flex-1 text-xs sm:w-auto sm:flex-none sm:text-sm"
+              value={selectedStatus}
+              onChange={(e) => handleStatusChange(e.target.value)}
+              aria-label="Filter by fulfillment status"
+            >
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="processing">Processing</option>
+              <option value="shipped">Shipped</option>
+              <option value="delivered">Delivered</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            <select
+              className="field min-w-0 flex-1 text-xs sm:w-auto sm:flex-none sm:text-sm"
+              value={selectedPaymentStatus}
+              onChange={(e) => handlePaymentStatusChange(e.target.value)}
+              aria-label="Filter by payment status"
+            >
+              <option value="">All payments</option>
+              <option value="pending">Payment pending</option>
+              <option value="paid">Paid</option>
+              <option value="failed">Failed</option>
+              <option value="cancelled">Payment cancelled</option>
+            </select>
+          </div>
         </div>
 
         {loading ? (
@@ -151,7 +198,7 @@ export function AdminOrdersPage() {
                       </td>
                       <td>{new Date(order.createdAt).toLocaleDateString()}</td>
                       <td>
-                        <b className="text-slate-900">{formatPrice(order.totalAmount)}</b>
+                        <b className="text-slate-900">{formatPrice(order.totalPayable ?? order.totalAmount)}</b>
                       </td>
                       <td>
                         <span className="uppercase font-semibold text-xs text-slate-700">
@@ -198,7 +245,7 @@ export function AdminOrdersPage() {
                       </small>
                     </div>
                     <span className="text-xs sm:text-sm font-black text-slate-900 shrink-0">
-                      {formatPrice(order.totalAmount)}
+                      {formatPrice(order.totalPayable ?? order.totalAmount)}
                     </span>
                   </div>
 

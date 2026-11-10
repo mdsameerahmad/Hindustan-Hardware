@@ -629,6 +629,7 @@ export const adminApi = {
   assignDeliveryPartner: async (payload: {
     orderId: string
     deliveryPartnerId: string
+    deliveryFee: number
     notes?: string
   }) => {
     return apiRequest<{
@@ -656,7 +657,7 @@ export const adminApi = {
     fullName: string
     phone: string
     avatarUrl?: string | null
-    email?: string
+    email: string
     password?: string
   }) => {
     return apiRequest<any>("/admin/delivery-partners", {
@@ -684,6 +685,4 @@ export const adminApi = {
     })
   },
 }
-
-
 

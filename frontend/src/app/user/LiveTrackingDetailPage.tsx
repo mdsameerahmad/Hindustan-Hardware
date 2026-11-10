@@ -14,7 +14,7 @@ import {
 import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router"
 import { useAuth } from "../authContext"
-import { Button, PageHeader } from "../components"
+import { Button, PageHeader, formatPrice } from "../components"
 import { LiveTrackingMap } from "../components/LiveTrackingMap"
 import {
   deliveryTrackingApi,
@@ -771,6 +771,12 @@ export function LiveTrackingDetailPage() {
                         <span>Call Partner ({assignment.deliveryPartner.phone})</span>
                       </a>
                     )}
+                    <div className="flex items-center justify-between rounded-lg border border-border bg-slate-50 px-3 py-2 text-xs">
+                      <span className="font-semibold text-slate-600">Delivery fee</span>
+                      <b className="text-slate-900">
+                        {formatPrice(assignment.deliveryFee)}
+                      </b>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-xs text-slate-500">

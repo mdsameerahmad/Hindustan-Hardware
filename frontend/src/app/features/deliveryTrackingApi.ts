@@ -17,7 +17,9 @@ export interface DeliveryPartnerSummary {
 
 export interface DeliveryAssignmentInfo {
   id: string
+  deliveryPartnerId: string
   status: "assigned" | "picked_up" | "out_for_delivery" | "delivered" | "failed" | "cancelled"
+  deliveryFee: number
   assignedAt: string
   pickedUpAt: string | null
   completedAt: string | null
@@ -277,6 +279,10 @@ export interface AssignedDeliveryItem {
     longitude?: number | null
   }
   codAmount: number | null
+  orderAmountToCollect: number
+  deliveryFeeToCollect: number
+  deliveryFee: number
+  totalPayable: number
   paymentMethod: string
   paymentStatus: string
   itemsSummary: {

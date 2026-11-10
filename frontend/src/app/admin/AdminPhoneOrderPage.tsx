@@ -14,7 +14,6 @@ import {
   Share2,
   ShieldCheck,
   ShoppingBag,
-  Tag,
   Trash2,
 } from "lucide-react"
 
@@ -90,8 +89,6 @@ export function AdminPhoneOrderPage() {
   const [deliveryInstructions, setDeliveryInstructions] = useState("")
 
   const [customerNotes, setCustomerNotes] = useState("")
-
-  const [expiresInHours, setExpiresInHours] = useState(168)
 
   const [loadingProducts, setLoadingProducts] = useState(false)
 
@@ -279,10 +276,7 @@ export function AdminPhoneOrderPage() {
       })
 
       try {
-        const share = await sharedTrackingApi.createShare(
-          order.id,
-          expiresInHours,
-        )
+        const share = await sharedTrackingApi.createShare(order.id)
         try {
           const url = buildTrackingUrl(share.trackingPath)
           setCreatedOrder((current) =>
@@ -320,7 +314,7 @@ export function AdminPhoneOrderPage() {
     try {
       const share = createdOrder.trackingPath
         ? { trackingPath: createdOrder.trackingPath, expiresAt: createdOrder.expiresAt }
-        : await sharedTrackingApi.createShare(createdOrder.id, expiresInHours)
+        : await sharedTrackingApi.createShare(createdOrder.id)
       const url = buildTrackingUrl(share.trackingPath)
 
       setCreatedOrder((current) =>
@@ -488,13 +482,6 @@ export function AdminPhoneOrderPage() {
                   </Button>
                 </a>
               </div>
-              <p className="text-xs text-slate-500">
-                Expires{" "}
-                {createdOrder.expiresAt
-                  ? new Date(createdOrder.expiresAt).toLocaleString()
-                  : "as configured"}
-                .
-              </p>
             </div>
           ) : (
             <Button type="button" onClick={createMissingLink} disabled={submitting}>
@@ -846,26 +833,7 @@ export function AdminPhoneOrderPage() {
         </section>
 
         <section className="z-10 min-w-0 space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-lg lg:sticky lg:bottom-3 lg:col-span-2 sm:p-4">
-          <div className="grid gap-3 lg:grid-cols-[auto_1fr_auto] lg:items-center">
-            <label className="flex items-center gap-3 text-xs font-bold text-slate-700">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-700">
-                <Tag size={15} />
-              </span>
-              <span className="whitespace-nowrap">Tracking link expires in</span>
-              <select
-                className="field h-9 min-w-28 py-1 text-xs"
-                value={expiresInHours}
-                onChange={(event) =>
-                  setExpiresInHours(Number(event.target.value))
-                }
-              >
-                <option value={24}>24 hours</option>
-                <option value={72}>3 days</option>
-                <option value={168}>7 days</option>
-                <option value={336}>14 days</option>
-                <option value={720}>30 days</option>
-              </select>
-            </label>
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
             <p className="hidden items-start gap-2 text-[10px] leading-4 text-slate-500 lg:flex">
               <ShieldCheck size={15} className="mt-0.5 shrink-0 text-amber-600" />
               The server checks order totals and stock. The tracking link can be opened without signing in; the delivery OTP is shown after order creation.

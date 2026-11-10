@@ -116,7 +116,7 @@ export function OrdersPage() {
                   </span>
                   <span>
                     <small className="block text-slate-500 font-semibold">TOTAL</small>
-                    <b className="text-ink">{formatPrice(order.totalAmount)}</b>
+                    <b className="text-ink">{formatPrice(order.totalPayable ?? order.totalAmount)}</b>
                   </span>
                   <span>
                     <small className="block text-slate-500 font-semibold">PAYMENT</small>

@@ -326,12 +326,12 @@ export function OrderDetailPage() {
               </div>
               <div className="summary-line">
                 <span>Delivery fee</span>
-                <span className="text-emerald-400 font-semibold">Free Delivery</span>
+                <span className="text-slate-300 font-semibold">{formatPrice(order.deliveryFee ?? 0)}</span>
               </div>
             </div>
             <div className="mt-4 border-t border-white/20 pt-4 flex justify-between items-center text-xl font-black">
               <span>Total Amount</span>
-              <span>{formatPrice(order.totalAmount)}</span>
+              <span>{formatPrice(order.totalPayable ?? order.totalAmount)}</span>
             </div>
           </div>
         </aside>

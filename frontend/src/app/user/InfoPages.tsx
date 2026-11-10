@@ -863,7 +863,7 @@ export function ContactPage({ bulk = false }: { bulk?: boolean }) {
                 "P.G. Road, Opposite Eidgah, Jehanabad, Bihar 804408",
               ],
               [Phone, "Phone", "+91 8935926021"],
-              [Mail, "Email", "info@hindustanhardware.in"],
+              [Mail, "Email", "hindustanhardware786@gmail.com"],
               [Clock3, "Business hours", "Contact us for assistance"],
             ].map(([Icon, title, value]) => {
               const C = Icon as typeof MapPin

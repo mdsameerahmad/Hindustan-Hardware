@@ -11,7 +11,8 @@ export function OrderSuccessPage() {
   const routeOrder = (location.state as { order?: any })?.order
 
   const orderNumber = routeOrder?.orderNumber || routeOrder?.id || id
-  const totalAmount = routeOrder?.totalAmount ?? 0
+  const totalAmount = routeOrder?.totalPayable ?? routeOrder?.totalAmount ?? 0
+  const deliveryFee = routeOrder?.deliveryFee ?? 0
   const paymentMethod = routeOrder?.paymentMethod === "cod" ? "Cash on Delivery" : (routeOrder?.paymentMethod || "Cash on Delivery")
   const paymentStatus = routeOrder?.paymentStatus || "pending"
   const orderStatus = routeOrder?.status || "pending"
@@ -58,6 +59,10 @@ export function OrderSuccessPage() {
           <div className="summary-line mt-2">
             <span>Payment Status</span>
             <b className="capitalize text-amber-700">{paymentStatus} (Pay upon delivery)</b>
+          </div>
+          <div className="summary-line mt-2">
+            <span>Delivery Fee</span>
+            <b className="text-ink">{formatPrice(deliveryFee)}</b>
           </div>
           <div className="summary-line mt-2 text-base">
             <span className="font-bold text-ink">Total Payable</span>

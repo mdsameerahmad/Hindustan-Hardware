@@ -32,8 +32,6 @@ export function TrackingSharePanel({
 
   const [trackingUrl, setTrackingUrl] = useState<string | null>(null)
 
-  const [expiresInHours, setExpiresInHours] = useState(168)
-
   const [loading, setLoading] = useState(true)
 
   const [saving, setSaving] = useState(false)
@@ -66,7 +64,7 @@ export function TrackingSharePanel({
     setError(null)
 
     try {
-      const share = await sharedTrackingApi.createShare(orderId, expiresInHours)
+      const share = await sharedTrackingApi.createShare(orderId)
       setCreatedShare(share)
       try {
         setTrackingUrl(buildTrackingUrl(share.trackingPath))
@@ -164,18 +162,6 @@ export function TrackingSharePanel({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            aria-label="Tracking link expiry"
-            className="field max-w-32 py-2 text-xs"
-            value={expiresInHours}
-            onChange={(event) => setExpiresInHours(Number(event.target.value))}
-          >
-            <option value={24}>24 hours</option>
-            <option value={72}>3 days</option>
-            <option value={168}>7 days</option>
-            <option value={336}>14 days</option>
-            <option value={720}>30 days</option>
-          </select>
           <Button
             type="button"
             onClick={createLink}
@@ -279,8 +265,7 @@ export function TrackingSharePanel({
                     {state} link
                   </p>
                   <p className="mt-1 text-[11px] text-slate-500">
-                    Created {new Date(share.createdAt).toLocaleString()} ·
-                    expires {new Date(share.expiresAt).toLocaleString()}
+                    Created {new Date(share.createdAt).toLocaleString()}
                   </p>
                 </div>
                 {state === "Active" && (

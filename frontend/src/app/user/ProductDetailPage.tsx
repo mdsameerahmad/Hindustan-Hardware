@@ -1,7 +1,7 @@
 import { Heart, ShoppingCart, Star } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router"
-import { catalogueApi } from "../api/catalogueApi"
+import { catalogueApi, type BackendProduct } from "../api/catalogueApi"
 import { Button, EmptyState, ProductCard, Quantity, formatPrice } from "../components"
 import { type Product } from "../data"
 import { AlternativeProducts } from "../features/components/AlternativeProducts"
@@ -10,6 +10,36 @@ import { useProductAlternatives } from "../features/hooks/useProductAlternatives
 import { useProductImages } from "../features/hooks/useProductImages"
 import { useStore } from "../store"
 import { transformBackendProduct } from "../utils/productTransform"
+
+const productSizePattern = /\b\d+(?:\.\d+)?(?:\s*[-/]\s*\d+(?:\/\d+)?)?\s*(?:"|inches?|inch|mm|cm|feet|ft)/i
+
+function getProductSize(product: Product): string {
+  const nameSize = product.name.match(productSizePattern)?.[0]
+  return (nameSize || product.size || product.diameter || product.length || "").trim().toLowerCase()
+}
+
+function getProductFamily(name: string): string {
+  return name
+    .replace(new RegExp(productSizePattern.source, "gi"), " ")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+}
+
+async function getProductsForBrand(brandId: string): Promise<BackendProduct[]> {
+  const products: BackendProduct[] = []
+  let page = 1
+  let hasNextPage = true
+
+  while (hasNextPage) {
+    const result = await catalogueApi.listProducts({ brand: brandId, page, limit: 100 })
+    products.push(...result.items)
+    hasNextPage = result.pagination.hasNextPage
+    page += 1
+  }
+
+  return products
+}
 
 export function ProductDetailPage() {
   const { id } = useParams()
@@ -24,6 +54,8 @@ export function ProductDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [moreFromBrand, setMoreFromBrand] = useState<Product[]>([])
+  const [sizeVariants, setSizeVariants] = useState<Product[]>([])
+  const [loadingSizeVariants, setLoadingSizeVariants] = useState(false)
   const [tab, setTab] = useState("Description")
   const [quantity, setQuantity] = useState(1)
   const [pin, setPin] = useState("")
@@ -49,6 +81,9 @@ export function ProductDetailPage() {
 
     setLoading(true)
     setError(null)
+    setSizeVariants([])
+    setLoadingSizeVariants(false)
+    setMoreFromBrand([])
 
     // Check if ID is UUID or slug
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
@@ -62,21 +97,33 @@ export function ProductDetailPage() {
         const transformed = transformBackendProduct(bp)
         setProduct(transformed)
 
-        // Fetch authoritative products from the same brand
+        // Fetch the same-brand catalogue to find other sizes of this product.
         if (bp.brand_id) {
-          catalogueApi
-            .listProducts({ brand: bp.brand_id, limit: 6 })
-            .then((brandRes) => {
-              if (isMounted && brandRes.items.length) {
-                setMoreFromBrand(
-                  brandRes.items
-                    .filter((item) => item.id !== bp.id)
-                    .slice(0, 5)
-                    .map(transformBackendProduct),
-                )
-              }
+          setSizeVariants([transformed])
+          setLoadingSizeVariants(true)
+          getProductsForBrand(bp.brand_id)
+            .then((brandProducts) => {
+              if (!isMounted) return
+              const sameBrandProducts = brandProducts
+                .filter((item) => item.id !== bp.id)
+                .map(transformBackendProduct)
+              setMoreFromBrand(sameBrandProducts.slice(0, 5))
+
+              const currentFamily = getProductFamily(transformed.name)
+              const currentSize = getProductSize(transformed)
+              const matchingSizes = sameBrandProducts.filter((candidate) =>
+                getProductFamily(candidate.name) === currentFamily
+                && getProductSize(candidate) !== ""
+                && getProductSize(candidate) !== currentSize,
+              )
+              setSizeVariants([transformed, ...matchingSizes])
             })
-            .catch(() => {})
+            .catch((err: unknown) => {
+              console.error("Failed to load same-brand product sizes.", err)
+            })
+            .finally(() => {
+              if (isMounted) setLoadingSizeVariants(false)
+            })
         }
       })
       .catch((err: any) => {
@@ -158,7 +205,7 @@ export function ProductDetailPage() {
 
         {/* Right Column: Product Info & Actions */}
         <div className="flex flex-col min-w-0">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start justify-between gap-3">
             <div>
               <span className="inline-block text-[11px] font-black uppercase tracking-wider text-[#B89124]">
                 {product.brandName || "AUTHENTIC PRODUCT"}
@@ -167,20 +214,45 @@ export function ProductDetailPage() {
                 {product.name}
               </h1>
             </div>
-            <button
-              onClick={() => toggleWishlist(product.id)}
-              aria-label="Toggle Wishlist"
-              className="rounded-full border border-slate-200 p-2.5 hover:bg-slate-50 transition shrink-0"
-            >
-              <Heart
-                size={18}
-                className={
-                  wishlist.includes(product.id)
-                    ? "fill-red-500 text-red-500"
-                    : "text-slate-400"
-                }
-              />
-            </button>
+            <div className="flex shrink-0 flex-col items-end gap-2">
+              <button
+                onClick={() => toggleWishlist(product.id)}
+                aria-label="Toggle Wishlist"
+                className="rounded-full border border-slate-200 p-2.5 hover:bg-slate-50 transition"
+              >
+                <Heart
+                  size={18}
+                  className={
+                    wishlist.includes(product.id)
+                      ? "fill-red-500 text-red-500"
+                      : "text-slate-400"
+                  }
+                />
+              </button>
+              {(sizeVariants.length > 1 || loadingSizeVariants) && (
+                <label className="block">
+                  <span className="mb-1 block text-right text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                    Size
+                  </span>
+                  <select
+                    value={product.id}
+                    disabled={loadingSizeVariants}
+                    onChange={(event) => navigate(`/product/${event.target.value}`)}
+                    aria-label="Choose an available product size"
+                    className="w-32 max-w-[36vw] rounded-lg border border-[#D4AF37]/60 bg-amber-50/60 px-2 py-1.5 text-xs font-bold text-slate-800 outline-none transition hover:border-[#D4AF37] focus:border-[#D4AF37] disabled:bg-slate-50"
+                  >
+                    {sizeVariants.map((variant) => (
+                      <option key={variant.id} value={variant.id}>
+                        {getProductSize(variant) || variant.name} · {formatPrice(variant.price)}
+                      </option>
+                    ))}
+                    {loadingSizeVariants && sizeVariants.length === 0 && (
+                      <option value={product.id}>Loading sizes…</option>
+                    )}
+                  </select>
+                </label>
+              )}
+            </div>
           </div>
 
           <p className="mt-1.5 text-xs text-slate-400 font-medium">

@@ -5,17 +5,20 @@ import {
   Loader2,
   RefreshCcw,
 } from "lucide-react"
-import React, { useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
+import { Link, useSearchParams } from "react-router"
 import {
   Badge,
   Button,
   PageHeader,
 } from "../components"
+import { catalogueApi } from "../api/catalogueApi"
 import { type Product } from "../data"
 import { ProductImage } from "../features/components/ProductImage"
 import { useAdminInventory } from "../features/hooks/useAdminInventory"
 import { useAdminProducts } from "../features/hooks/useAdminProducts"
 import { useStore } from "../store"
+import { transformBackendProduct } from "../utils/productTransform"
 
 function MiniStat({
   label,
@@ -38,15 +41,49 @@ function MiniStat({
 }
 
 export function InventoryPage() {
-  const { products, loading: productsLoading, refetch: refetchProducts } = useAdminProducts({ page: 1, limit: 50 })
+  const { products, pagination: productPagination, setFilters: setProductFilters, loading: productsLoading, refetch: refetchProducts } = useAdminProducts({ page: 1, limit: 10 })
   const { movements, pagination: movPagination, loading: movLoading, error: movError, actionLoading, adjustStock, fetchPage: fetchMovPage } = useAdminInventory()
   const { notify } = useStore()
+  const [searchParams] = useSearchParams()
+  const showingLowStock = searchParams.get("filter") === "low-stock"
+  const [lowStockProducts, setLowStockProducts] = useState<Product[]>([])
+  const [lowStockPage, setLowStockPage] = useState(1)
+  const [lowStockLoading, setLowStockLoading] = useState(false)
+  const [lowStockError, setLowStockError] = useState<string | null>(null)
 
   const [adjustModalProduct, setAdjustModalProduct] = useState<Product | null>(null)
   const [adjustQty, setAdjustQty] = useState<number>(1)
   const [adjustType, setAdjustType] = useState<"adjustment" | "restock" | "correction" | "return">("restock")
   const [adjustReason, setAdjustReason] = useState<string>("")
   const [adjustError, setAdjustError] = useState<string | null>(null)
+
+  const fetchAllLowStockProducts = useCallback(async () => {
+    setLowStockLoading(true)
+    setLowStockError(null)
+    try {
+      const firstPage = await catalogueApi.listProducts({ page: 1, limit: 100 })
+      const pages = [firstPage]
+      for (let page = 2; page <= firstPage.pagination.totalPages; page += 1) {
+        pages.push(await catalogueApi.listProducts({ page, limit: 100 }))
+      }
+
+      setLowStockProducts(
+        pages
+          .flatMap((page) => page.items)
+          .map(transformBackendProduct)
+          .filter((product) => (product.stock ?? 0) > 0 && (product.stock ?? 0) < 10),
+      )
+      setLowStockPage(1)
+    } catch (err: any) {
+      setLowStockError(err?.message || "Failed to load low stock products.")
+    } finally {
+      setLowStockLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (showingLowStock) void fetchAllLowStockProducts()
+  }, [showingLowStock, fetchAllLowStockProducts])
 
   const handleOpenAdjust = (product: Product, delta = 1) => {
     setAdjustModalProduct(product)
@@ -78,6 +115,7 @@ export function InventoryPage() {
       notify(`Inventory updated for ${adjustModalProduct.name}`)
       setAdjustModalProduct(null)
       refetchProducts()
+      if (showingLowStock) void fetchAllLowStockProducts()
     } catch (err: any) {
       setAdjustError(err?.message || "Failed to adjust inventory.")
     }
@@ -86,16 +124,45 @@ export function InventoryPage() {
   const totalUnits = products.reduce((sum, p) => sum + (p.stock || 0), 0)
   const lowStockCount = products.filter((p) => (p.stock || 0) > 0 && (p.stock || 0) < 10).length
   const outOfStockCount = products.filter((p) => (p.stock || 0) <= 0).length
+  const pageSize = 10
+  const displayedProducts = showingLowStock
+    ? lowStockProducts.slice((lowStockPage - 1) * pageSize, lowStockPage * pageSize)
+    : products
+  const productPageCount = showingLowStock
+    ? Math.max(1, Math.ceil(lowStockProducts.length / pageSize))
+    : productPagination.totalPages
+  const currentProductPage = showingLowStock ? lowStockPage : productPagination.page
+  const changeProductPage = (page: number) => {
+    if (showingLowStock) setLowStockPage(page)
+    else setProductFilters((current) => ({ ...current, page }))
+  }
 
   return (
     <>
       <PageHeader
-        title="Inventory management"
-        description="Persisted stock monitoring, authorized stock adjustments, and atomic inventory movement history."
+        title={showingLowStock ? "Low stock items" : "Inventory management"}
+        description={showingLowStock
+          ? "All active products with fewer than 10 units currently available."
+          : "Persisted stock monitoring, authorized stock adjustments, and atomic inventory movement history."}
         action={
-          <Button variant="ghost" onClick={() => { refetchProducts(); fetchMovPage(1); }} title="Refresh inventory">
-            <RefreshCcw size={15} />
-          </Button>
+          <div className="flex items-center gap-2">
+            {showingLowStock && (
+              <Link to="/admin/inventory">
+                <Button variant="outline">View all inventory</Button>
+              </Link>
+            )}
+            <Button
+              variant="ghost"
+              onClick={() => {
+                refetchProducts()
+                fetchMovPage(1)
+                if (showingLowStock) void fetchAllLowStockProducts()
+              }}
+              title="Refresh inventory"
+            >
+              <RefreshCcw size={15} />
+            </Button>
+          </div>
         }
       />
 
@@ -107,7 +174,7 @@ export function InventoryPage() {
         />
         <MiniStat
           label="Low stock items"
-          value={String(lowStockCount)}
+          value={String(showingLowStock ? lowStockProducts.length : lowStockCount)}
           icon={<AlertTriangle />}
         />
         <MiniStat
@@ -123,11 +190,15 @@ export function InventoryPage() {
           <p className="text-xs text-slate-500">Live authoritative inventory levels across catalog products</p>
         </div>
 
-        {productsLoading ? (
+        {productsLoading || (showingLowStock && lowStockLoading) ? (
           <div className="flex h-48 flex-col items-center justify-center gap-3">
             <Loader2 className="h-7 w-7 animate-spin text-brand" />
-            <p className="text-sm font-medium text-slate-500">Loading catalog inventory...</p>
+            <p className="text-sm font-medium text-slate-500">
+              {showingLowStock ? "Loading all low stock products..." : "Loading catalog inventory..."}
+            </p>
           </div>
+        ) : lowStockError && showingLowStock ? (
+          <div className="p-8 text-center text-sm font-medium text-red-700">{lowStockError}</div>
         ) : (
           <>
             {/* Desktop & Tablet Table */}
@@ -143,7 +214,7 @@ export function InventoryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map((product) => {
+                  {displayedProducts.map((product) => {
                     const stockVal = product.stock ?? 0
                     return (
                       <tr key={product.id}>
@@ -225,7 +296,7 @@ export function InventoryPage() {
 
             {/* Mobile Card List */}
             <div className="block md:hidden divide-y divide-border">
-              {products.map((product) => {
+              {displayedProducts.map((product) => {
                 const stockVal = product.stock ?? 0
                 return (
                   <div key={product.id} className="p-3.5 space-y-3">
@@ -298,6 +369,37 @@ export function InventoryPage() {
                 )
               })}
             </div>
+            {showingLowStock && displayedProducts.length === 0 && (
+              <p className="p-8 text-center text-sm font-medium text-slate-500">
+                No low stock products found.
+              </p>
+            )}
+            {displayedProducts.length > 0 && productPageCount > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border px-4 py-3 sm:px-5 text-xs text-slate-500">
+                <span>
+                  Page {currentProductPage} of {productPageCount}
+                  {showingLowStock ? ` · ${lowStockProducts.length} low stock products` : ` · ${productPagination.total} products`}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentProductPage <= 1 || productsLoading || lowStockLoading}
+                    onClick={() => changeProductPage(currentProductPage - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentProductPage >= productPageCount || productsLoading || lowStockLoading}
+                    onClick={() => changeProductPage(currentProductPage + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

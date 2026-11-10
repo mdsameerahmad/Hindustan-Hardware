@@ -374,7 +374,7 @@ export function TrackingPage() {
         }
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 rounded-xl border border-border bg-white p-4 sm:p-5 sm:grid-cols-5 shadow-sm">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 rounded-xl border border-border bg-white p-4 sm:p-5 sm:grid-cols-7 shadow-sm">
         <Info label="Order Reference" value={<span className="font-semibold break-all text-xs sm:text-sm">{tracking.orderNumber}</span>} />
         <Info label="Placed Date" value={<span className="text-xs sm:text-sm">{formatDateTime(tracking.createdAt)}</span>} />
         <Info
@@ -419,6 +419,14 @@ export function TrackingPage() {
             }
           />
         </div>
+        <Info
+          label="Delivery Fee"
+          value={<span className="font-bold text-ink text-xs sm:text-sm">₹{(tracking.deliveryFee || 0).toLocaleString("en-IN")}</span>}
+        />
+        <Info
+          label="Total Payable"
+          value={<span className="font-bold text-ink text-xs sm:text-sm">₹{(tracking.totalPayable || 0).toLocaleString("en-IN")}</span>}
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">

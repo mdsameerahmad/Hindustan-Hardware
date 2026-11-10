@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import { useParams } from "react-router"
 
-import { Button, PageHeader } from "../components"
+import { Button, PageHeader, formatPrice } from "../components"
 
 import { LiveTrackingMap } from "../components/LiveTrackingMap"
 
@@ -331,6 +331,11 @@ export function SharedTrackingPage() {
                 <p className="mt-1 text-sm font-bold text-slate-900">
                   {assignment?.deliveryPartner?.fullName || "Not assigned yet"}
                 </p>
+                {assignment && (
+                  <p className="mt-1 text-xs font-semibold text-slate-700">
+                    Delivery fee: {formatPrice(assignment.deliveryFee)}
+                  </p>
+                )}
                 <p className="mt-1 text-xs text-slate-500">
                   {order?.trackingMessage}
                 </p>

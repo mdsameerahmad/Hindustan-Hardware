@@ -146,6 +146,9 @@ export interface PriceDiscrepancy {
 export interface CheckoutValidationResult {
   isValid: boolean
   canCheckout: boolean
+  deliveryAvailable?: boolean
+  deliveryMessage?: string
+  deliveryPincode?: string
   itemCount: number
   subtotal: number
   totalAmount: number
@@ -192,6 +195,8 @@ export interface OrderResponse {
   taxAmount: number
   shippingAmount: number
   totalAmount: number
+  deliveryFee?: number
+  totalPayable?: number
   shippingAddress: Record<string, any>
   customerNotes?: string | null
   invoiceUrl?: string | null
@@ -221,6 +226,8 @@ export interface OrderSummaryItem {
   paymentStatus: "pending" | "paid" | "failed" | "cancelled" | string
   amountCollected?: number
   amountDue?: number
+  deliveryFee?: number
+  totalPayable?: number
   currency: string
   itemCount: number
   totalQuantity: number
@@ -252,6 +259,8 @@ export interface OrderStatusTrackingResponse {
   currentStatus: string
   paymentMethod: "cod"
   paymentStatus: string
+  deliveryFee?: number
+  totalPayable?: number
   canCancel: boolean
   history: OrderStatusHistoryItem[]
   shippingAddress?: any

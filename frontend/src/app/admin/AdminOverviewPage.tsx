@@ -19,9 +19,16 @@ import {
   statusTone,
 } from "../components"
 import { useAdminDashboard } from "../features/hooks/useAdminDashboard"
+import { useEffect } from "react"
 
 export function AdminOverviewPage() {
   const { stats, loading, error, refetch } = useAdminDashboard()
+
+  useEffect(() => {
+    const handleNewOrder = () => void refetch()
+    window.addEventListener("admin:new-order", handleNewOrder)
+    return () => window.removeEventListener("admin:new-order", handleNewOrder)
+  }, [refetch])
 
   if (loading) {
     return (
@@ -52,6 +59,7 @@ export function AdminOverviewPage() {
       Icon: ClipboardList,
       subtitle: `${stats.orders.pendingFulfillment} pending fulfillment`,
       positive: true,
+      href: "/admin/orders",
     },
     {
       label: "Total Order Value",
@@ -66,6 +74,7 @@ export function AdminOverviewPage() {
       Icon: CheckCircle2,
       subtitle: "Payments received",
       positive: true,
+      href: "/admin/orders?paymentStatus=paid",
     },
     {
       label: "Total Remaining Due",
@@ -73,6 +82,7 @@ export function AdminOverviewPage() {
       Icon: IndianRupee,
       subtitle: "Across active orders",
       positive: true,
+      href: "/admin/orders?paymentStatus=pending",
     },
     {
       label: "Catalog Products",
@@ -87,6 +97,7 @@ export function AdminOverviewPage() {
       Icon: AlertTriangle,
       subtitle: "< 10 units available",
       positive: stats.products.lowStock === 0,
+      href: "/admin/inventory?filter=low-stock",
     },
     {
       label: "Categories & Brands",
@@ -125,28 +136,42 @@ export function AdminOverviewPage() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
-        {overviewCards.map(({ label, value, Icon, subtitle, positive }) => (
-          <div
-            key={label}
-            className="rounded-xl border border-border bg-white p-4 sm:p-5 shadow-xs min-w-0"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <span className="grid h-10 w-10 sm:h-11 sm:w-11 place-items-center rounded-lg bg-blue-50 text-brand shrink-0">
-                <Icon size={20} />
-              </span>
-              <span
-                className={`flex items-center gap-1 text-[11px] sm:text-xs font-bold truncate ${
-                  positive ? "text-emerald-700" : "text-amber-700"
-                }`}
-              >
-                {positive ? <ArrowUpRight size={14} className="shrink-0" /> : <ArrowDownRight size={14} className="shrink-0" />}
-                <span className="truncate">{subtitle}</span>
-              </span>
+        {overviewCards.map(({ label, value, Icon, subtitle, positive, href }) => {
+          const content = (
+            <>
+              <div className="flex items-start justify-between gap-2">
+                <span className="grid h-10 w-10 sm:h-11 sm:w-11 place-items-center rounded-lg bg-blue-50 text-brand shrink-0">
+                  <Icon size={20} />
+                </span>
+                <span
+                  className={`flex items-center gap-1 text-[11px] sm:text-xs font-bold truncate ${
+                    positive ? "text-emerald-700" : "text-amber-700"
+                  }`}
+                >
+                  {positive ? <ArrowUpRight size={14} className="shrink-0" /> : <ArrowDownRight size={14} className="shrink-0" />}
+                  <span className="truncate">{subtitle}</span>
+                </span>
+              </div>
+              <b className="mt-4 sm:mt-5 block text-2xl sm:text-3xl font-black text-slate-900 truncate">{value}</b>
+              <span className="text-xs sm:text-sm font-medium text-slate-500 block truncate">{label}</span>
+            </>
+          )
+          const className = "rounded-xl border border-border bg-white p-4 sm:p-5 shadow-xs min-w-0"
+
+          return href ? (
+            <Link
+              key={label}
+              to={href}
+              className={`${className} transition hover:border-brand/40 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand`}
+            >
+              {content}
+            </Link>
+          ) : (
+            <div key={label} className={className}>
+              {content}
             </div>
-            <b className="mt-4 sm:mt-5 block text-2xl sm:text-3xl font-black text-slate-900 truncate">{value}</b>
-            <span className="text-xs sm:text-sm font-medium text-slate-500 block truncate">{label}</span>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_0.6fr]">
@@ -261,7 +286,7 @@ export function AdminOverviewPage() {
                         </Link>
                       </td>
                       <td>{new Date(order.createdAt).toLocaleDateString()}</td>
-                      <td>{formatPrice(order.totalAmount)}</td>
+                      <td>{formatPrice(order.totalPayable ?? order.totalAmount)}</td>
                       <td>
                         <Badge tone={order.paymentStatus === "paid" ? "success" : "warning"}>
                           {order.paymentStatus}
@@ -293,7 +318,7 @@ export function AdminOverviewPage() {
                       {order.orderNumber}
                     </Link>
                     <span className="text-xs font-black text-slate-900">
-                      {formatPrice(order.totalAmount)}
+                      {formatPrice(order.totalPayable ?? order.totalAmount)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-500">

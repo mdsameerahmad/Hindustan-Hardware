@@ -47,7 +47,7 @@ export function AppSplashScreen() {
           HINDUSTAN HARDWARE
         </h1>
         <p className="mt-1.5 text-xs sm:text-sm font-semibold tracking-[0.25em] text-[#D4AF37] uppercase">
-          Sanitary & Hardware · Est. 1993
+          Hardware · Est. 1993
         </p>
 
         {/* Minimalist loading indicator */}

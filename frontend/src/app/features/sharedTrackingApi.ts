@@ -112,7 +112,7 @@ export const sharedTrackingApi = {
       },
     ),
 
-  createShare: (orderId: string, expiresInHours = 168) =>
+  createShare: (orderId: string, expiresInHours = 24) =>
     apiRequest<CreatedTrackingShare>(
       `/admin/orders/${orderId}/tracking-share`,
       {

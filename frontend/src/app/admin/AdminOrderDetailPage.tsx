@@ -68,10 +68,14 @@ export function AdminOrderDetailPage() {
   const [trackingInfo, setTrackingInfo] = useState<OrderLiveTrackingResponse | null>(null)
   const [partnersList, setPartnersList] = useState<any[]>([])
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>("")
+  const [showPartnerChangeForm, setShowPartnerChangeForm] = useState(false)
+  const [deliveryFee, setDeliveryFee] = useState("")
   const [assigningPartner, setAssigningPartner] = useState<boolean>(false)
+  const orderDeliveryFee = order?.deliveryFee ?? trackingInfo?.assignment?.deliveryFee ?? 0
+  const totalPayable = order?.totalPayable ?? ((order?.totalAmount ?? 0) + orderDeliveryFee)
   const amountCollected = order?.amountCollected ?? (order?.paymentStatus === "paid" ? order.totalAmount : 0)
   const amountDue = order?.amountDue ?? (
-    order?.status === "cancelled" ? 0 : Math.max(0, (order?.totalAmount ?? 0) - amountCollected)
+    order?.status === "cancelled" ? 0 : Math.max(0, totalPayable - amountCollected)
   )
 
   // Real-Time Delivery Partner Tracking & Route state
@@ -118,6 +122,10 @@ export function AdminOrderDetailPage() {
         .getOrderTracking(id)
         .then((res) => {
           setTrackingInfo(res)
+          if (res?.assignment) {
+            setSelectedPartnerId(res.assignment.deliveryPartnerId)
+            setDeliveryFee(String(res.assignment.deliveryFee))
+          }
           if (res?.latestLocation) {
             setPartnerLocation({
               latitude: Number(res.latestLocation.latitude),
@@ -286,8 +294,10 @@ export function AdminOrderDetailPage() {
       await adminApi.assignDeliveryPartner({
         orderId: id,
         deliveryPartnerId: selectedPartnerId,
+        deliveryFee: Number(deliveryFee),
         notes: "Assigned via Store Admin Console",
       })
+      setShowPartnerChangeForm(false)
       fetchTracking()
       refetch()
     } catch (err: any) {
@@ -510,7 +520,7 @@ export function AdminOrderDetailPage() {
         </div>
         <div className="rounded-xl border border-border bg-white p-4 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Amount</span>
-          <p className="mt-1 text-base font-black text-slate-900">{formatPrice(order.totalAmount)}</p>
+          <p className="mt-1 text-base font-black text-slate-900">{formatPrice(totalPayable)}</p>
         </div>
         <div className="rounded-xl border border-border bg-white p-4 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Payment</span>
@@ -755,9 +765,15 @@ export function AdminOrderDetailPage() {
                   <span>{formatPrice(order.shippingAmount)}</span>
                 </div>
               )}
+              {orderDeliveryFee > 0 && (
+                <div className="flex justify-between">
+                  <span>Assigned delivery fee</span>
+                  <span>{formatPrice(orderDeliveryFee)}</span>
+                </div>
+              )}
               <div className="flex justify-between border-t border-border pt-3 text-base font-black text-slate-900">
-                <span>Total Order Amount</span>
-                <span className="text-lg text-brand">{formatPrice(order.totalAmount)}</span>
+                <span>Total Payable</span>
+                <span className="text-lg text-brand">{formatPrice(totalPayable)}</span>
               </div>
             </div>
           </section>
@@ -909,6 +925,22 @@ export function AdminOrderDetailPage() {
                     </a>
                   </div>
                 )}
+                {["assigned", "picked_up", "out_for_delivery"].includes(trackingInfo.assignment.status) && (
+                  <div className="pt-2">
+                    <Button
+                      variant="outline"
+                      className="w-full text-xs font-bold"
+                      onClick={() => {
+                        setSelectedPartnerId(trackingInfo.assignment!.deliveryPartnerId)
+                        setDeliveryFee(String(trackingInfo.assignment!.deliveryFee))
+                        setShowPartnerChangeForm((visible) => !visible)
+                      }}
+                    >
+                      <RefreshCcw size={14} />
+                      {showPartnerChangeForm ? "Cancel Partner Change" : "Change Delivery Partner"}
+                    </Button>
+                  </div>
+                )}
                 <div className="flex justify-between items-center pt-1 border-t border-slate-200">
                   <span className="text-slate-500">Dispatch Status:</span>
                   <span
@@ -921,6 +953,45 @@ export function AdminOrderDetailPage() {
                     {isAtDestination ? "At Destination" : trackingInfo.assignment.status.replace(/_/g, " ")}
                   </span>
                 </div>
+                {showPartnerChangeForm && (
+                  <div className="space-y-2 border-t border-slate-200 pt-3">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      Select Replacement Driver
+                    </label>
+                    <select
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      value={selectedPartnerId}
+                      onChange={(event) => setSelectedPartnerId(event.target.value)}
+                    >
+                      <option value="">-- Choose verified partner --</option>
+                      {partnersList.map((partner) => (
+                        <option key={partner.id} value={partner.id}>
+                          {partner.fullName || partner.name || partner.email} ({partner.phone || "No phone"})
+                        </option>
+                      ))}
+                    </select>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      Delivery Fee (₹)
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={deliveryFee}
+                        onChange={(event) => setDeliveryFee(event.target.value)}
+                        className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium normal-case text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </label>
+                    <Button
+                      variant="primary"
+                      disabled={!selectedPartnerId || selectedPartnerId === trackingInfo.assignment.deliveryPartnerId || !deliveryFee.trim() || !Number.isFinite(Number(deliveryFee)) || Number(deliveryFee) < 0 || assigningPartner}
+                      onClick={handleAssignPartner}
+                      className="w-full text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 mt-1"
+                    >
+                      {assigningPartner ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} />}
+                      {assigningPartner ? "Changing Driver..." : "Confirm Partner Change"}
+                    </Button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -944,9 +1015,22 @@ export function AdminOrderDetailPage() {
                     ))}
                   </select>
 
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    Delivery Fee (₹)
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={deliveryFee}
+                      onChange={(event) => setDeliveryFee(event.target.value)}
+                      placeholder="Enter delivery fee"
+                      className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium normal-case text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </label>
+
                   <Button
                     variant="primary"
-                    disabled={!selectedPartnerId || assigningPartner}
+                    disabled={!selectedPartnerId || !deliveryFee.trim() || !Number.isFinite(Number(deliveryFee)) || Number(deliveryFee) < 0 || assigningPartner}
                     onClick={handleAssignPartner}
                     className="w-full text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 mt-1"
                   >
@@ -1002,8 +1086,16 @@ export function AdminOrderDetailPage() {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-slate-500">Order total:</span>
+                <span className="text-slate-500">Items total:</span>
                 <b className="text-slate-900">{formatPrice(order.totalAmount)}</b>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Delivery fee:</span>
+                <b className="text-slate-900">{formatPrice(orderDeliveryFee)}</b>
+              </div>
+              <div className="flex justify-between items-center border-t border-border pt-2">
+                <span className="font-bold text-slate-700">Total payable:</span>
+                <b className="text-slate-900">{formatPrice(totalPayable)}</b>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-slate-500">Amount collected:</span>
@@ -1224,7 +1316,7 @@ export function AdminOrderDetailPage() {
             <div className="mt-4 grid grid-cols-2 gap-3 text-left">
               <div className="rounded-lg bg-slate-50 p-3">
                 <span className="block text-xs text-slate-500">Total amount</span>
-                <b className="text-sm text-slate-900">{formatPrice(order.totalAmount)}</b>
+                <b className="text-sm text-slate-900">{formatPrice(totalPayable)}</b>
               </div>
               <div className="rounded-lg bg-amber-50 p-3">
                 <span className="block text-xs text-amber-700">Currently due</span>

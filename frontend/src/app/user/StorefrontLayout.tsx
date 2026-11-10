@@ -333,7 +333,7 @@ export function Footer() {
                 HINDUSTAN HARDWARE
               </strong>
               <span className="block text-[10px] font-bold tracking-[0.2em] text-[#D4AF37] uppercase">
-                SANITARY & HARDWARE · EST. 1993
+                HARDWARE · EST. 1993
               </span>
             </div>
           </div>
@@ -390,7 +390,7 @@ export function Footer() {
               <Phone size={12} className="text-[#D4AF37]" /> +91 8935926021
             </p>
             <p className="flex items-center gap-2 mt-1">
-              <AtSign size={12} className="text-[#D4AF37]" /> info@hindustanhardware.in
+              <AtSign size={12} className="text-[#D4AF37]" /> hindustanhardware786@gmail.com
             </p>
           </div>
         </div>
@@ -399,7 +399,14 @@ export function Footer() {
         <div className="container-wide flex flex-col sm:flex-row items-center justify-between gap-3">
           <span>© 2026 Hindustan Hardware. All Rights Reserved.</span>
           <div className="flex items-center gap-4">
-            <span>Made for Professionals. Loved by Homeowners.</span>
+            <a
+              href="https://mdsameerahmad9575.github.io/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-colors hover:text-[#D4AF37]"
+            >
+              Made By Md Sameer Ahmad
+            </a>
           </div>
         </div>
       </div>
@@ -500,7 +507,7 @@ export function StorefrontLayout() {
                 HINDUSTAN
               </strong>
               <span className="block text-[8.5px] sm:text-[10px] font-bold tracking-[0.2em] sm:tracking-[0.25em] text-[#D4AF37] uppercase truncate">
-                HARDWARE & SANITARY
+                HARDWARE
               </span>
             </span>
           </Link>

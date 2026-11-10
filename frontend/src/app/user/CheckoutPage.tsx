@@ -301,6 +301,28 @@ export function CheckoutPage() {
                 </div>
               )}
 
+              {validationResult?.deliveryAvailable === false && (
+                <div className="mt-4 flex flex-col items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                    <div>
+                      <p className="font-bold">Delivery unavailable</p>
+                      <p className="mt-0.5">
+                        {validationResult.deliveryMessage || "Delivery is not available in your location. Contact the shop for assistance."}
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href={`https://wa.me/918935926021?text=${encodeURIComponent(`Hello, delivery is unavailable for PIN code ${validationResult.deliveryPincode || displayAddress.pin}. Can you help?`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex shrink-0 items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
+                  >
+                    Contact us on WhatsApp
+                  </a>
+                </div>
+              )}
+
               <div className="mt-6 divide-y divide-border">
                 {validationResult?.items?.map((item) => (
                   <div key={item.productId} className="flex gap-4 py-4 first:pt-0">

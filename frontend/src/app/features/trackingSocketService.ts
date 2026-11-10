@@ -49,6 +49,12 @@ export interface OrderStatusBroadcastPayload {
   timestamp: string
 }
 
+export interface NewOrderNotificationPayload {
+  orderId: string
+  orderNumber: string
+  createdAt: string
+}
+
 export interface SocketSubscriptionResponse {
   success: boolean
   deliveryId: string
@@ -317,6 +323,25 @@ class TrackingSocketService {
       if (this.listenersCount === 0) {
         this.disconnect()
       }
+    }
+  }
+
+  public subscribeToNewOrders(
+    onNewOrder: (payload: NewOrderNotificationPayload) => void,
+  ): () => void {
+    const s = this.connect()
+    this.listenersCount++
+
+    const handleNewOrder = (payload: NewOrderNotificationPayload) => {
+      if (payload?.orderId && payload.orderNumber) onNewOrder(payload)
+    }
+
+    s?.on("admin:order_created", handleNewOrder)
+
+    return () => {
+      this.listenersCount = Math.max(0, this.listenersCount - 1)
+      this.socket?.off("admin:order_created", handleNewOrder)
+      if (this.listenersCount === 0) this.disconnect()
     }
   }
 

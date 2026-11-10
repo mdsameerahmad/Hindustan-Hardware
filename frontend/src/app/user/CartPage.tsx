@@ -149,11 +149,6 @@ export function CartPage() {
                       {formatPrice(product.mrp)}
                     </span>
                   )}
-                  {(product.discountPercentage || (product.mrp && product.mrp > product.price)) && (
-                    <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                      {product.discountPercentage ?? Math.round(((product.mrp! - product.price) / product.mrp!) * 100)}% OFF
-                    </span>
-                  )}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-4 text-xs font-bold text-brand">
                   <button
@@ -220,20 +215,6 @@ export function CartPage() {
               <span>Delivery fee</span>
               <span>Calculated after PIN check</span>
             </div>
-            {lines.some((l) => (l.product.mrp && l.product.mrp > l.product.price)) && (
-              <div className="summary-line text-emerald-700">
-                <span>Discount savings</span>
-                <b>
-                  -
-                  {formatPrice(
-                    lines.reduce((acc, l) => {
-                      const mrp = l.product.mrp || l.product.price
-                      return acc + Math.max(0, mrp - l.product.price) * l.quantity
-                    }, 0)
-                  )}
-                </b>
-              </div>
-            )}
           </div>
           <div className="mt-5 flex justify-between border-t border-border pt-5 text-lg font-black">
             <span>Total</span>
