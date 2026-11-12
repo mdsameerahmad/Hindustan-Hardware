@@ -1,4 +1,6 @@
-# Hindustan Hardware & Sanitary E-Commerce — Backend Architecture (Live Delivery Tracking Module Phases 1–5 Complete)
+# Hindustan Hardware & Sanitary — Backend Architecture and Operations
+
+> **Current implementation:** This guide includes the checkout, customer/admin order management, delivery tracking, COD collection, and delivery payment QR features through migration `023_delivery_payment_qr_setting.sql`. Older phase sections below preserve implementation history; where their details differ, the current-state notes at the end of this file are authoritative.
 
 ## 1. Overview & Scope
 
@@ -1067,4 +1069,119 @@ CATALOGUE_IMPORT_APPROVED=true npm run catalogue:seed -- --commit
 The shared address picker uses Photon/OpenStreetMap search by default. To enable broader Google Places street, road, station, and landmark results, set `GOOGLE_MAPS_API_KEY` in the backend environment. Enable Places API (New), configure billing and usage quotas in Google Cloud, and restrict the server-side key to the backend's egress IP and Places API. Keep the key server-side; it is never returned to the frontend. Google Places autocomplete sessions are paired with place-detail lookups, and Photon remains the fallback if Google is not configured or unavailable.
 
 Search quality and street completeness still depend on the map provider's data; neither provider guarantees every named path or address.
+
+---
+
+## Current Implementation Reference (Updated 2026-11-12)
+
+This section records the behavior of the current code and migrations and supersedes older statements that describe COD as a single all-or-nothing payment.
+
+### Checkout pricing and immutable order totals
+
+- Checkout validates prices against the same effective product/variant price shown to the customer.
+- The checkout RPC stores the verified price snapshot in `orders` and `order_items`; later catalog changes do not recalculate a placed order.
+- Migration `020_checkout_preserve_displayed_prices.sql` updates `public.process_cod_checkout` to preserve those displayed prices.
+- Order summaries, detail views, admin views, and delivery assignment totals use the persisted order amount, with the assigned delivery fee added where applicable.
+
+### COD collection and payment status
+
+Payment collection is performed by the database RPC `public.record_order_payment_collection`, which serializes updates to an order and writes a collection-history row for each accepted payment.
+
+Current payment statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `pending` | No amount has been collected yet. |
+| `partially_paid` | Some amount is collected and a balance remains. |
+| `paid` | The total payable amount, including an applicable delivery fee, has been collected. |
+| `failed` | A payment attempt failed. |
+| `cancelled` | Payment was cancelled along with the order. |
+
+- Migration `016_partial_order_payment_collection.sql` creates the collection table, order amount field, and initial RPC.
+- Migration `019_include_delivery_fee_in_payable_amount.sql` makes the assigned delivery fee part of the payable balance and removes the original amount ceiling that blocked collection of that fee.
+- Migration `021_fix_payment_collection_amount_constraint.sql` removes any lingering `amount_collected <= total_amount` check constraint.
+- Migration `022_show_partial_payment_status.sql` permits and backfills `partially_paid`, updates the collection RPC and delivery-fee status synchronization, and refreshes the PostgREST schema cache.
+- Admin order details return `amountCollected`, `amountDue`, and collection history. Customer order details return the same customer-facing payment summary and history, scoped to the owner of the order.
+- Admin dashboard financial totals count both paid and partially paid collections; remaining due includes the unpaid balance on partial payments.
+
+### Delivery payment QR settings
+
+The admin overview lets an administrator upload or replace one store-wide QR image used by delivery partners:
+
+| Endpoint | Method | Authorization | Purpose |
+| --- | --- | --- | --- |
+| `/api/v1/admin/settings/delivery-payment-qr` | `GET` | Admin | Read current QR URL and update time. |
+| `/api/v1/admin/settings/delivery-payment-qr` | `POST` | Admin | Upload a PNG, JPEG, or WebP QR image in multipart field `image`. |
+| `/api/v1/deliveries/payment-qr` | `GET` | Delivery partner or admin | Retrieve the QR URL for the partner portal. |
+
+- Migration `023_delivery_payment_qr_setting.sql` creates the RLS-protected `public.store_settings` table. Access is performed server-side with the Supabase service-role client.
+- Images are stored in the existing public `product-images` Supabase Storage bucket under `settings/delivery-payment-qr/`; uploads are checked against the actual image signature.
+- The settings row stores the current public URL and storage path. On replacement, the old object is removed after the new setting is saved.
+- The partner endpoint exposes only the current QR URL and timestamp; it does not permit partners to upload or replace the QR.
+- Apply migration `023` to the same Supabase project used by the backend before using QR upload or display. The `product-images` bucket must already exist and be configured for public image reads.
+
+### Current migration inventory
+
+Apply migrations in numeric order to a new database. For an existing database, apply each migration that has not already been run, in order, against the same Supabase project configured in the backend:
+
+| Migration | Purpose |
+| --- | --- |
+| `001`–`003` | Profiles/roles, catalogue/inventory, product image metadata. |
+| `004`–`008` | Customer addresses, carts, orders/checkout, cancellation/history, admin audit/inventory, and schema fixes. |
+| `009`–`013` | Delivery assignments and GPS history, address coordinates, checkout pricing, delivery OTP creation and verification. |
+| `014`–`018` | Catalogue import mapping, bulk inquiries, partial payment collection, phone orders/tracking shares, and delivery coverage/fees. |
+| `019` | Delivery-fee-aware payable amount and payment collection RPC. |
+| `020` | Preserve the customer-visible effective price when creating an order. |
+| `021` | Remove the stale collected-amount upper-bound constraint. |
+| `022` | Display and persist `partially_paid` payment status. |
+| `023` | Persist the store-wide delivery payment QR setting. |
+
+Do not blindly rerun data migrations against production. Review each migration and verify the target Supabase project before execution. Migrations `020`–`023` are SQL files under `backend/migrations/`; they are not automatically applied by the Node.js server.
+
+### Local backend setup and verification
+
+The backend runs on Node.js 22 and TypeScript. Create `backend/.env` locally; do not commit it. The environment schema is defined in `src/config/env.ts`.
+
+Important settings:
+
+| Variable | Use |
+| --- | --- |
+| `PORT`, `HOST` | HTTP listener (defaults to port `5000` and `0.0.0.0`). |
+| `CORS_ORIGIN` | Comma-separated allowed frontend origins. |
+| `SUPABASE_URL` | Supabase project URL. |
+| `SUPABASE_ANON_KEY` | Public Supabase key used for non-privileged server operations where configured. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only key for administrative/database/storage operations; never expose it to the frontend. |
+| `GOOGLE_MAPS_API_KEY` | Optional server-side Places provider; keep it private. |
+| `DELIVERY_OTP_ENCRYPTION_KEY` | Optional/configured encryption key for delivery OTP storage. |
+| `TRACKING_FRESHNESS_THRESHOLD_SECONDS` | GPS freshness threshold (default `120`). |
+| `TRACKING_MAX_ACCURACY_METERS` | Accepted GPS accuracy ceiling (default `500`). |
+| `TRACKING_MAX_UPDATE_FREQUENCY_SECONDS` | Minimum location update interval (default `5`). |
+| `OSRM_ROUTER_URL` | Routing service base URL. |
+| `ROUTING_CACHE_TTL_SECONDS`, `ROUTING_MIN_DISTANCE_RECALCULATE_METERS` | Route-cache behavior. |
+
+From `backend/`:
+
+```bash
+npm ci
+npm run dev
+```
+
+In another terminal:
+
+```bash
+npm run typecheck
+npm test
+npm run build
+```
+
+`backend/TESTING.md` documents the production check and read-only API smoke tests. Keep test credentials in environment variables and use dedicated staging accounts.
+
+### API and security conventions
+
+- Versioned HTTP routes are mounted under `/api/v1`; the backend also serves health endpoints.
+- Successful and failed API responses use the common response/error middleware. Request IDs are exposed as `x-request-id` for log correlation.
+- Customer endpoints authenticate with Supabase bearer tokens and enforce ownership at the service layer.
+- `/api/v1/admin/*` is protected by authentication, the `admin` role, and admin rate limiting.
+- Delivery routes use explicit role checks and assignment ownership. Socket.IO subscriptions authorize the caller before joining a delivery room.
+- The server uses an isolated service-role Supabase client for privileged operations. Never place the service-role key in frontend variables, source files, or deployment artifacts available to browsers.
 
