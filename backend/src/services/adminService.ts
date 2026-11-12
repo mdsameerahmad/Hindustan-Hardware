@@ -148,9 +148,10 @@ export class AdminService {
         pendingFulfillment++;
       }
 
-      if (ord.payment_status === 'paid') {
+      if (ord.payment_status === 'paid' || ord.payment_status === 'partially_paid') {
         totalAmountCollected += paymentAmounts.amountCollected;
-      } else if (ord.payment_status === 'pending') {
+      }
+      if (ord.payment_status === 'pending' || ord.payment_status === 'partially_paid') {
         totalAmountDue += paymentAmounts.amountDue;
       }
 
@@ -686,9 +687,25 @@ export class AdminService {
     });
 
     if (collectionErr) {
-      logger.error('Failed to record order payment collection', { error: collectionErr.message, orderId });
+      logger.error('Failed to record order payment collection', {
+        error: collectionErr.message,
+        code: collectionErr.code,
+        details: collectionErr.details,
+        hint: collectionErr.hint,
+        orderId,
+      });
+      if (collectionErr.code === 'PGRST202' || collectionErr.code === '42883') {
+        throw new InternalServerError(
+          'Payment collection RPC is not available in the backend database schema. Confirm SUPABASE_URL targets the database where migrations 016 and 019 were run, then reload the PostgREST schema cache.'
+        );
+      }
+      if (collectionErr.code === '42501') {
+        throw new InternalServerError(
+          'Payment collection was denied by the database. Verify the backend service-role key and EXECUTE permission for the payment collection function.'
+        );
+      }
       throw new InternalServerError(
-        'Failed to record payment collection. Verify that migration 016_partial_order_payment_collection.sql has been applied.'
+        `Payment collection failed in the database (code ${collectionErr.code || 'unknown'}). Check the backend log for the matching database error details.`
       );
     }
 

@@ -203,4 +203,6 @@ FROM (
 WHERE o.id = a.order_id
   AND o.payment_status IN ('paid', 'pending');
 
+NOTIFY pgrst, 'reload schema';
+
 COMMIT;

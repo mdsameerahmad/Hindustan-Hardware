@@ -200,6 +200,21 @@ export class OrderService {
     }
 
     const deliveryFee = await getDeliveryFeeByOrderId(client, orderId);
+    const { data: rawCollections, error: collectionsErr } = await client
+      .from('order_payment_collections')
+      .select('id, amount, method, notes, actor_id, created_at')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false });
+
+    if (collectionsErr) {
+      logger.error('Failed to query customer order payment collections', {
+        error: collectionsErr.message,
+        orderId,
+        userId,
+      });
+      throw new InternalServerError('Failed to retrieve order payment history.');
+    }
+
     const items: OrderItemRecord[] = (rawItems || []).map((row: any) => ({
       id: row.id,
       orderId: row.order_id,
@@ -225,6 +240,31 @@ export class OrderService {
       createdAt: h.created_at,
     }));
 
+    const totalAmount = Number(order.total_amount);
+    const totalPayable = totalAmount + deliveryFee;
+    const amountCollected = Math.round(
+      Math.min(
+        Math.max(
+          order.amount_collected == null
+            ? order.payment_status === 'paid' ? totalAmount : 0
+            : Number(order.amount_collected) || 0,
+          0
+        ),
+        totalPayable
+      ) * 100
+    ) / 100;
+    const amountDue = order.status === 'cancelled' || order.payment_status === 'cancelled'
+      ? 0
+      : Math.round(Math.max(totalPayable - amountCollected, 0) * 100) / 100;
+    const paymentCollections = (rawCollections || []).map((collection: any) => ({
+      id: collection.id,
+      amount: Number(collection.amount),
+      method: collection.method as 'cash' | 'online',
+      notes: collection.notes || null,
+      actorId: collection.actor_id || null,
+      createdAt: collection.created_at,
+    }));
+
     const canCancel = this.CANCELLABLE_STATUSES.includes(order.status as OrderStatus);
     const invoiceData = (order.shipping_address_snapshot as any)?._invoice;
 
@@ -240,9 +280,11 @@ export class OrderService {
       discountAmount: Number(order.discount_amount || 0),
       taxAmount: Number(order.tax_amount || 0),
       shippingAmount: Number(order.shipping_amount || 0),
-      totalAmount: Number(order.total_amount),
+      totalAmount,
       deliveryFee,
-      totalPayable: Number(order.total_amount) + deliveryFee,
+      totalPayable,
+      amountCollected,
+      amountDue,
       shippingAddress: order.shipping_address_snapshot,
       customerNotes: order.customer_notes || null,
       invoiceUrl: invoiceData?.url || null,
@@ -250,6 +292,7 @@ export class OrderService {
       invoiceUploadedAt: invoiceData?.uploadedAt || null,
       items,
       statusHistory,
+      paymentCollections,
       canCancel,
       createdAt: order.created_at,
       updatedAt: order.updated_at,

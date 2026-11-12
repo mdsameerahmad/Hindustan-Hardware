@@ -24,6 +24,7 @@ import { BrandService } from '../services/brandService';
 import { ProductService } from '../services/productService';
 import { ImageService } from '../services/imageService';
 import { AdminService } from '../services/adminService';
+import { PaymentQrService } from '../services/paymentQrService';
 import { AdminPhoneOrderService } from '../services/adminPhoneOrderService';
 import { TrackingShareService } from '../services/trackingShareService';
 import { BulkInquiryService } from '../services/bulkInquiryService';
@@ -54,6 +55,30 @@ export const adminRouter = Router();
 
 // Apply auth, admin check, and abuse rate limiting to all admin routes
 adminRouter.use(authenticate, requireRole('admin'), adminRateLimiter);
+
+adminRouter.get('/settings/delivery-payment-qr', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const qr = await PaymentQrService.get();
+    return sendSuccess(res, qr, 'Delivery payment QR retrieved successfully');
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.post(
+  '/settings/delivery-payment-qr',
+  uploadImageMiddleware,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.file) throw new BadRequestError('Upload a QR code image.');
+
+      const qr = await PaymentQrService.upload(req.file.buffer, req.file.mimetype, req.user!.id);
+      return sendSuccess(res, qr, 'Delivery payment QR uploaded successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 /**
  * GET /api/v1/admin/verify

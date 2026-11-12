@@ -11,10 +11,25 @@ import {
   verifyDeliveryOtpSchema,
 } from '../common/validation/trackingSchemas';
 import { DeliveryTrackingService } from '../services/deliveryTrackingService';
+import { PaymentQrService } from '../services/paymentQrService';
 import { RoadRoutingService } from '../services/roadRoutingService';
 import { sendSuccess } from '../common/utils/response';
 
 export const deliveryRouter = Router();
+
+deliveryRouter.get(
+  '/payment-qr',
+  authenticate,
+  requireRole('delivery_partner', 'admin'),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const qr = await PaymentQrService.get();
+      return sendSuccess(res, qr, 'Delivery payment QR retrieved successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 /**
  * GET /api/v1/deliveries/assigned

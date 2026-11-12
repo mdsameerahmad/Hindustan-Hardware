@@ -280,7 +280,7 @@ export interface ReadinessCheckResult {
 }
 
 export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
-export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'cancelled';
+export type PaymentStatus = 'pending' | 'partially_paid' | 'paid' | 'failed' | 'cancelled';
 
 export interface OrderItemRecord {
   id: string;

@@ -7,7 +7,7 @@ export const adminOrderQuerySchema = z.object({
   status: z
     .enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'])
     .optional(),
-  paymentStatus: z.enum(['pending', 'paid', 'failed', 'cancelled']).optional(),
+  paymentStatus: z.enum(['pending', 'partially_paid', 'paid', 'failed', 'cancelled']).optional(),
   userId: z.string().uuid().optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),

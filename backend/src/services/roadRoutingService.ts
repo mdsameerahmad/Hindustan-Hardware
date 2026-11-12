@@ -213,13 +213,15 @@ export class RoadRoutingService {
 
     const nowMs = Date.now();
     const cachedEntry = this.routeCache.get(deliveryId);
+    const cacheTtlMs = Math.min(env.ROUTING_CACHE_TTL_SECONDS * 1000, 10_000);
+    const recalculateDistanceMeters = Math.min(env.ROUTING_MIN_DISTANCE_RECALCULATE_METERS, 10);
 
     // Cache evaluation: Check TTL and distance moved since last calculation
     if (cachedEntry) {
-      const isWithinTtl = (nowMs - cachedEntry.cachedAtMs) / 1000 < env.ROUTING_CACHE_TTL_SECONDS;
+      const isWithinTtl = nowMs - cachedEntry.cachedAtMs < cacheTtlMs;
       const originMovedMeters = this.calculateHaversineDistanceMeters(cachedEntry.route.origin, origin);
 
-      if (isWithinTtl && originMovedMeters < env.ROUTING_MIN_DISTANCE_RECALCULATE_METERS) {
+      if (isWithinTtl && originMovedMeters < recalculateDistanceMeters) {
         return {
           ...cachedEntry.route,
           cached: true,
