@@ -49,6 +49,7 @@ export function AdminOrderDetailPage() {
     loading,
     error,
     actionLoading,
+    updateStatus,
     cancelOrder,
     collectCodPayment,
     uploadInvoice,
@@ -64,6 +65,7 @@ export function AdminOrderDetailPage() {
   const [codAmount, setCodAmount] = useState("")
   const [codMethod, setCodMethod] = useState<"cash" | "online">("cash")
   const [actionError, setActionError] = useState<string | null>(null)
+  const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [trackingInfo, setTrackingInfo] = useState<OrderLiveTrackingResponse | null>(null)
   const [partnersList, setPartnersList] = useState<any[]>([])
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>("")
@@ -324,6 +326,30 @@ export function AdminOrderDetailPage() {
     )
   }
 
+  const handleNextOrderStatus = async () => {
+    const nextStatus: Record<string, string> = {
+      pending: "confirmed",
+      confirmed: "processing",
+      processing: "shipped",
+    }
+    const next = nextStatus[order.status]
+    if (!next) return
+
+    setActionError(null)
+    try {
+      await updateStatus(next, next === "shipped" ? "Dispatched from Store" : undefined)
+      setStatusMessage(
+        next === "confirmed"
+          ? "Order confirmed."
+          : next === "processing"
+          ? "Order moved to processing."
+          : "Order dispatched from store.",
+      )
+    } catch (err: any) {
+      setActionError(err?.message || "Failed to update order status.")
+    }
+  }
+
   const handleCancel = async () => {
     if (!cancelReason.trim()) {
       setActionError("Cancellation reason is required (minimum 3 characters).")
@@ -476,6 +502,12 @@ export function AdminOrderDetailPage() {
       {actionError && (
         <div className="mb-6 rounded-lg bg-red-50 p-4 border border-red-200 text-sm text-red-700">
           {actionError}
+        </div>
+      )}
+
+      {statusMessage && (
+        <div className="mb-6 rounded-lg bg-emerald-50 p-4 border border-emerald-200 text-sm text-emerald-800">
+          {statusMessage}
         </div>
       )}
 
@@ -1129,6 +1161,43 @@ export function AdminOrderDetailPage() {
               )}
             </div>
           </section>
+
+          {order.status !== "delivered" && order.status !== "cancelled" && (
+            <section className="rounded-xl border border-border bg-white p-5 shadow-xs">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-black text-slate-900 text-sm">Update Order Milestone</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Confirm and progress this order until it is dispatched. Delivery completion requires customer OTP verification by the delivery partner.
+                  </p>
+                </div>
+                <Badge tone={statusTone(order.status as any)}>{order.status}</Badge>
+              </div>
+              {order.status === "shipped" ? (
+                <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs font-medium text-amber-800">
+                  Dispatched from Store · Awaiting delivery partner OTP verification.
+                </p>
+              ) : (
+                <Button
+                  className="mt-4 w-full"
+                  disabled={actionLoading}
+                  onClick={handleNextOrderStatus}
+                >
+                  {actionLoading ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" /> Updating...
+                    </>
+                  ) : order.status === "pending" ? (
+                    "Confirm Order"
+                  ) : order.status === "confirmed" ? (
+                    "Start Processing"
+                  ) : (
+                    "Dispatched from Store"
+                  )}
+                </Button>
+              )}
+            </section>
+          )}
 
           {order.canCancel && (
             <section className="rounded-xl border border-rose-200 bg-white p-5 shadow-xs">

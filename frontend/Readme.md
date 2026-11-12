@@ -1208,7 +1208,7 @@ This section captures the latest completed behavior and supersedes any older pha
 
 ### Admin portal
 
-- The admin order detail no longer shows the redundant **Update Order Milestone** section. Fulfillment progression is managed through the delivery workflow; eligible order cancellation remains available.
+- The admin order detail shows **Update Order Milestone** controls until an order is delivered or cancelled. Admins can confirm, start processing, and dispatch an order; final delivery remains gated by customer OTP verification from the delivery partner.
 - The admin overview includes **Delivery payment QR**, where an administrator can upload or replace the store-wide QR image used by delivery partners.
 - New-order notification dropdown behavior is responsive on mobile, keeps its menu within the viewport, and wraps long text.
 - The obsolete **Delivery Orders** sidebar entry is removed; delivery-partner administration remains available.
@@ -1233,6 +1233,8 @@ The app is a React/Vite SPA. API requests use the configured versioned API base 
 | `VITE_PUBLIC_APP_URL` | Optional canonical HTTPS storefront origin for shareable tracking links. |
 
 These are build-time browser values. Never put a Supabase service-role key or other server secret in a `VITE_*` variable.
+
+The checkout address picker also searches the supplied Jehanabad 50 km PIN/locality list, so matching area names and PIN codes appear even when the map provider does not return them in autocomplete. Selecting a listed area resolves its location through Google Places or Photon before opening the map pin step; if Google returns no results, the backend tries Photon. The pin helper is shown below the map, and the Leaflet map is recreated when reopened to avoid stale-container rendering issues.
 
 Useful frontend checks:
 

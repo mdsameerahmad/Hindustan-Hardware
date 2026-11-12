@@ -20,7 +20,61 @@ import {
 } from "lucide-react"
 import { Button, Badge } from "../../components"
 import { locationApi, type SupportedCity, type GeocodingSuggestion } from "../locationApi"
+import localityIndex from "../jehanabadLocalities.json"
 import type { CreateAddressPayload } from "../commerceTypes"
+
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+}
+
+function findLocalitySuggestions(query: string): GeocodingSuggestion[] {
+  const normalizedQuery = normalizeSearchText(query)
+  if (!normalizedQuery) return []
+
+  const matches = localityIndex.flatMap((record) =>
+    record.areas.flatMap((area) => {
+      const normalizedArea = normalizeSearchText(area)
+      const normalizedPincode = record.pincode
+      const areaMatches = normalizedArea.includes(normalizedQuery)
+      const pincodeMatches = normalizedPincode.startsWith(normalizedQuery.replace(/\s/g, ""))
+      if (!areaMatches && !pincodeMatches) return []
+
+      const relevance = normalizedArea === normalizedQuery
+        ? 3
+        : normalizedArea.startsWith(normalizedQuery)
+        ? 2
+        : areaMatches
+        ? 1
+        : 0
+
+      return [{
+        suggestion: {
+          id: `local-area:${record.pincode}:${normalizedArea}`,
+          name: area,
+          formattedAddress: `${area}, ${record.district}, Bihar ${record.pincode}`,
+          locality: area,
+          city: record.district,
+          district: record.district,
+          state: "Bihar",
+          postalCode: record.pincode,
+          country: "India",
+          provider: "Photon-OSM" as const,
+        },
+        relevance,
+      }]
+    }),
+  )
+
+  return matches
+    .sort((a, b) => b.relevance - a.relevance || a.suggestion.name.localeCompare(b.suggestion.name))
+    .slice(0, 8)
+    .map(({ suggestion }) => suggestion)
+}
 
 export interface AddressPickerModalProps {
   isOpen: boolean
@@ -63,6 +117,8 @@ export function AddressPickerModal({
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
   const markerRef = useRef<L.Marker | null>(null)
+  const mapResizeObserverRef = useRef<ResizeObserver | null>(null)
+  const reverseGeocodeRequestIdRef = useRef(0)
 
   const [pinCoords, setPinCoords] = useState<{ latitude: number; longitude: number }>({
     latitude: 25.215475,
@@ -136,6 +192,8 @@ export function AddressPickerModal({
       return
     }
 
+    const localSuggestions = findLocalitySuggestions(trimmed)
+    setSuggestions(localSuggestions)
     setIsSearching(true)
     setSearchError(null)
 
@@ -147,12 +205,13 @@ export function AddressPickerModal({
           lon: pinCoords.longitude,
         }, searchSessionTokenRef.current)
         if (requestId !== searchRequestIdRef.current) return
-        setSuggestions(results)
-        if (results.length === 0) {
+        const mergedResults = [...localSuggestions, ...results]
+        setSuggestions(mergedResults)
+        if (mergedResults.length === 0) {
           setSearchError("No matching street, road or landmark found. You can place the pin directly on the map.")
         }
       } catch (err: any) {
-        if (requestId === searchRequestIdRef.current) {
+        if (requestId === searchRequestIdRef.current && localSuggestions.length === 0) {
           setSearchError("Address search unavailable. You can locate your address manually on the map.")
         }
       } finally {
@@ -168,12 +227,15 @@ export function AddressPickerModal({
 
   // Reverse geocode when pin moves
   const runReverseGeocode = useCallback(async (lat: number, lon: number) => {
+    const requestId = ++reverseGeocodeRequestIdRef.current
     setIsReverseGeocoding(true)
     try {
       const [revResult, serviceResult] = await Promise.allSettled([
         locationApi.reverseGeocode(lat, lon),
         locationApi.checkServiceability({ lat, lon, city: selectedCity }),
       ])
+
+      if (requestId !== reverseGeocodeRequestIdRef.current) return
 
       if (serviceResult.status === "fulfilled") {
         setServiceability({
@@ -207,7 +269,7 @@ export function AddressPickerModal({
         }))
       }
     } finally {
-      setIsReverseGeocoding(false)
+      if (requestId === reverseGeocodeRequestIdRef.current) setIsReverseGeocoding(false)
     }
   }, [selectedCity])
 
@@ -216,10 +278,20 @@ export function AddressPickerModal({
     if (step !== 2 || !isOpen) return
 
     const timer = setTimeout(() => {
-      if (!mapContainerRef.current) return
+      const container = mapContainerRef.current
+      if (!container) return
 
-      if (!mapInstanceRef.current) {
-        const map = L.map(mapContainerRef.current, {
+      let map = mapInstanceRef.current
+      if (map && map.getContainer() !== container) {
+        mapResizeObserverRef.current?.disconnect()
+        map.remove()
+        mapInstanceRef.current = null
+        markerRef.current = null
+        map = null
+      }
+
+      if (!map) {
+        map = L.map(container, {
           center: [pinCoords.latitude, pinCoords.longitude],
           zoom: 16,
           zoomControl: true,
@@ -271,25 +343,44 @@ export function AddressPickerModal({
         // Trigger reverse geocoding on initial map open
         runReverseGeocode(pinCoords.latitude, pinCoords.longitude)
       } else {
-        mapInstanceRef.current.setView([pinCoords.latitude, pinCoords.longitude], 16)
+        map.setView([pinCoords.latitude, pinCoords.longitude], Math.max(map.getZoom(), 16), { animate: false })
         markerRef.current?.setLatLng([pinCoords.latitude, pinCoords.longitude])
-        mapInstanceRef.current.invalidateSize()
       }
+
+      mapResizeObserverRef.current?.disconnect()
+      const activeMap = map
+      const resizeObserver = new ResizeObserver(() => {
+        if (mapInstanceRef.current === activeMap) activeMap.invalidateSize({ pan: false })
+      })
+      resizeObserver.observe(container)
+      mapResizeObserverRef.current = resizeObserver
+      requestAnimationFrame(() => {
+        if (mapInstanceRef.current === activeMap) activeMap.invalidateSize({ pan: false })
+      })
     }, 100)
+
+    const settleTimer = window.setTimeout(() => {
+      mapInstanceRef.current?.invalidateSize({ pan: false })
+    }, 350)
 
     return () => {
       clearTimeout(timer)
+      clearTimeout(settleTimer)
+      mapResizeObserverRef.current?.disconnect()
+      mapResizeObserverRef.current = null
     }
   }, [step, isOpen, pinCoords.latitude, pinCoords.longitude, runReverseGeocode])
 
-  // Cleanup on unmount or modal close
+  // Leaflet keeps its original container, so discard the map when this step unmounts.
   useEffect(() => {
-    if (!isOpen && mapInstanceRef.current) {
+    if ((!isOpen || step !== 2) && mapInstanceRef.current) {
+      mapResizeObserverRef.current?.disconnect()
+      mapResizeObserverRef.current = null
       mapInstanceRef.current.remove()
       mapInstanceRef.current = null
       markerRef.current = null
     }
-  }, [isOpen])
+  }, [isOpen, step])
 
   // Handle Current Location Detection
   const handleUseCurrentLocation = () => {
@@ -337,16 +428,44 @@ export function AddressPickerModal({
     setIsSelectingSuggestion(true)
     setSearchError(null)
     try {
-      const selected = suggestion.provider === "Google-Places" && suggestion.placeId
-        ? await locationApi.getPlaceDetails(suggestion.placeId, searchSessionTokenRef.current)
-        : suggestion
+      let selected = suggestion
+      if (suggestion.id.startsWith("local-area:")) {
+        const localityQuery = [
+          suggestion.name,
+          suggestion.district,
+          suggestion.postalCode,
+          "Bihar",
+        ].filter(Boolean).join(", ")
+        const localityResults = await locationApi.searchAddresses(
+          localityQuery,
+          selectedCity,
+          8,
+          { lat: pinCoords.latitude, lon: pinCoords.longitude },
+          searchSessionTokenRef.current,
+        )
+        const resolvedLocality = localityResults.find((result) =>
+          result.latitude != null &&
+          result.longitude != null &&
+          result.postalCode === suggestion.postalCode,
+        ) || localityResults.find((result) =>
+          result.latitude != null && result.longitude != null,
+        )
+        if (!resolvedLocality) {
+          throw new Error("Could not locate this area on the map. Try its PIN code or select a nearby search result.")
+        }
+        selected = resolvedLocality
+      }
+
+      if (selected.provider === "Google-Places" && selected.placeId) {
+        selected = await locationApi.getPlaceDetails(selected.placeId, searchSessionTokenRef.current)
+      }
       const latitude = selected.latitude
       const longitude = selected.longitude
       if (latitude == null || longitude == null) {
         throw new Error("The selected map result does not include exact coordinates.")
       }
 
-      if (suggestion.provider === "Google-Places") {
+      if (selected.provider === "Google-Places") {
         searchSessionTokenRef.current = crypto.randomUUID()
       }
 
@@ -357,7 +476,7 @@ export function AddressPickerModal({
         longitude,
         city: selected.city || selectedCity,
         state: selected.state || "Bihar",
-        postalCode: selected.postalCode || prev.postalCode,
+        postalCode: selected.postalCode || suggestion.postalCode || prev.postalCode,
         addressLine1: selected.street || selected.name,
         addressLine2: selected.locality || "",
         formattedAddress: selected.formattedAddress,
@@ -681,18 +800,6 @@ export function AddressPickerModal({
               <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-900 h-72 sm:h-80 shadow-inner">
                 <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-                {/* Overlaid Helper Tip */}
-                <div className="absolute top-2.5 left-2.5 right-2.5 z-10 pointer-events-none">
-                  <div className="rounded-lg bg-slate-950/85 backdrop-blur-md border border-slate-800 px-3 py-1.5 text-[11px] font-semibold text-slate-300 shadow-md flex items-center justify-between">
-                    <span>Tap or drag marker to your exact gate / building</span>
-                    {isReverseGeocoding && (
-                      <span className="flex items-center gap-1 text-amber-400">
-                        <Loader2 size={11} className="animate-spin" /> Resolving...
-                      </span>
-                    )}
-                  </div>
-                </div>
-
                 {/* Recenter Button */}
                 <button
                   type="button"
@@ -703,6 +810,15 @@ export function AddressPickerModal({
                 >
                   {gpsLoading ? <Loader2 size={16} className="animate-spin" /> : <Crosshair size={16} />}
                 </button>
+              </div>
+
+              <div className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-[11px] font-semibold text-slate-300 flex items-center justify-between gap-2">
+                <span>Tap the map or drag the pin to your exact gate / building.</span>
+                {isReverseGeocoding && (
+                  <span className="flex shrink-0 items-center gap-1 text-amber-400" role="status">
+                    <Loader2 size={11} className="animate-spin" /> Resolving...
+                  </span>
+                )}
               </div>
 
               {/* Resolved Address Preview Box */}
