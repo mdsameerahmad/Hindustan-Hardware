@@ -1148,34 +1148,9 @@ export class AdminService {
       throw new InternalServerError('Unable to query delivery partners.');
     }
 
-    // 2. Also check delivery_assignments to guarantee any partner who has had an assignment in DB is included
-    const { data: assignmentPartners } = await client
-      .from('delivery_assignments')
-      .select('delivery_partner_id');
-
-    const assignedPartnerIds = Array.from(
-      new Set((assignmentPartners || []).map((a: any) => a.delivery_partner_id).filter(Boolean))
-    );
-
-    let allPartners = [...(directPartners || [])];
-    const existingIds = new Set(allPartners.map((p: any) => p.id));
-
-    if (assignedPartnerIds.length > 0) {
-      const missingIds = assignedPartnerIds.filter((id) => !existingIds.has(id));
-      if (missingIds.length > 0) {
-        const { data: missingProfiles } = await client
-          .from('profiles')
-          .select('id, full_name, phone, role, avatar_url, created_at, updated_at')
-          .in('id', missingIds);
-        if (missingProfiles && missingProfiles.length > 0) {
-          allPartners.push(...missingProfiles);
-        }
-      }
-    }
-
     // Enrich with shop coordinates and active assignment count
     const enriched = await Promise.all(
-      (allPartners || []).map(async (p: any) => {
+      (directPartners || []).map(async (p: any) => {
         // Query active delivery assignment if any
         const { data: activeAssignment } = await client
           .from('delivery_assignments')
@@ -1460,17 +1435,6 @@ export class AdminService {
     const fallbackClient = getSupabaseClient();
     const client = adminClient || fallbackClient;
     if (!client) throw new InternalServerError('Database service is unavailable.');
-
-    // Check for active assignments
-    const { count: activeCount } = await client
-      .from('delivery_assignments')
-      .select('id', { count: 'exact', head: true })
-      .eq('delivery_partner_id', id)
-      .in('status', ['assigned', 'picked_up', 'out_for_delivery']);
-
-    if (activeCount && activeCount > 0) {
-      throw new BadRequestError('Cannot delete delivery partner with ongoing active delivery assignments.');
-    }
 
     // Demote role to customer or delete if not bound to orders
     const { error: updateErr } = await client

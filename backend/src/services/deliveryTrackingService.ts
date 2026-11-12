@@ -772,18 +772,32 @@ export class DeliveryTrackingService {
     }
 
     // 3. Fetch delivery partner profile summary
-    let partnerInfo: { fullName: string; phone: string | null; avatarUrl: string | null } | null = null;
+    let partnerInfo: {
+      fullName: string;
+      phone: string | null;
+      avatarUrl: string | null;
+      isAvailable: boolean;
+    } | null = {
+      fullName: 'Delivery Partner Not Available',
+      phone: null,
+      avatarUrl: null,
+      isAvailable: false,
+    };
     if (assignment.delivery_partner_id) {
       const { data: partner } = await client
         .from('profiles')
-        .select('full_name, phone, avatar_url')
+        .select('full_name, phone, avatar_url, role')
         .eq('id', assignment.delivery_partner_id)
         .single();
       if (partner) {
+        const isAvailable = ['delivery_partner', 'staff', 'admin'].includes(partner.role);
         partnerInfo = {
-          fullName: partner.full_name || 'Hindustan Hardware Partner',
+          fullName: isAvailable
+            ? partner.full_name || 'Hindustan Hardware Partner'
+            : 'Delivery Partner Not Available',
           phone: partner.phone || null,
           avatarUrl: partner.avatar_url || null,
+          isAvailable,
         };
       }
     }

@@ -616,6 +616,7 @@ export interface OrderLiveTrackingResponse {
       fullName: string;
       phone: string | null;
       avatarUrl?: string | null;
+      isAvailable: boolean;
     } | null;
   } | null;
   latestLocation: {

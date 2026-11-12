@@ -238,7 +238,14 @@ export class TrackingShareService {
       fullName: string;
       phone: string | null;
       avatarUrl?: string | null;
-    } | null = null;
+      isAvailable: boolean;
+    } | null = assignment
+      ? {
+          fullName: 'Delivery Partner Not Available',
+          phone: null,
+          isAvailable: false,
+        }
+      : null;
     let latestLocation: OrderLiveTrackingResponse['latestLocation'] = null;
     let route: Awaited<ReturnType<typeof RoadRoutingService.getDeliveryRoute>> | null = null;
     let eta: Awaited<ReturnType<typeof RoadRoutingService.getDeliveryEta>> | null = null;
@@ -246,7 +253,7 @@ export class TrackingShareService {
     if (assignment) {
       const { data: partner, error: partnerError } = await client
         .from('profiles')
-        .select('full_name')
+        .select('full_name, role')
         .eq('id', assignment.delivery_partner_id)
         .maybeSingle();
       if (partnerError) {
@@ -256,9 +263,13 @@ export class TrackingShareService {
         });
       }
       if (partner) {
+        const isAvailable = ['delivery_partner', 'staff', 'admin'].includes(partner.role);
         deliveryPartner = {
-          fullName: partner.full_name || 'Hindustan Hardware Partner',
+          fullName: isAvailable
+            ? partner.full_name || 'Hindustan Hardware Partner'
+            : 'Delivery Partner Not Available',
           phone: null,
+          isAvailable,
         };
       }
 
