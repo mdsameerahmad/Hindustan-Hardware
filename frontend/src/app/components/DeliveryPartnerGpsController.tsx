@@ -138,32 +138,49 @@ export const DeliveryPartnerGpsController: React.FC<DeliveryPartnerGpsController
     setStatusUpdating(true)
     setStatusError(null)
     try {
-      // 1. Determine destination coordinates
-      const targetLat = destinationLat ?? currentPosition?.latitude ?? 25.19833
-      const targetLng = destinationLng ?? currentPosition?.longitude ?? 84.98437
+      let targetLat = destinationLat
+      let targetLng = destinationLng
+      if (
+        targetLat == null ||
+        targetLng == null ||
+        !Number.isFinite(targetLat) ||
+        !Number.isFinite(targetLng)
+      ) {
+        const route = await deliveryTrackingApi.getDeliveryRoute(deliveryId)
+        targetLat = route.destination.latitude
+        targetLng = route.destination.longitude
+      }
+
+      if (
+        !Number.isFinite(targetLat) ||
+        !Number.isFinite(targetLng) ||
+        targetLat < -90 ||
+        targetLat > 90 ||
+        targetLng < -180 ||
+        targetLng > 180
+      ) {
+        throw new Error("Valid delivery destination coordinates are unavailable.")
+      }
 
       const coords = {
-        latitude: targetLat,
-        longitude: targetLng,
+        latitude: destinationLat,
+        longitude: destinationLng,
         heading: currentPosition?.heading ?? 0,
         speed: 0,
         accuracy: 5,
       }
 
-      // Record to database & broadcast via Socket.IO to customer + admin rooms
-      try {
-        await deliveryTrackingApi.recordDeliveryLocation(deliveryId, {
-          ...coords,
-          deviceTimestamp: new Date().toISOString(),
-        })
-      } catch (err) {
-        console.warn("Could not save destination fix to REST API:", err)
-      }
+      await deliveryTrackingApi.submitLocationUpdate(deliveryId, {
+        ...coords,
+        deviceTimestamp: new Date().toISOString(),
+      })
 
       // Immediately update local partner map
       if (onLocationChange) {
         onLocationChange(coords)
       }
+    } catch (err: any) {
+      setStatusError(err?.message || "Could not update your location to the delivery destination.")
     } finally {
       setStatusUpdating(false)
     }

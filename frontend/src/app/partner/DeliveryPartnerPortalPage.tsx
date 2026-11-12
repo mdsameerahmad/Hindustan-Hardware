@@ -14,6 +14,7 @@ import {
   Navigation,
   Package,
   Phone,
+  QrCode,
   RefreshCw,
   Shield,
   Truck
@@ -37,6 +38,8 @@ import {
   type DeliveryStatusBroadcastPayload,
 } from "../features/trackingSocketService"
 
+const ROUTE_REFRESH_INTERVAL_MS = 12_000
+
 export function DeliveryPartnerPortalPage() {
   const { user, logout } = useAuth()
   const [activeTab, setActiveTab] = useState<"active" | "history">("active")
@@ -58,6 +61,10 @@ export function DeliveryPartnerPortalPage() {
   const [socketStatus, setSocketStatus] = useState<"connected" | "reconnecting" | "disconnected">("disconnected")
   const [isLocationStale, setIsLocationStale] = useState<boolean>(false)
   const [lastLocationTimestamp, setLastLocationTimestamp] = useState<string | null>(null)
+  const [paymentQrUrl, setPaymentQrUrl] = useState<string | null>(null)
+  const [paymentQrError, setPaymentQrError] = useState<string | null>(null)
+  const [paymentQrLoading, setPaymentQrLoading] = useState(true)
+  const [showPaymentQr, setShowPaymentQr] = useState(false)
   const lastRouteFetchTimeRef = useRef<number>(0)
 
   const fetchDeliveries = useCallback(async () => {
@@ -80,6 +87,25 @@ export function DeliveryPartnerPortalPage() {
   useEffect(() => {
     fetchDeliveries()
   }, [fetchDeliveries])
+
+  useEffect(() => {
+    let active = true
+    deliveryTrackingApi.getPaymentQr()
+      .then(({ imageUrl }) => {
+        if (active) setPaymentQrUrl(imageUrl)
+      })
+      .catch((err: unknown) => {
+        if (active) {
+          setPaymentQrError(err instanceof Error ? err.message : "Unable to load the payment QR code.")
+        }
+      })
+      .finally(() => {
+        if (active) setPaymentQrLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
 
   const activeDeliveries = deliveries.filter((d) =>
     ["assigned", "picked_up", "out_for_delivery"].includes(d.status)
@@ -211,7 +237,7 @@ export function DeliveryPartnerPortalPage() {
         }
 
         // Recalculate route if significant distance or time elapsed
-        if (Date.now() - lastRouteFetchTimeRef.current > 25000) {
+        if (Date.now() - lastRouteFetchTimeRef.current > ROUTE_REFRESH_INTERVAL_MS) {
           fetchRouteForDelivery(deliveryId)
         }
       },
@@ -245,8 +271,8 @@ export function DeliveryPartnerPortalPage() {
       setPartnerLocationInfo(coords)
       setLastLocationTimestamp(new Date().toISOString())
       setIsLocationStale(false)
-      // If partner is moving and it has been more than 25 seconds since last road route recalculation, update route
-      if (currentDelivery?.id && Date.now() - lastRouteFetchTimeRef.current > 25000) {
+      // Refresh the road route as the partner moves.
+      if (currentDelivery?.id && Date.now() - lastRouteFetchTimeRef.current > ROUTE_REFRESH_INTERVAL_MS) {
         fetchRouteForDelivery(currentDelivery.id)
       }
     }
@@ -697,6 +723,14 @@ export function DeliveryPartnerPortalPage() {
                             <b className="text-slate-700">₹{currentDelivery.totalPayable.toLocaleString("en-IN")}</b>
                           </div>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowPaymentQr(true)}
+                          className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#B89124] bg-white px-4 py-2.5 text-xs font-black text-[#8F6B12] transition hover:bg-amber-50"
+                        >
+                          <QrCode size={16} />
+                          Show Payment QR Code
+                        </button>
                       </div>
 
                       {/* Delivery Address & Contact */}
@@ -972,6 +1006,8 @@ export function DeliveryPartnerPortalPage() {
                                     : undefined)
                                 }
                                 routeCoordinates={routeData?.geometry?.coordinates}
+                                zoom={17}
+                                headingUp
                                 height="100%"
                               />
                             </div>
@@ -1057,8 +1093,8 @@ export function DeliveryPartnerPortalPage() {
                         orderNumber={currentDelivery.orderNumber}
                         customerName={currentDelivery.destination.recipientName}
                         customerAddress={`${currentDelivery.destination.addressLine1}, ${currentDelivery.destination.city}`}
-                        destinationLat={currentDelivery.destination.latitude || routeData?.destination?.latitude}
-                        destinationLng={currentDelivery.destination.longitude || routeData?.destination?.longitude}
+                        destinationLat={currentDelivery.destination.latitude ?? routeData?.destination?.latitude}
+                        destinationLng={currentDelivery.destination.longitude ?? routeData?.destination?.longitude}
                         initialStatus={currentDelivery.status}
                         onStatusChange={handleStatusChange}
                         onLocationChange={handleLocationUpdate}
@@ -1126,6 +1162,53 @@ export function DeliveryPartnerPortalPage() {
           </div>
         )}
       </main>
+
+      {showPaymentQr && (
+        <div
+          className="fixed inset-0 z-[11000] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+          onClick={() => setShowPaymentQr(false)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delivery-payment-qr-title"
+            className="w-full max-w-sm rounded-2xl bg-white p-5 text-center shadow-2xl sm:p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-amber-50 text-[#8F6B12]">
+              <QrCode size={24} />
+            </div>
+            <h2 id="delivery-payment-qr-title" className="mt-3 text-lg font-black text-slate-900">
+              Payment QR Code
+            </h2>
+            <p className="mt-1 break-words text-xs text-slate-500">
+              {currentDelivery?.orderNumber}
+            </p>
+            {paymentQrLoading ? (
+              <p className="mt-5 text-sm text-slate-500">Loading QR code...</p>
+            ) : paymentQrError ? (
+              <p role="alert" className="mt-5 rounded-lg bg-red-50 p-3 text-sm text-red-700">{paymentQrError}</p>
+            ) : paymentQrUrl ? (
+              <img
+                src={paymentQrUrl}
+                alt="Store payment QR code"
+                className="mx-auto mt-5 aspect-square w-full max-w-[280px] rounded-xl border border-slate-200 bg-white p-2 object-contain"
+              />
+            ) : (
+              <p className="mt-5 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+                The store payment QR code has not been uploaded by an admin yet.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowPaymentQr(false)}
+              className="mt-5 min-h-11 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-800"
+            >
+              Close
+            </button>
+          </section>
+        </div>
+      )}
     </div>
   )
 }

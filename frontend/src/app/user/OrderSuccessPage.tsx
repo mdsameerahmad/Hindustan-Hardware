@@ -58,7 +58,7 @@ export function OrderSuccessPage() {
           </div>
           <div className="summary-line mt-2">
             <span>Payment Status</span>
-            <b className="capitalize text-amber-700">{paymentStatus} (Pay upon delivery)</b>
+            <b className="capitalize text-amber-700">{paymentStatus.replace(/_/g, " ")} (Pay upon delivery)</b>
           </div>
           <div className="summary-line mt-2">
             <span>Delivery Fee</span>

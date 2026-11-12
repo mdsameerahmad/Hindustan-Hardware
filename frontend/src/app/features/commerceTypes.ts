@@ -188,7 +188,7 @@ export interface OrderResponse {
   userId: string | null
   status: string
   paymentMethod: "cod" | string
-  paymentStatus: "pending" | "paid" | string
+  paymentStatus: "pending" | "partially_paid" | "paid" | string
   currency: string
   subtotal: number
   discountAmount: number
@@ -223,7 +223,7 @@ export interface OrderSummaryItem {
   orderNumber: string
   status: "pending" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled" | string
   paymentMethod: "cod"
-  paymentStatus: "pending" | "paid" | "failed" | "cancelled" | string
+  paymentStatus: "pending" | "partially_paid" | "paid" | "failed" | "cancelled" | string
   amountCollected?: number
   amountDue?: number
   deliveryFee?: number
@@ -413,7 +413,7 @@ export interface AdminOrderQuery {
   page?: number
   limit?: number
   status?: "pending" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled"
-  paymentStatus?: "pending" | "paid" | "failed" | "cancelled"
+  paymentStatus?: "pending" | "partially_paid" | "paid" | "failed" | "cancelled"
   userId?: string
   startDate?: string
   endDate?: string

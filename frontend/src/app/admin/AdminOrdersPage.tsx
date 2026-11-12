@@ -11,9 +11,9 @@ import {
   Badge,
   Button,
   PageHeader,
-  formatPrice,
   statusTone,
 } from "../components"
+import { formatAdminPrice as formatPrice } from "./formatAdminPrice"
 import { useAdminOrders } from "../features/hooks/useAdminOrders"
 
 function getRemainingDue(order: {
@@ -35,6 +35,7 @@ export function AdminOrdersPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("")
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<string>(
     ["pending", "paid", "failed", "cancelled"].includes(initialPaymentStatus)
+      || initialPaymentStatus === "partially_paid"
       ? initialPaymentStatus
       : "",
   )
@@ -44,7 +45,7 @@ export function AdminOrdersPage() {
     limit: 10,
     status: undefined,
     paymentStatus: selectedPaymentStatus
-      ? selectedPaymentStatus as "pending" | "paid" | "failed" | "cancelled"
+      ? selectedPaymentStatus as "pending" | "partially_paid" | "paid" | "failed" | "cancelled"
       : undefined,
   })
 
@@ -74,7 +75,7 @@ export function AdminOrdersPage() {
     setQuery((prev) => ({
       ...prev,
       page: 1,
-      paymentStatus: (paymentStatus as "pending" | "paid" | "failed" | "cancelled") || undefined,
+      paymentStatus: (paymentStatus as "pending" | "partially_paid" | "paid" | "failed" | "cancelled") || undefined,
     }))
   }
 
@@ -151,6 +152,7 @@ export function AdminOrdersPage() {
             >
               <option value="">All payments</option>
               <option value="pending">Payment pending</option>
+              <option value="partially_paid">Partially paid</option>
               <option value="paid">Paid</option>
               <option value="failed">Failed</option>
               <option value="cancelled">Payment cancelled</option>
@@ -207,8 +209,8 @@ export function AdminOrdersPage() {
                       </td>
                       <td>
                         <div className="space-y-1">
-                          <Badge tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "cancelled" ? "danger" : "warning"}>
-                            {order.paymentStatus}
+                          <Badge tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "cancelled" ? "danger" : order.paymentStatus === "partially_paid" ? "blue" : "warning"}>
+                            {order.paymentStatus.replace(/_/g, " ")}
                           </Badge>
                           <small className="block font-semibold text-amber-700">
                             Due: {formatPrice(getRemainingDue(order))}
@@ -254,8 +256,8 @@ export function AdminOrdersPage() {
                       {new Date(order.createdAt).toLocaleDateString()} · <span className="uppercase font-semibold text-slate-700">{order.paymentMethod}</span>
                     </span>
                     <div className="flex items-center gap-1.5">
-                      <Badge tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "cancelled" ? "danger" : "warning"}>
-                        {order.paymentStatus}
+                      <Badge tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "cancelled" ? "danger" : order.paymentStatus === "partially_paid" ? "blue" : "warning"}>
+                        {order.paymentStatus.replace(/_/g, " ")}
                       </Badge>
                       <Badge tone={statusTone(order.status as any)}>
                         {order.status}

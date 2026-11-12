@@ -9,7 +9,6 @@ import {
     Menu,
     Package,
     Tags,
-    Truck,
     Users,
     X
 } from "lucide-react"
@@ -59,7 +58,6 @@ const adminNav = [
   ["Inventory", "/admin/inventory", Gauge],
   ["Orders", "/admin/orders", ClipboardList],
   ["Customers", "/admin/customers", Users],
-  ["Delivery Orders", "/admin/deliveries", Truck],
   ["Delivery Partner Management", "/admin/delivery-partners", Bike],
   ["Bulk Inquiries", "/admin/inquiries", Building2],
 ] as const

@@ -120,7 +120,7 @@ export function OrdersPage() {
                   </span>
                   <span>
                     <small className="block text-slate-500 font-semibold">PAYMENT</small>
-                    <b className="capitalize text-slate-700">Cash on Delivery ({order.paymentStatus})</b>
+                    <b className="capitalize text-slate-700">Cash on Delivery ({order.paymentStatus.replace(/_/g, " ")})</b>
                   </span>
                 </div>
                 <Badge tone={getStatusBadgeTone(order.status) as any}>

@@ -17,9 +17,9 @@ import {
   Badge,
   Button,
   PageHeader,
-  formatPrice,
   statusTone,
 } from "../components"
+import { formatAdminPrice as formatPrice } from "./formatAdminPrice"
 import { useAdminCustomers } from "../features/hooks/useAdminCustomers"
 import { useAdminOrders } from "../features/hooks/useAdminOrders"
 
@@ -290,7 +290,7 @@ export function Deliveries() {
                     Customer: {order.customer?.name || "Customer on record"} ({order.customer?.phone || "No phone"})
                   </span>
                   <span className="text-xs text-slate-500 block mt-1">
-                    Payment: <b className="capitalize text-slate-700">{order.paymentStatus}</b> via Cash on Delivery
+                    Payment: <b className="capitalize text-slate-700">{order.paymentStatus.replace(/_/g, " ")}</b> via Cash on Delivery
                   </span>
                 </div>
 

@@ -29,7 +29,8 @@ import {
 
 import { ApiError } from "../api/client"
 
-import { Button, PageHeader, formatPrice } from "../components"
+import { Button, PageHeader } from "../components"
+import { formatAdminPrice as formatPrice } from "./formatAdminPrice"
 import { AddressPickerModal } from "../features/components/AddressPickerModal"
 import type { CreateAddressPayload } from "../features/commerceTypes"
 

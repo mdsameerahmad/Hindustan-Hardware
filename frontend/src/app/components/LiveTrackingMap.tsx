@@ -31,6 +31,7 @@ export interface LiveTrackingMapProps {
   markerMode?: "truck" | "navigation"
   partnerHeading?: number | null
   autoFollow?: boolean
+  headingUp?: boolean
 }
 
 export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
@@ -54,6 +55,7 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
   markerMode = "truck",
   partnerHeading = null,
   autoFollow = false,
+  headingUp = false,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
@@ -70,6 +72,8 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
   const currentRenderedHeadingRef = useRef<number>(0)
   const animFrameIdRef = useRef<number | null>(null)
   const lastHeadingRef = useRef<number>(0)
+  const lastMapBearingRef = useRef<number>(0)
+  const lastMapBearingLocationRef = useRef<Coordinate | null>(null)
   const hasInitializedBoundsRef = useRef<boolean>(false)
 
   // Initialize Map
@@ -103,6 +107,7 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
       // Standard OpenStreetMap tiles
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
+        keepBuffer: 2,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       }).addTo(map)
 
@@ -128,6 +133,40 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
       }
     }
   }, [])
+
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    const mapPane = map?.getPane("mapPane")
+    if (!map || !mapPane) return
+
+    const updateMapBearing = () => {
+      if (partnerHeading != null && Number.isFinite(partnerHeading)) {
+        lastMapBearingRef.current = partnerHeading
+      } else if (partnerLocation) {
+        const previousLocation = lastMapBearingLocationRef.current
+        if (
+          previousLocation &&
+          (previousLocation.latitude !== partnerLocation.latitude ||
+            previousLocation.longitude !== partnerLocation.longitude)
+        ) {
+          lastMapBearingRef.current = calculateBearing(previousLocation, partnerLocation)
+        }
+      }
+      if (partnerLocation) lastMapBearingLocationRef.current = partnerLocation
+
+      const bearing = headingUp && autoFollow ? lastMapBearingRef.current : 0
+      const center = map.containerPointToLayerPoint(map.getSize().divideBy(2))
+      mapPane.style.transformOrigin = `${center.x}px ${center.y}px`
+      mapPane.style.rotate = `${-bearing}deg`
+      mapPane.style.transition = "rotate 300ms linear"
+    }
+
+    updateMapBearing()
+    map.on("move resize", updateMapBearing)
+    return () => {
+      map.off("move resize", updateMapBearing)
+    }
+  }, [headingUp, autoFollow, partnerHeading, partnerLocation?.latitude, partnerLocation?.longitude])
 
   // Calculate bearing angle (0 - 360) between two coordinates for turn-by-turn arrow rotation
   const calculateBearing = (from: Coordinate, to: Coordinate): number => {
@@ -547,8 +586,9 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
       if (destinationMarkerRef.current) {
         destinationMarkerRef.current.setLatLng(destLatLng)
         destinationMarkerRef.current.setIcon(destIcon)
+        destinationMarkerRef.current.setZIndexOffset(1200)
       } else {
-        const marker = L.marker(destLatLng, { icon: destIcon }).addTo(map)
+        const marker = L.marker(destLatLng, { icon: destIcon, zIndexOffset: 1200 }).addTo(map)
         marker.bindPopup("<b>Delivery Destination</b><br/>Confirmed Order Delivery Address")
         destinationMarkerRef.current = marker
       }
@@ -632,7 +672,17 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
     // On subsequent live location updates:
     // - If autoFollow is enabled, smooth pan to partner WITHOUT resetting the user's zoom level!
     // - If autoFollow is disabled, do not touch the map viewport so the user can freely zoom and pan.
-    if (!hasInitializedBoundsRef.current && hasPoints && bounds.isValid()) {
+    if (headingUp && effectivePartnerLocation) {
+      if (!hasInitializedBoundsRef.current) {
+        map.setView([effectivePartnerLocation.latitude, effectivePartnerLocation.longitude], zoom)
+        hasInitializedBoundsRef.current = true
+      } else if (autoFollow) {
+        map.panTo([effectivePartnerLocation.latitude, effectivePartnerLocation.longitude], {
+          animate: true,
+          duration: 0.8,
+        })
+      }
+    } else if (!hasInitializedBoundsRef.current && hasPoints && bounds.isValid()) {
       map.fitBounds(bounds, { padding: [45, 45], maxZoom: 16 })
       hasInitializedBoundsRef.current = true
     } else if (autoFollow && effectivePartnerLocation) {
@@ -647,7 +697,7 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
     setTimeout(() => {
       map.invalidateSize()
     }, 150)
-  }, [storeLocation, partnerLocation, partnerHeading, destinationLocation, customerLocation, routeCoordinates, isStale, markerMode, autoFollow])
+  }, [storeLocation, partnerLocation, partnerHeading, destinationLocation, customerLocation, routeCoordinates, isStale, markerMode, autoFollow, headingUp, zoom])
 
   return (
     <div

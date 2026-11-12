@@ -25,9 +25,9 @@ import {
     Button,
     EmptyState,
     PageHeader,
-    formatPrice,
     statusTone,
 } from "../components"
+import { formatAdminPrice as formatPrice } from "./formatAdminPrice"
 import { LiveTrackingMap } from "../components/LiveTrackingMap"
 import { TrackingSharePanel } from "./TrackingSharePanel"
 import {
@@ -49,7 +49,6 @@ export function AdminOrderDetailPage() {
     loading,
     error,
     actionLoading,
-    updateStatus,
     cancelOrder,
     collectCodPayment,
     uploadInvoice,
@@ -325,26 +324,6 @@ export function AdminOrderDetailPage() {
     )
   }
 
-  const allowedTransitions: Record<string, string[]> = {
-    pending: ["confirmed", "processing", "shipped", "cancelled"],
-    confirmed: ["pending", "processing", "shipped", "cancelled"],
-    processing: ["confirmed", "shipped", "cancelled"],
-    shipped: ["processing", "cancelled"],
-    delivered: [],
-    cancelled: [],
-  }
-
-  const nextValidStatuses = allowedTransitions[order.status] || []
-
-  const handleStatusTransition = async (targetStatus: string) => {
-    setActionError(null)
-    try {
-      await updateStatus(targetStatus)
-    } catch (err: any) {
-      setActionError(err?.message || "Failed to update order status.")
-    }
-  }
-
   const handleCancel = async () => {
     if (!cancelReason.trim()) {
       setActionError("Cancellation reason is required (minimum 3 characters).")
@@ -525,8 +504,8 @@ export function AdminOrderDetailPage() {
         <div className="rounded-xl border border-border bg-white p-4 shadow-2xs">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Payment</span>
           <div className="mt-1 flex items-center gap-2">
-            <Badge tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "cancelled" ? "danger" : "warning"}>
-              {order.paymentStatus}
+            <Badge tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "cancelled" ? "danger" : order.paymentStatus === "partially_paid" ? "blue" : "warning"}>
+              {order.paymentStatus.replace(/_/g, " ")}
             </Badge>
           </div>
         </div>
@@ -1074,8 +1053,8 @@ export function AdminOrderDetailPage() {
               <h3 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
                 <IndianRupee size={15} className="text-emerald-600" /> Payment Status
               </h3>
-              <Badge tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "cancelled" ? "danger" : "warning"}>
-                {order.paymentStatus}
+              <Badge tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "cancelled" ? "danger" : order.paymentStatus === "partially_paid" ? "blue" : "warning"}>
+                {order.paymentStatus.replace(/_/g, " ")}
               </Badge>
             </div>
             <div className="mt-3 space-y-2 text-xs">
@@ -1107,7 +1086,7 @@ export function AdminOrderDetailPage() {
               </div>
             </div>
 
-            {amountDue > 0 && order.paymentStatus === "pending" && order.status !== "cancelled" && (
+            {amountDue > 0 && ["pending", "partially_paid"].includes(order.paymentStatus) && order.status !== "cancelled" && (
               <Button
                 className="mt-4 w-full text-xs font-bold"
                 variant="primary"
@@ -1151,53 +1130,22 @@ export function AdminOrderDetailPage() {
             </div>
           </section>
 
-          {/* Card 4: Order Milestone Status Controller */}
-          <section className="rounded-xl border border-border bg-white p-5 shadow-xs">
-            <h3 className="font-black text-slate-900 text-sm">Update Order Milestone</h3>
-            <p className="text-[11px] text-slate-500 mt-1 mb-3">
-              Advances order status; the assigned delivery partner completes delivery after OTP verification.
-            </p>
-
-            <div className="space-y-1.5">
-              {[
-                { status: "confirmed", label: "1. Confirm Order" },
-                { status: "shipped", label: "2. Dispatched from Store" },
-              ].map((step) => {
-                const isCurrent = order.status === step.status || (step.status === "confirmed" && order.status === "processing")
-                return (
-                  <button
-                    key={step.status}
-                    type="button"
-                    disabled={actionLoading || isCurrent}
-                    onClick={() => handleStatusTransition(step.status)}
-                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer border ${
-                      isCurrent
-                        ? "bg-[#0b2447] text-white border-[#0b2447] shadow-xs cursor-default"
-                        : "bg-white text-slate-800 border-slate-200 hover:border-[#0b2447] hover:bg-slate-50"
-                    } ${actionLoading ? "opacity-60 cursor-not-allowed" : ""}`}
-                  >
-                    <span>{step.label}</span>
-                    {isCurrent ? (
-                      <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
-                    ) : (
-                      <span className="h-3.5 w-3.5 rounded-full border border-slate-300 shrink-0" />
-                    )}
-                  </button>
-                )
-              })}
-
-              {order.status !== "cancelled" && order.status !== "delivered" && (
-                <Button
-                  className="w-full mt-3 text-xs"
-                  variant="danger"
-                  disabled={actionLoading}
-                  onClick={() => setCancelModalOpen(true)}
-                >
-                  <Trash2 size={13} /> Cancel Order
-                </Button>
-              )}
-            </div>
-          </section>
+          {order.canCancel && (
+            <section className="rounded-xl border border-rose-200 bg-white p-5 shadow-xs">
+              <h3 className="font-black text-slate-900 text-sm">Order actions</h3>
+              <p className="mt-1 text-[11px] text-slate-500">
+                Order fulfillment milestones are handled through the assigned delivery partner.
+              </p>
+              <Button
+                className="mt-3 w-full text-xs"
+                variant="danger"
+                disabled={actionLoading}
+                onClick={() => setCancelModalOpen(true)}
+              >
+                <Trash2 size={13} /> Cancel Order
+              </Button>
+            </section>
+          )}
 
           {/* Card 5: Invoice Document Card */}
           <section className="rounded-xl border border-border bg-white p-5 shadow-xs">

@@ -371,6 +371,23 @@ export const customerOrdersApi = {
 
 // ===================== Admin Operations API =====================
 export const adminApi = {
+  getDeliveryPaymentQr: async () => {
+    return apiRequest<{ imageUrl: string | null; updatedAt: string | null }>("/admin/settings/delivery-payment-qr", {
+      method: "GET",
+      requiresAuth: true,
+    })
+  },
+
+  uploadDeliveryPaymentQr: async (file: File) => {
+    const formData = new FormData()
+    formData.append("image", file)
+    return apiRequest<{ imageUrl: string; updatedAt: string }>("/admin/settings/delivery-payment-qr", {
+      method: "POST",
+      requiresAuth: true,
+      body: formData,
+    })
+  },
+
   /**
    * Fetch authenticated store administrator overview statistics.
    */

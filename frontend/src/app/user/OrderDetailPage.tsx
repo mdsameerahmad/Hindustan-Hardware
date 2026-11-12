@@ -6,6 +6,15 @@ import { Badge, Button, EmptyState, PageHeader, formatPrice } from "../component
 import { DeliveryOtpCard } from "../components/DeliveryOtpCard"
 import { useOrderDetails } from "../features/hooks/useOrderDetails"
 
+function formatPaymentAmount(value: number): string {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(value)
+}
+
 export function OrderDetailPage() {
   const { id } = useParams()
   const { isAuthenticated } = useAuth()
@@ -224,11 +233,69 @@ export function OrderDetailPage() {
                 <span className="capitalize">{order.status}</span>
               </Badge>
             </div>
-            <p className="mt-4 text-sm text-slate-600">
-              Payment: <b>Cash on Delivery</b>
-              <br />
-              Payment status: <b className="capitalize text-amber-700">{order.paymentStatus}</b>
-            </p>
+            <div className="mt-4 space-y-2 border-t border-border pt-3 text-sm text-slate-600">
+              <div className="flex items-center justify-between gap-3">
+                <span>Payment method</span>
+                <b className="text-right text-slate-800">Cash on Delivery</b>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span>Payment status</span>
+                <Badge
+                  tone={
+                    order.paymentStatus === "paid"
+                      ? "success"
+                      : order.paymentStatus === "cancelled"
+                        ? "danger"
+                        : order.paymentStatus === "partially_paid"
+                          ? "blue"
+                          : "warning"
+                  }
+                >
+                  <span className="capitalize">{order.paymentStatus.replace(/_/g, " ")}</span>
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span>Total payable</span>
+                <b className="text-slate-800">
+                  {formatPaymentAmount(order.totalPayable ?? order.totalAmount)}
+                </b>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span>Amount paid</span>
+                <b className="text-emerald-700">
+                  {formatPaymentAmount(order.amountCollected ?? (order.paymentStatus === "paid" ? order.totalPayable ?? order.totalAmount : 0))}
+                </b>
+              </div>
+              <div className="flex items-center justify-between gap-3 border-t border-border pt-2">
+                <span>Amount due</span>
+                <b className="text-amber-700">
+                  {formatPaymentAmount(order.amountDue ?? (order.paymentStatus === "paid" || order.status === "cancelled"
+                    ? 0
+                    : Math.max((order.totalPayable ?? order.totalAmount) - (order.amountCollected ?? 0), 0)))}
+                </b>
+              </div>
+            </div>
+            <div className="mt-4 border-t border-border pt-3">
+              <h4 className="text-xs font-bold text-slate-700">Collection history</h4>
+              {order.paymentCollections?.length ? (
+                <div className="mt-2 max-h-48 space-y-2 overflow-y-auto">
+                  {order.paymentCollections.map((payment) => (
+                    <div key={payment.id} className="flex items-start justify-between gap-3 rounded-lg bg-slate-50 p-2.5 text-xs">
+                      <div className="min-w-0">
+                        <b className="block capitalize text-slate-800">{payment.method}</b>
+                        <span className="block text-slate-500">{formatDateTime(payment.createdAt)}</span>
+                        {payment.notes && (
+                          <span className="mt-0.5 block break-words text-slate-500">{payment.notes}</span>
+                        )}
+                      </div>
+                      <b className="shrink-0 text-emerald-700">{formatPaymentAmount(payment.amount)}</b>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-slate-500">No payments have been collected yet.</p>
+              )}
+            </div>
             {order.customerNotes && (
               <div className="mt-3 border-t border-border pt-3 text-xs text-slate-500">
                 <b>Delivery notes:</b> {order.customerNotes}

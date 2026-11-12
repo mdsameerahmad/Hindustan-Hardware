@@ -414,7 +414,7 @@ export function TrackingPage() {
             label="Payment Status"
             value={
               <span className="capitalize text-amber-700 font-bold text-xs sm:text-sm">
-                Cash on Delivery ({tracking.paymentStatus})
+                Cash on Delivery ({tracking.paymentStatus.replace(/_/g, " ")})
               </span>
             }
           />

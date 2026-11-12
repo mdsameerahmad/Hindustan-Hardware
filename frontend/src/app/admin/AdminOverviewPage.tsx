@@ -15,9 +15,10 @@ import {
   Badge,
   Button,
   PageHeader,
-  formatPrice,
   statusTone,
 } from "../components"
+import { formatAdminPrice as formatPrice } from "./formatAdminPrice"
+import { AdminPaymentQrCard } from "./AdminPaymentQrCard"
 import { useAdminDashboard } from "../features/hooks/useAdminDashboard"
 import { useEffect } from "react"
 
@@ -174,6 +175,8 @@ export function AdminOverviewPage() {
         })}
       </div>
 
+      <AdminPaymentQrCard />
+
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_0.6fr]">
         <div className="rounded-xl border border-border bg-white p-4 sm:p-6 shadow-xs min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -288,8 +291,8 @@ export function AdminOverviewPage() {
                       <td>{new Date(order.createdAt).toLocaleDateString()}</td>
                       <td>{formatPrice(order.totalPayable ?? order.totalAmount)}</td>
                       <td>
-                        <Badge tone={order.paymentStatus === "paid" ? "success" : "warning"}>
-                          {order.paymentStatus}
+                        <Badge tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "partially_paid" ? "blue" : "warning"}>
+                          {order.paymentStatus.replace(/_/g, " ")}
                         </Badge>
                       </td>
                       <td>
@@ -324,8 +327,8 @@ export function AdminOverviewPage() {
                   <div className="flex items-center justify-between text-[11px] text-slate-500">
                     <span>{new Date(order.createdAt).toLocaleDateString()}</span>
                     <div className="flex items-center gap-1.5">
-                      <Badge tone={order.paymentStatus === "paid" ? "success" : "warning"}>
-                        {order.paymentStatus}
+                      <Badge tone={order.paymentStatus === "paid" ? "success" : order.paymentStatus === "partially_paid" ? "blue" : "warning"}>
+                        {order.paymentStatus.replace(/_/g, " ")}
                       </Badge>
                       <Badge tone={statusTone(order.status as any)}>
                         {order.status}

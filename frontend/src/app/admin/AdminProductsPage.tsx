@@ -14,8 +14,8 @@ import {
   Badge,
   Button,
   PageHeader,
-  formatPrice,
 } from "../components"
+import { formatAdminPrice as formatPrice } from "./formatAdminPrice"
 import { type Product } from "../data"
 import { ProductImage } from "../features/components/ProductImage"
 import { useAdminCategories } from "../features/hooks/useAdminCategories"

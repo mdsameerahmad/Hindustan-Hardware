@@ -119,6 +119,13 @@ export interface FullDeliveryTrackingData {
 }
 
 export const deliveryTrackingApi = {
+  getPaymentQr: async (): Promise<{ imageUrl: string | null; updatedAt: string | null }> => {
+    return apiRequest<{ imageUrl: string | null; updatedAt: string | null }>("/deliveries/payment-qr", {
+      method: "GET",
+      requiresAuth: true,
+    })
+  },
+
   /**
    * Resolves an order ID to its live tracking state and delivery assignment ID.
    */
