@@ -1,5 +1,7 @@
 # Hindustan Hardware & Sanitary — Complete Technical & End-to-End Workflow Documentation
 
+> **Current implementation note:** This document retains earlier phase descriptions as project history. The “Current UI and integration updates” section at the end describes the latest behavior; the active implementation is organized under `src/app/{user,admin,partner,features,components}` rather than the older page-file layout below.
+
 > **Production-Grade Architecture Specification, User Experience Guide & Admin Operations Manual**  
 > *Crafted for Hindustan Hardware & Sanitary — Established 1993, Jehanabad, Bihar*
 
@@ -35,6 +37,7 @@
    - [6.6 Brand Partnerships & Category Tree Administration](#66-brand-partnerships--category-tree-administration)
 7. [Data Architecture & LocalStorage State Machine](#7-data-architecture--localstorage-state-machine)
 8. [Setup, Execution & Build Pipeline](#8-setup-execution--build-pipeline)
+9. [Current UI and Integration Updates](#24-current-ui-and-integration-updates-2026-11-12)
 
 ---
 
@@ -105,27 +108,27 @@ The interface replicates a **luxury industrial black and metallic gold** brand i
 
 ```
 frontend/
-├── .figma/                     # Figma site metadata and build configuration
-│   └── make/site.json          # Site title, descriptions, and template meta
-├── public/                     # Static media and favicon vectors
+├── public/                         # Static media, PWA icons, and notification audio
 ├── src/
-│   ├── App.tsx                 # Root entry bridge exporting src/app/App.tsx
-│   ├── index.css               # Global theme tokens, typography imports, and gradient utilities
-│   ├── main.tsx                # React 19 root bootstrap
+│   ├── main.tsx                    # React application bootstrap
+│   ├── App.tsx                     # Root route export
+│   ├── index.css                   # Global tokens and Tailwind styles
 │   └── app/
-│       ├── App.tsx             # Complete route tree with Storefront & Admin layouts
-│       ├── components.tsx      # Core UI Design System (Navbar, Footer, ProductCard, SearchBox, Buttons)
-│       ├── data.ts             # TypeScript domain models, product seeds, categories, and brands
-│       ├── store.tsx           # React Context state management & LocalStorage sync
-│       └── pages/
-│           ├── StorePages.tsx  # HomePage, ProductsPage (Catalog), ProductDetailPage (PDP)
-│           ├── BrandPages.tsx  # Brands Directory, Brand Showcase, Cross-Comparison Matrix
-│           ├── FlowPages.tsx   # Cart, 4-Step Checkout, Order Success, Live Tracking Map
-│           ├── InfoPages.tsx   # About Us, Contact Us, Bulk Contractor Quotes, Auth Hub
-│           └── AdminPages.tsx  # Admin Overview, Product CRUD, Inventory Desk, Order Dispatch
-├── package.json                # Dependencies, scripts, and build targets
-├── tsconfig.json               # TypeScript strict configuration and '@/*' path aliases
-└── vite.config.ts              # Vite 6/8 bundler config with Tailwind v4 plugin
+│       ├── App.tsx                 # Route tree and role-specific layouts
+│       ├── authContext.tsx         # Authentication and role context
+│       ├── store.tsx               # Storefront state and persistence
+│       ├── api/                    # Shared HTTP API client
+│       ├── user/                   # Storefront, account, checkout, orders, tracking
+│       ├── admin/                  # Admin overview, catalog, orders, inventory, partners
+│       ├── partner/                # Delivery partner portal and assigned-order workflow
+│       ├── components/             # Shared maps, GPS controller, OTP, and UI
+│       ├── features/               # Domain API clients, hooks, and feature UI
+│       └── utils/                  # Formatting and transformation helpers
+├── .figma/                         # Figma Make project metadata
+├── AMPLIFY_DEPLOYMENT.md           # Frontend hosting setup
+├── package.json                    # Vite, TypeScript, Playwright scripts
+├── playwright.config.ts            # Browser test configuration
+└── vite.config.ts                  # Vite and Tailwind v4 configuration
 ```
 
 ---
@@ -1175,9 +1178,67 @@ interface DeliveryLocationBroadcastPayload {
 Live movement and zero-refresh ETA updates can be tested end-to-end via:
 ```bash
 npx tsx scripts/simulate-delivery.ts \
-  --deliveryId=efebcfd1-36ac-47d9-bb31-452a1ccd49a6 \
-  --email="driver@hindustanhardware.com" \
-  --password="PartnerPass123!" \
+  --deliveryId="$DELIVERY_ID" \
+  --email="$SIMULATOR_EMAIL" \
+  --password="$SIMULATOR_PASSWORD" \
   --interval=1
 ```
 - **Build Status**: Verified with `npm run build` &mdash; **0 errors**.
+
+---
+
+## 24. Current UI and Integration Updates (2026-11-12)
+
+This section captures the latest completed behavior and supersedes any older phase note that conflicts with it.
+
+### Customer storefront, authentication, and order history
+
+- After customer sign-in, the customer route opens the storefront home page rather than forcing navigation to the account page.
+- Customer order detail includes the persisted payment status, total payable, amount collected, remaining due, and payment collection history.
+- The customer order-detail API remains scoped to the authenticated order owner. Collection entries are returned from the backend, not fabricated in the browser.
+- Orders display immutable line-item price snapshots created at checkout. Catalog price changes do not recalculate existing orders.
+
+### Checkout pricing and COD payment status
+
+- Checkout validation, checkout RPC creation, and the cart use the same effective displayed product/variant price.
+- Migration `020_checkout_preserve_displayed_prices.sql` updates the checkout RPC to preserve that price snapshot.
+- COD collection supports partial and final collection. The admin order view and filter distinguish `pending`, `partially_paid`, and `paid`; due amounts remain visible for partial payments.
+- Migrations `016`, `019`, `021`, and `022` establish the collection table, delivery-fee-aware payable amount, remove a stale amount ceiling, and add partial-payment status. Run only unapplied migrations against the same Supabase project as the backend.
+- Admin currency formatting preserves cents when present (for example, `₹107.75`) and leaves whole values unpadded (for example, `₹108`).
+
+### Admin portal
+
+- The admin order detail no longer shows the redundant **Update Order Milestone** section. Fulfillment progression is managed through the delivery workflow; eligible order cancellation remains available.
+- The admin overview includes **Delivery payment QR**, where an administrator can upload or replace the store-wide QR image used by delivery partners.
+- New-order notification dropdown behavior is responsive on mobile, keeps its menu within the viewport, and wraps long text.
+- The obsolete **Delivery Orders** sidebar entry is removed; delivery-partner administration remains available.
+- The payment collection panel shows amount collected, amount due, and recorded collection history.
+
+### Delivery-partner portal and map
+
+- Assigned-order cards and the selected-order workspace adapt to narrow screens.
+- Full-screen navigation uses heading-up map rotation based on GPS heading, with movement-derived bearing as a fallback; the route refreshes as the partner moves.
+- The **At Destination** flow submits a valid location update and keeps the customer destination marker visible on the map.
+- A delivery partner can open **Show Payment QR Code** from any selected assigned order. The displayed QR is the latest image uploaded by an admin; partners have read-only access.
+- The QR setting requires migration `023_delivery_payment_qr_setting.sql` and the existing public Supabase Storage bucket `product-images`.
+
+### Frontend API and configuration
+
+The app is a React/Vite SPA. API requests use the configured versioned API base URL, and tracking uses the backend Socket.IO origin:
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_API_BASE_URL` | Backend URL including `/api/v1`. |
+| `VITE_SOCKET_URL` | Optional Socket.IO origin; if omitted, it is derived from the API URL. |
+| `VITE_PUBLIC_APP_URL` | Optional canonical HTTPS storefront origin for shareable tracking links. |
+
+These are build-time browser values. Never put a Supabase service-role key or other server secret in a `VITE_*` variable.
+
+Useful frontend checks:
+
+```bash
+npm run build
+npm run test:e2e
+```
+
+See `TESTING.md` for Playwright prerequisites and read-only route checks, and `AMPLIFY_DEPLOYMENT.md` for Amplify deployment configuration.
