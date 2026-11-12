@@ -1066,7 +1066,7 @@ CATALOGUE_IMPORT_APPROVED=true npm run catalogue:seed -- --commit
 
 ## Map Search Provider
 
-The shared address picker uses Photon/OpenStreetMap search by default. To enable broader Google Places street, road, station, and landmark results, set `GOOGLE_MAPS_API_KEY` in the backend environment. Enable Places API (New), configure billing and usage quotas in Google Cloud, and restrict the server-side key to the backend's egress IP and Places API. Keep the key server-side; it is never returned to the frontend. Google Places autocomplete sessions are paired with place-detail lookups, and Photon remains the fallback if Google is not configured or unavailable.
+The shared address picker uses Photon/OpenStreetMap search by default. To enable broader Google Places street, road, station, and landmark results, set `GOOGLE_MAPS_API_KEY` in the backend environment. Enable Places API (New), configure billing and usage quotas in Google Cloud, and restrict the server-side key to the backend's egress IP and Places API. Keep the key server-side; it is never returned to the frontend. Google Places autocomplete sessions are paired with place-detail lookups; Photon is also queried if Google is unconfigured, unavailable, or returns no matches.
 
 Search quality and street completeness still depend on the map provider's data; neither provider guarantees every named path or address.
 

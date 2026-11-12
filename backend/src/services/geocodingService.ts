@@ -279,7 +279,7 @@ export class GeocodingService {
       options?.cityBias,
       options?.sessionToken,
     );
-    if (googleResults !== null) {
+    if (googleResults !== null && googleResults.length > 0) {
       this.searchCache.set(cacheKey, { data: googleResults, cachedAtMs: Date.now() });
       return googleResults;
     }
