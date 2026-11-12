@@ -515,19 +515,24 @@ export function DeliveryPartnersPage() {
 
       {/* Add / Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/60 p-0 backdrop-blur-xs sm:items-center sm:p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delivery-partner-modal-title"
+            className="flex max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-150 sm:max-h-[calc(100dvh-2rem)] sm:max-w-lg sm:rounded-2xl"
+          >
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-border bg-[#0B0B0B] text-white px-6 py-4">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-[#0B0B0B] px-4 py-3 text-white sm:px-6 sm:py-4">
               <div className="flex items-center gap-2.5">
                 <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#D4AF37]/20 border border-[#D4AF37] text-[#D4AF37]">
                   <Bike size={18} />
                 </span>
-                <div>
-                  <h3 className="font-serif text-base font-bold text-white">
+                <div className="min-w-0">
+                  <h3 id="delivery-partner-modal-title" className="font-serif text-base font-bold text-white">
                     {editingPartner ? "Edit Delivery Partner" : "Add Delivery Partner"}
                   </h3>
-                  <p className="text-[10px] text-[#D4AF37] uppercase tracking-wider font-semibold">
+                  <p className="text-[9px] uppercase tracking-wider font-semibold text-[#D4AF37] sm:text-[10px]">
                     Hindustan Hardware Partner Registry
                   </p>
                 </div>
@@ -535,14 +540,16 @@ export function DeliveryPartnersPage() {
 
               <button
                 onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-white p-1"
+                aria-label="Close dialog"
+                className="shrink-0 p-2 text-slate-400 hover:text-white"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Modal Body Form */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-6">
               {formError && (
                 <div className="rounded-lg bg-rose-50 p-3 text-xs font-semibold text-rose-800 border border-rose-200 flex items-center gap-2">
                   <AlertCircle size={15} className="shrink-0" />
@@ -697,13 +704,14 @@ export function DeliveryPartnersPage() {
               )}
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
+              </div>
+              <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:gap-2.5 sm:px-6">
                 <Button
                   type="button"
                   variant="ghost"
                   onClick={() => setShowModal(false)}
                   disabled={submitting}
-                  className="text-xs"
+                  className="w-full text-xs sm:w-auto"
                 >
                   Cancel
                 </Button>
@@ -711,7 +719,7 @@ export function DeliveryPartnersPage() {
                   type="submit"
                   variant="primary"
                   disabled={submitting}
-                  className="text-xs py-2 px-5 shadow-sm"
+                  className="w-full py-2 text-xs shadow-sm sm:w-auto sm:px-5"
                 >
                   {submitting
                     ? "Saving Partner..."

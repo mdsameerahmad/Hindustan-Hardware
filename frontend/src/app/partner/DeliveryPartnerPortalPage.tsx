@@ -297,7 +297,7 @@ export function DeliveryPartnerPortalPage() {
   return (
     <div className="min-h-screen bg-[#F5F5F5] text-[#0B0B0B] pb-28 md:pb-16 font-sans">
       {/* Signature Black & Gold Hindustan Hardware Header */}
-      <header className="sticky top-0 z-30 bg-[#0B0B0B] border-b border-[#1C1C1C] px-3.5 py-2.5 sm:px-6 sm:py-3 shadow-md">
+      <header className="sticky top-0 z-30 border-b border-[#1C1C1C] bg-[#0B0B0B] px-3 py-2.5 shadow-md sm:px-6 sm:py-3">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
           {/* Brand & Partner Profile */}
           <div className="flex items-center gap-2.5 min-w-0">
@@ -320,19 +320,19 @@ export function DeliveryPartnerPortalPage() {
                   Hindustan Rider
                 </span>
               </div>
-              <h1 className="text-sm sm:text-base font-black text-white leading-tight truncate">
+              <h1 className="max-w-28 truncate text-xs font-black leading-tight text-white sm:max-w-none sm:text-base">
                 {user?.profile?.full_name || user?.email?.split("@")[0] || "Partner"}
               </h1>
             </div>
           </div>
 
           {/* Right Controls: Online/Offline Duty Toggle + Actions */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {/* Duty Status Switch with Brand Gold Glow */}
             <button
               type="button"
               onClick={() => setIsDutyOnline((prev) => !prev)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition-all shadow-xs border ${
+              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[10px] font-black transition-all shadow-xs sm:px-3 sm:text-xs ${
                 isDutyOnline
                   ? "bg-[#D4AF37] text-[#0B0B0B] border-[#E5C158] shadow-md shadow-[#D4AF37]/25"
                   : "bg-[#1C1C1C] text-slate-400 border-[#2A2A2A]"
@@ -365,11 +365,11 @@ export function DeliveryPartnerPortalPage() {
       {/* Main Container */}
       <main className="max-w-4xl mx-auto px-3.5 sm:px-6 pt-4 space-y-4">
         {/* Metric Cards in Exact Brand Palette */}
-        <section className="grid grid-cols-3 gap-2.5 sm:gap-3.5">
+        <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3.5">
           {/* Active Orders */}
-          <div className="rounded-2xl bg-white border border-[#E8E8E8] p-3 sm:p-4 shadow-xs flex flex-col justify-between hover:border-[#D4AF37]/50 transition-colors">
+          <div className="flex flex-col justify-between rounded-2xl border border-[#E8E8E8] bg-white p-3 shadow-xs transition-colors hover:border-[#D4AF37]/50 sm:p-4">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-400">
+              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 sm:text-[11px]">
                 Active Trips
               </span>
               <span className="h-6 w-6 rounded-lg bg-[#FFF9E6] text-[#B89124] border border-[#F3E5AB] flex items-center justify-center font-bold text-xs">
@@ -385,9 +385,9 @@ export function DeliveryPartnerPortalPage() {
           </div>
 
           {/* Delivered Orders */}
-          <div className="rounded-2xl bg-white border border-[#E8E8E8] p-3 sm:p-4 shadow-xs flex flex-col justify-between hover:border-emerald-300 transition-colors">
+          <div className="flex flex-col justify-between rounded-2xl border border-[#E8E8E8] bg-white p-3 shadow-xs transition-colors hover:border-emerald-300 sm:p-4">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-400">
+              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 sm:text-[11px]">
                 Completed
               </span>
               <span className="h-6 w-6 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center font-bold text-xs">
@@ -403,9 +403,9 @@ export function DeliveryPartnerPortalPage() {
           </div>
 
           {/* Cash and delivery fee still to collect */}
-          <div className="rounded-2xl bg-white border border-[#E8E8E8] p-3 sm:p-4 shadow-xs flex flex-col justify-between hover:border-[#D4AF37]/50 transition-colors">
+          <div className="col-span-2 flex flex-col justify-between rounded-2xl border border-[#E8E8E8] bg-white p-3 shadow-xs transition-colors hover:border-[#D4AF37]/50 sm:col-span-1 sm:p-4">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-400">
+              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 sm:text-[11px]">
                 Total to Collect
               </span>
               <span className="h-6 w-6 rounded-lg bg-[#FFF9E6] text-[#B89124] border border-[#F3E5AB] flex items-center justify-center font-bold text-xs">
@@ -413,11 +413,11 @@ export function DeliveryPartnerPortalPage() {
               </span>
             </div>
             <div className="mt-2 flex items-baseline gap-1">
-              <span className="text-xl sm:text-2xl font-black text-[#0B0B0B] leading-none font-mono truncate">
+              <span className="truncate font-mono text-xl font-black leading-none text-[#0B0B0B] sm:text-2xl">
                 ₹{activeDeliveries.reduce((acc, d) => acc + (d.codAmount || 0), 0).toLocaleString("en-IN")}
               </span>
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 border-t border-slate-100 pt-2 text-[10px] font-semibold">
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-2 text-[10px] font-semibold sm:gap-x-5">
               <span className="text-slate-500">
                 Order balance: ₹{activeDeliveries.reduce((acc, d) => acc + d.orderAmountToCollect, 0).toLocaleString("en-IN")}
               </span>
@@ -429,7 +429,7 @@ export function DeliveryPartnerPortalPage() {
         </section>
 
         {/* View Selection Tabs with Pill Buttons */}
-        <div className="flex items-center p-1 bg-slate-200/90 rounded-2xl gap-1 text-xs font-black">
+        <div className="flex items-center gap-1 rounded-2xl bg-slate-200/90 p-1 text-[11px] font-black sm:text-xs">
           <button
             onClick={() => setActiveTab("active")}
             className={`flex-1 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
@@ -439,7 +439,8 @@ export function DeliveryPartnerPortalPage() {
             }`}
           >
             <Package size={15} className={activeTab === "active" ? "text-[#D4AF37]" : ""} />
-            <span>Active Deliveries ({activeDeliveries.length})</span>
+            <span className="sm:hidden">Active ({activeDeliveries.length})</span>
+            <span className="hidden sm:inline">Active Deliveries ({activeDeliveries.length})</span>
           </button>
           <button
             onClick={() => setActiveTab("history")}
@@ -450,7 +451,8 @@ export function DeliveryPartnerPortalPage() {
             }`}
           >
             <Clock size={15} className={activeTab === "history" ? "text-[#D4AF37]" : ""} />
-            <span>Trip History ({completedDeliveries.length})</span>
+            <span className="sm:hidden">History ({completedDeliveries.length})</span>
+            <span className="hidden sm:inline">Trip History ({completedDeliveries.length})</span>
           </button>
         </div>
 
@@ -575,7 +577,7 @@ export function DeliveryPartnerPortalPage() {
                                   <span>Prepaid</span>
                                 </div>
                               )}
-                              <div className="grid grid-cols-3 gap-2 pt-2 text-[10px]">
+                              <div className="grid w-full grid-cols-1 gap-2 pt-2 text-[10px] sm:grid-cols-3">
                                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2">
                                   <span className="block font-semibold text-slate-600">Order balance</span>
                                   <b className="mt-0.5 block text-slate-900">₹{item.orderAmountToCollect.toLocaleString("en-IN")}</b>
@@ -617,17 +619,17 @@ export function DeliveryPartnerPortalPage() {
                   /* Detail View for the opened delivery */
                   <div className="space-y-3.5">
                     {/* Navigation Top Bar: Back to Cards + Delivery Switcher */}
-                    <div className="flex items-center justify-between gap-2 bg-white rounded-2xl border border-slate-200 p-2.5 sm:p-3 shadow-xs">
+                    <div className="flex flex-col items-stretch gap-2 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-xs sm:flex-row sm:items-center sm:justify-between sm:p-3">
                       <button
                         onClick={() => setSelectedDeliveryId(null)}
-                        className="inline-flex items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 px-3.5 py-2 text-xs font-black text-slate-800 transition"
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-slate-100 px-3.5 py-2 text-xs font-black text-slate-800 transition hover:bg-slate-200 sm:justify-start"
                       >
                         <ArrowLeft size={15} />
                         <span>All Deliveries ({activeDeliveries.length})</span>
                       </button>
 
                       {activeDeliveries.length > 1 && (
-                        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto scrollbar-none sm:max-w-[65%]">
                           {activeDeliveries.map((item) => (
                             <button
                               key={item.id}
@@ -646,7 +648,7 @@ export function DeliveryPartnerPortalPage() {
                     </div>
 
                     {/* Destination & Order Highlights */}
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 space-y-3.5 shadow-sm min-w-0">
+                    <div className="min-w-0 space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:space-y-3.5 sm:p-5">
                       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                         <div className="min-w-0">
                           <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
@@ -668,25 +670,25 @@ export function DeliveryPartnerPortalPage() {
                       </div>
 
                       {/* Explicit collection breakdown, including fees on prepaid orders */}
-                      <div className="rounded-2xl border border-[#E5C158] bg-gradient-to-r from-[#FFF9E6] via-[#FFFDF5] to-white p-3.5 text-slate-900 shadow-xs">
-                        <div className="mb-3 flex items-center gap-2.5 border-b border-amber-200 pb-2.5">
+                      <div className="rounded-2xl border border-[#E5C158] bg-gradient-to-br from-[#FFF9E6] via-[#FFFDF5] to-white p-3 text-slate-900 shadow-xs sm:p-4">
+                        <div className="mb-2.5 flex items-center gap-2 border-b border-amber-200 pb-2.5 sm:mb-3 sm:gap-2.5">
                           <Banknote size={20} className="shrink-0 text-[#AA841E]" />
-                          <span className="text-xs font-black uppercase tracking-wider text-[#8F6B12]">
+                          <span className="text-[10px] font-black uppercase tracking-wide text-[#8F6B12] sm:text-xs sm:tracking-wider">
                             Cash on delivery breakdown
                           </span>
                         </div>
-                        <div className="space-y-2 text-xs">
+                        <div className="space-y-2 text-[11px] sm:text-xs">
                           <div className="flex justify-between gap-3">
                             <span className="text-slate-600">Order balance to collect</span>
-                            <b className="text-slate-900">₹{currentDelivery.orderAmountToCollect.toLocaleString("en-IN")}</b>
+                            <b className="shrink-0 text-slate-900">₹{currentDelivery.orderAmountToCollect.toLocaleString("en-IN")}</b>
                           </div>
                           <div className="flex justify-between gap-3">
                             <span className="text-slate-600">Delivery fee to collect</span>
-                            <b className="text-amber-900">₹{currentDelivery.deliveryFeeToCollect.toLocaleString("en-IN")}</b>
+                            <b className="shrink-0 text-amber-900">₹{currentDelivery.deliveryFeeToCollect.toLocaleString("en-IN")}</b>
                           </div>
-                          <div className="flex justify-between gap-3 border-t border-amber-200 pt-2 text-sm">
-                            <span className="font-black text-slate-800">Total amount to collect</span>
-                            <b className="font-mono text-base font-black text-[#0B0B0B]">
+                          <div className="flex items-center justify-between gap-3 border-t border-amber-200 pt-2 text-xs sm:text-sm">
+                            <span className="font-black text-slate-800">Total to collect</span>
+                            <b className="shrink-0 font-mono text-base font-black text-[#0B0B0B] sm:text-lg">
                               ₹{(currentDelivery.codAmount || 0).toLocaleString("en-IN")}
                             </b>
                           </div>
@@ -698,7 +700,7 @@ export function DeliveryPartnerPortalPage() {
                       </div>
 
                       {/* Delivery Address & Contact */}
-                      <div className="rounded-2xl bg-[#F8FAFC] border border-slate-200 p-4 space-y-3.5 min-w-0">
+                      <div className="min-w-0 space-y-3 rounded-2xl border border-slate-200 bg-[#F8FAFC] p-3 sm:space-y-3.5 sm:p-4">
                         <div className="flex items-start gap-3 min-w-0">
                           <div className="h-8 w-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 mt-0.5 text-[#B89124] shadow-xs">
                             <MapPin size={18} className="stroke-[2.5]" />
@@ -727,7 +729,7 @@ export function DeliveryPartnerPortalPage() {
                           {currentDelivery.destination.phone ? (
                             <a
                               href={`tel:${currentDelivery.destination.phone}`}
-                              className="btn-gold-gradient w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-black transition shadow-sm active:scale-[0.99]"
+                              className="btn-gold-gradient inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-3 py-3 text-center text-xs font-black shadow-sm transition active:scale-[0.99] sm:px-4"
                             >
                               <Phone size={16} className="stroke-[2.5]" /> Call Customer ({currentDelivery.destination.phone})
                             </a>
@@ -743,7 +745,7 @@ export function DeliveryPartnerPortalPage() {
                           </span>
                           <div className="rounded-xl bg-slate-50 border border-slate-200 divide-y divide-slate-200 text-xs">
                             {currentDelivery.itemsSummary.map((item, idx) => (
-                              <div key={idx} className="p-3 flex items-center justify-between gap-2">
+                              <div key={idx} className="flex items-center justify-between gap-2 p-3">
                                 <div className="min-w-0 flex-1">
                                   <span className="font-semibold text-slate-800 block truncate">{item.productName}</span>
                                   {item.variantTitle && (

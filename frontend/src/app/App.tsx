@@ -85,9 +85,6 @@ function SignedInHome() {
   if (user?.role === "delivery_partner") {
     return <Navigate to="/partner/dashboard" replace />
   }
-  if (user?.role === "customer") {
-    return <Navigate to="/account" replace />
-  }
 
   return <HomePage />
 }
