@@ -10,6 +10,22 @@ import { broadcastNewOrderToAdmins } from '../common/socket/trackingSocket';
 import { getDeliveryFeeByOrderId } from './deliveryFeeService';
 
 export class CheckoutService {
+  private static calculateEffectiveUnitPrice(
+    rawUnitPrice: number,
+    compareAtPrice: number | null,
+    discountPercentage: number | null,
+    hasVariant: boolean
+  ): number {
+    if (!discountPercentage || discountPercentage <= 0) return rawUnitPrice;
+
+    const discountBasisPrice =
+      !hasVariant && compareAtPrice != null && compareAtPrice > rawUnitPrice
+        ? compareAtPrice
+        : rawUnitPrice;
+
+    return Math.round(discountBasisPrice * (1 - discountPercentage / 100) * 100) / 100;
+  }
+
   private static async isDeliveryPincodeAvailable(postalCode: unknown): Promise<boolean> {
     const pincode = String(postalCode || '').trim().replace(/\D/g, '');
     if (!/^\d{6}$/.test(pincode)) return false;
@@ -210,15 +226,15 @@ export class CheckoutService {
         }
       }
 
-      const discountBasisPrice = item.variantId
-        ? rawUnitPrice
-        : Number(product.compare_at_price) > 0
-          ? Number(product.compare_at_price)
-          : rawUnitPrice;
-      let unitPrice = rawUnitPrice;
-      if (effectiveDiscount && effectiveDiscount > 0) {
-        unitPrice = Math.round(discountBasisPrice * (1 - effectiveDiscount / 100) * 100) / 100;
-      }
+      const compareAtPrice = product.compare_at_price == null
+        ? null
+        : Number(product.compare_at_price);
+      const unitPrice = this.calculateEffectiveUnitPrice(
+        rawUnitPrice,
+        compareAtPrice,
+        effectiveDiscount,
+        Boolean(item.variantId)
+      );
 
       // Check stock
       let inventoryQuery = client.from('inventory').select('quantity_available').eq('product_id', item.productId);
@@ -427,7 +443,7 @@ export class CheckoutService {
     for (const item of cartItems) {
       const { data: product } = await client
         .from('products')
-        .select('id, name, sku, base_price, is_active, specs, brand:brands(id, name, description)')
+        .select('id, name, sku, base_price, compare_at_price, is_active, specs, brand:brands(id, name, description)')
         .eq('id', item.product_id)
         .single();
 
@@ -472,10 +488,15 @@ export class CheckoutService {
         if (variant.sku) sku = variant.sku;
       }
 
-      let unitPrice = rawUnitPrice;
-      if (effectiveDiscount && effectiveDiscount > 0) {
-        unitPrice = Math.round(rawUnitPrice * (1 - effectiveDiscount / 100) * 100) / 100;
-      }
+      const compareAtPrice = product.compare_at_price == null
+        ? null
+        : Number(product.compare_at_price);
+      const unitPrice = CheckoutService.calculateEffectiveUnitPrice(
+        rawUnitPrice,
+        compareAtPrice,
+        effectiveDiscount,
+        Boolean(item.variant_id)
+      );
 
       // Check stock
       let invQuery = client.from('inventory').select('id, quantity_available').eq('product_id', item.product_id);
