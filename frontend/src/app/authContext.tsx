@@ -18,6 +18,7 @@ interface AuthContextValue {
   isDeliveryPartner: boolean
   login: (payload: LoginPayload) => Promise<void>
   register: (payload: RegisterPayload) => Promise<{ requiresVerification: boolean }>
+  resetPassword: (password: string, tokenOverride?: string) => Promise<void>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
 }
@@ -104,6 +105,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { requiresVerification: res?.requiresEmailVerification ?? false }
   }
 
+  const resetPassword = async (password: string, tokenOverride?: string) => {
+    const res = await authApi.resetPassword(password, tokenOverride)
+    if (res?.user) {
+      saveUser({
+        id: res.user.id,
+        email: res.user.email,
+        role: res.user.role,
+        profile: res.user.profile,
+      })
+    } else {
+      await refreshUser()
+    }
+  }
+
   const logout = async () => {
     try {
       await authApi.logout()
@@ -129,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isDeliveryPartner,
     login,
     register,
+    resetPassword,
     logout,
     refreshUser,
   }

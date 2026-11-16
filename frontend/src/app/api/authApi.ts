@@ -145,11 +145,30 @@ export const authApi = {
   /**
    * Request password recovery email.
    */
-  forgotPassword: async (email: string): Promise<void> => {
-    await apiRequest('/auth/forgot-password', {
+  forgotPassword: async (email: string, redirectTo?: string): Promise<{ recoveryUrl?: string } | null> => {
+    const res = await apiRequest<{ recoveryUrl?: string } | null>('/auth/forgot-password', {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, redirectTo }),
     })
+    return res
+  },
+
+  /**
+   * Reset password with recovery/bearer token.
+   */
+  resetPassword: async (password: string, tokenOverride?: string): Promise<LoginResponse> => {
+    const res = await apiRequest<LoginResponse>('/auth/reset-password', {
+      method: 'POST',
+      requiresAuth: true,
+      tokenOverride,
+      body: JSON.stringify({ password }),
+    })
+
+    if (res?.session?.accessToken) {
+      tokenStorage.set(res.session.accessToken, res.session.refreshToken)
+    }
+
+    return res
   },
 
   /**

@@ -1,0 +1,128 @@
+{
+  "planHash": "250093307a017a737bbd16d5977bdbb05ae79f2f8cb4028cb939395910d9250f",
+  "phase": "standalone",
+  "recordedAtUtc": "2026-11-13T09:55:22.6661463Z",
+  "retryCount": 3,
+  "resetBaseline": false,
+  "complete": true,
+  "result": {
+    "setupSucceeded": true,
+    "setupDurationMs": 0,
+    "setupFailureOutput": null,
+    "assertions": [
+      {
+        "name": "typescript-no-emit",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": false,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 2,
+        "outputSample": "src/app/admin/AdminLayout.tsx(34,26): error TS2322: Type \u0027{ children: string; tone: \u0022blue\u0022; className: string; }\u0027 is not assignable to type \u0027IntrinsicAttributes \u0026 { children: ReactNode; tone?: \u0022success\u0022 | \u0022danger\u0022 | \u0022warning\u0022 | \u0022blue\u0022 | \u0022neutral\u0022 | undefined; }\u0027.\r\n  Property \u0027className\u0027 does not exist on type \u0027IntrinsicAttributes \u0026 { children: ReactNode; tone?: \u0022success\u0022 | \u0022danger\u0022 | \u0022warning\u0022 | \u0022blue\u0022 | \u0022neutral\u0022 | undefined; }\u0027.\r\nsrc/app/admin/AdminOrdersPage.tsx(291,15): error TS2322: Type \u0027{ children: string; variant: \u0022outline\u0022; size: string; disabled: boolean; onClick: () =\u003E void; }\u0027 is not assignable to type \u0027IntrinsicAttributes \u0026 ButtonHTMLAttributes\u003CHTMLButtonElement\u003E \u0026 { variant?: \u0022danger\u0022 | \u0022primary\u0022 | \u0022secondary\u0022 | \u0022outline\u0022 | \u0022ghost\u0022 | undefined; }\u0027.\r\n  Property \u0027size\u0027 does not exist on type \u0027IntrinsicAttributes \u0026 ButtonHTMLAttributes\u003CHTMLButtonElement\u003E \u0026 { variant?: \u0022danger\u0022 | \u0022primary\u0022 | \u0022secondary\u0022 | \u0022outline\u0022 | \u0022ghost\u0022 | undefined; }\u0027.\r\nsrc/app/admin/AdminOrdersPage.tsx(302,15): error TS2322: Type \u0027{ children: string; variant: \u0022outline\u0022; size: string; disabled: boolean; onClick: () =\u003E void; }\u0027 is not assignable to type \u0027IntrinsicAttributes \u0026 ButtonHTMLAttributes\u003CHTMLButtonElement\u003E \u0026 { variant?: \u0022danger\u0022 | \u0022primary\u0022 | \u0022secondary\u0022 | \u0022outline\u0022 | \u0022ghost\u0022 | undefined; }\u0027.\r\n  Property \u0027size\u0027 does not exist on type \u0027IntrinsicAttributes \u0026 ButtonHTMLAttributes\u003CHTMLButtonElement\u003E \u0026 { variant?: \u0022danger\u0022 | \u0022primary\u0022 | \u0022secondary\u0022 | \u0022outline\u0022 | \u0022ghost\u0022 | undefined; }\u0027.\r\nsrc/app/admin/AdminProductsPage.tsx(304,15): error TS2322: Type \u0027{ children: string; variant: \u0022outline\u0022; size: string; disabled: boolean; onClick: () =\u003E void; }\u0027 is not assignable to type \u0027IntrinsicAttributes \u0026 ButtonHTMLAttributes\u003CHTMLButtonElement\u003E \u0026 { variant?: \u0022danger\u0022 | \u0022primary\u0022 | \u0022secondary\u0022 | \u0022outline\u0022 | \u0022ghost\u0022 | undefined; }\u0027.\r\n  Property \u0027size\u0027 does not exist on type \u0027IntrinsicAttributes \u0026 ButtonHTMLAttributes\u003CHTMLButtonElement\u003E \u0026 { variant?: \u0022danger\u0022 | \u0022primary\u0022 | \u0022secondary\u0022 | \u0022outline\u0022 | \u0022ghost\u0022 | undefined; }\u0027.\r\nsrc/app/admin/AdminProductsPage.tsx(315,15): error TS2322: Type \u0027{ children: string; variant: \u0022outline\u0022; size: string; disabled: boolean; onClick: () =\u003E void; }\u0027 is not assignable to type \u0027IntrinsicAttributes \u0026 ButtonHTMLAttributes\u003CHTMLButtonElement\u003E \u0026 { variant?: \u0022danger\u0022 | \u0022primary\u0022 | \u0022secondary\u0022 | \u0022outline\u0022 | \u0022ghost\u0022 | undefined; }\u0027.\r\n  Property \u0027size\u0027 does not exist on type \u0027IntrinsicAttributes \u0026 ButtonHTMLAttributes\u003CHTMLButtonElement\u003E \u0026 { variant?: \u0022danger\u0022 | \u0022primary\u0022 | \u0022secondary\u0022 | \u0022outline\u0022 | \u0022ghost\u0022 | undefined; }\u0027.\r\nsrc/app/admin/BrandsAdminPage.tsx(721,15): error TS2322: Type \u0027{ children: string; variant: \u0022outline\u0022; size: string; disabled: boolean; onClick: () =\u003E void; }\u0027 is not assignable to type \u0027IntrinsicAttributes \u0026 ButtonHTMLAttributes\u003CHTMLButtonElement\u003E \u0026 { variant?: \u0022danger\u0022 | \u0022primary\u0022 | \u0022secondary\u0022 | \u0022outline\u0022 | \u0022ghost\u0022 | undefined; }\u0027.\r\n  Property \u0027size\u0027 does not exist on type \u0027IntrinsicAttributes \u0026 ButtonHTMLAttributes\u003CHTMLButtonElement\u003E \u0026 { variant?: \u0022danger\u0022 | \u0022primary\u0022 | \u0022secondary\u0022 | \u0022outline\u0022 | \u0022ghost\u0022 | undefined; }\u0027.\r\nsrc/app/admin/BrandsAdminPage.tsx(732,15): error TS2322: Type \u0027{ children: string; variant: \u0022outline\u0022; size: string; disabled: boolean; onClick: () =\u003E void; }\u0027 is not assignable to type \u0027IntrinsicAttributes \u0026 ButtonHTMLAttributes\u003CHTMLButtonElement\u003E \u0026 { variant?: \u0022danger\u0022 | \u0022primary\u0022 | \u0022secondary\u0022 | \u0022outline\u0022 | \u0022ghost\u0022 | undefined; }\u0027.\r\n  Property \u0027size\u0027 does not exist on type \u0027IntrinsicAttributes \u0026 ButtonHTMLAttributes\u003CHTMLButtonElement\u003E \u0026 { variant?: \u0022danger\u0022 | \u0022primary\u0022 | \u0022secondary\u0022 | \u0022outline\u0022 | \u0022ghost\u0022 | undefined; }\u0027.\r\nsrc/app/admin/CategoriesPage.tsx(633,15): error TS2322: Type \u0027{ children: string; variant: \u0022outline\u0022; size: string; disabled: boolean; onClick: () =\u003E void; }\u0027 is not assignable to type \u0027IntrinsicAttributes \u0026 ButtonHTMLAttributes\u003CHTMLButtonElement\u003E \u0026 { variant?: \u0022danger\u0022 | \u0022primary\u0022 | \u0022secondary\u0022 | \u0022outline\u0022 | \u0022ghost\u0022 | undefined; }\u0027.\r\n  Property \u0027size\u0027 does not exist on type \u0027IntrinsicAttributes \u0026 ButtonHTMLAttributes\u003CHTMLButtonElement\u003E \u0026 { variant?: \u0022danger\u0022 | \u0022pri\n\u2026[truncated]",
+        "durationMs": 28396
+      },
+      {
+        "name": "frontend-build",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "\r\n\u003E figma-make-app@1.0.0 build\r\n\u003E vite build\r\n\r\n\u001B[33m(!) Your Vite config uses features that are unsupported by \u0060configLoader: \u0027native\u0027\u0060, which is planned to become the default in a future major version of Vite:\r\n  - \u0060__dirname\u0060 (vite.config.ts:31:27). Use \u0060import.meta.dirname\u0060 instead\r\n  - JSON import \u0022./.figma/make/site.json\u0022 without import attributes (vite.config.ts:6:31). Add \u0060with { type: \u0027json\u0027 }\u0060\r\nSet \u0060VITE_CONFIG_NATIVE_IGNORE_WARNING=true\u0060 to suppress this warning.\u001B[39m\r\n\u001B[36mvite v8.3.8 \u001B[32mbuilding client environment for production...\u001B[36m\u001B[39m\r\ntransforming...\r\n\u2713 2206 modules transformed.\r\nrendering chunks...\r\ncomputing gzip size...\r\ndist/index.html                     1.10 kB \u2502 gzip:   0.48 kB\r\ndist/assets/index-C_CLvEmx.css    157.92 kB \u2502 gzip:  28.47 kB\r\ndist/assets/index-BLCihPcR.js   1,156.91 kB \u2502 gzip: 302.39 kB\r\n\r\n\u001B[33m[plugin builtin:vite-reporter] \r\n(!) Some chunks are larger than 500 kB after minification. Consider:\r\n- Using dynamic import() to code-split the application\r\n- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting\r\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\u001B[39m\r\n\u001B[33m\u001B[33m[INEFFECTIVE_DYNAMIC_IMPORT] \u001B[0msrc/app/features/commerceApi.ts is dynamically imported by src/app/admin/AdminOrderDetailPage.tsx but also statically imported by src/app/admin/AdminPaymentQrCard.tsx, src/app/admin/DeliveryPartnersPage.tsx, src/app/admin/ProductFormPage.tsx, src/app/features/hooks/useAddresses.ts, src/app/features/hooks/useAdminBrands.ts, ..., dynamic import will not move module into another chunk.\r\n\u001B[39m\r\n\u001B[32m\u2713 built in 2.92s\u001B[39m\r\n",
+        "durationMs": 5766
+      },
+      {
+        "name": "tests-pass",
+        "kind": "process",
+        "verificationMethod": "test-results",
+        "passed": false,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 1,
+        "outputSample": "\r\n\u003E figma-make-app@1.0.0 test:e2e\r\n\u003E playwright test\r\n\r\nError: No tests found\r\n\r\n",
+        "durationMs": 5098,
+        "testResults": {
+          "testFramework": "unknown",
+          "runnerDetectedFrom": "none",
+          "testsTotal": 0,
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "testsSkipped": 0,
+          "parseFailed": true
+        }
+      },
+      {
+        "name": "dev-server-home-200",
+        "kind": "http-probe",
+        "verificationMethod": "http-status",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": null,
+        "outputSample": "HTTP 200\n\u003C!doctype html\u003E\r\n\u003Chtml lang=\u0022en\u0022\u003E\r\n  \u003Chead\u003E\n    \u003Cscript type=\u0022module\u0022\u003Eimport { injectIntoGlobalHook } from \u0022/@react-refresh\u0022;\ninjectIntoGlobalHook(window);\nwindow.$RefreshReg$ = () =\u003E {};\nwindow.$RefreshSig$ = () =\u003E (type) =\u003E type;\u003C/script\u003E\n\n    \u003Cscript type=\u0022module\u0022 src=\u0022/@vite/client\u0022\u003E\u003C/script\u003E\n\r\n    \r\n    \u003Cmeta charset=\u0022UTF-8\u0022 /\u003E\r\n    \u003Cmeta name=\u0022viewport\u0022 content=\u0022width=device-width, initial-scale=1.0\u0022 /\u003E\r\n    \u003Cmeta name=\u0022theme-color\u0022 content=\u0022#D4AF37\u0022 /\u003E\r\n    \u003Cmeta name=\u0022description\u0022 content=\u0022Hindustan Hardware \u0026 Sanitary - Premium Hardware \u0026 Sanitary E-Commerce Store\u0022 /\u003E\r\n    \u003Clink rel=\u0022manifest\u0022 href=\u0022/manifest.json\u0022 /\u003E\r\n    \u003Clink rel=\u0022icon\u0022 type=\u0022image/webp\u0022 href=\u0022/logo.webp\u0022 /\u003E\r\n    \u003Clink rel=\u0022apple-touch-icon\u0022 href=\u0022/logo.webp\u0022 /\u003E\r\n    \u003Ctitle\u003EHindustan Hardware \u0026 Sanitary\u003C/title\u003E\r\n    \r\n    \u003Cmeta name=\u0022description\u0022 content=\u0022Industrial and Plumbing hardware supply store prototype\u0022\u003E\n    \u003Clink rel=\u0022icon\u0022 href=\u0022/favicon.svg\u0022\u003E\n    \u003Cmeta property=\u0022og:title\u0022 content=\u0022Hardware E-Commerce Prototype\u0022\u003E\n    \u003Cmeta property=\u0022og:description\u0022 content=\u0022Industrial and Plumbing hardware supply store prototype\u0022\u003E\n  \u003C/head\u003E\r\n  \u003Cbody\u003E\r\n    \r\n    \u003Cdiv id=\u0022root\u0022\u003E\u003C/div\u003E\r\n    \u003Cscript type=\u0022module\u0022 src=\u0022/src/main.tsx?t=1794563683104\u0022\u003E\u003C/script\u003E\r\n    \r\n  \u003C/body\u003E\r\n\u003C/html\u003E\r\n",
+        "durationMs": 243
+      }
+    ],
+    "executions": [
+      {
+        "source": "typescript-no-emit",
+        "resolvedExecutable": "C:\\Users\\HP\\AppData\\Roaming\\npm\\npx.CMD",
+        "args": [
+          "tsc",
+          "--noEmit"
+        ],
+        "cwd": "D:\\Dowbloads\\HindustanHardware\\Hindustan-Hardware\\frontend",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "frontend-build",
+        "resolvedExecutable": "C:\\Users\\HP\\AppData\\Roaming\\npm\\npm.CMD",
+        "args": [
+          "run",
+          "build"
+        ],
+        "cwd": "D:\\Dowbloads\\HindustanHardware\\Hindustan-Hardware\\frontend",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "tests-pass",
+        "resolvedExecutable": "C:\\Users\\HP\\AppData\\Roaming\\npm\\npm.CMD",
+        "args": [
+          "run",
+          "test:e2e"
+        ],
+        "cwd": "D:\\Dowbloads\\HindustanHardware\\Hindustan-Hardware\\frontend",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "dev-server-home-200",
+        "resolvedExecutable": "C:\\Users\\HP\\AppData\\Roaming\\npm\\npm.CMD",
+        "args": [
+          "run",
+          "dev",
+          "--",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "8443",
+          "--strictPort"
+        ],
+        "cwd": "D:\\Dowbloads\\HindustanHardware\\Hindustan-Hardware\\frontend",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      }
+    ]
+  }
+}

@@ -167,6 +167,7 @@ export const tokenStorage = {
 
 interface RequestOptions extends RequestInit {
   requiresAuth?: boolean
+  tokenOverride?: string
   _isRetry?: boolean
 }
 
@@ -224,7 +225,7 @@ export async function apiRequest<T = any>(
   endpoint: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { requiresAuth = false, headers: customHeaders, _isRetry = false, ...restOptions } = options
+  const { requiresAuth = false, tokenOverride, headers: customHeaders, _isRetry = false, ...restOptions } = options
   const isFormData = typeof FormData !== "undefined" && restOptions.body instanceof FormData
 
   const headers: Record<string, string> = {
@@ -236,7 +237,7 @@ export async function apiRequest<T = any>(
     headers["Content-Type"] = "application/json"
   }
 
-  const token = tokenStorage.get()
+  const token = tokenOverride || tokenStorage.get()
   if (token) {
     headers["Authorization"] = `Bearer ${token}`
   } else if (requiresAuth) {

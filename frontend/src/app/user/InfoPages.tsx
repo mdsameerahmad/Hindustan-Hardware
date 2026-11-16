@@ -38,19 +38,63 @@ import { useOrders } from "../features/hooks/useOrders"
 import { useStore } from "../store"
 
 export function AuthPage() {
-  const { pathname, state } = useLocation()
+  const { pathname, state, search } = useLocation()
   const navigate = useNavigate()
-  const { login, register, isAuthenticated, user } = useAuth()
+  const { login, register, resetPassword, isAuthenticated, user } = useAuth()
   const signup = pathname === "/signup"
+  const isResetPassword = pathname === "/reset-password"
+
+  const [mode, setMode] = useState<"login" | "signup" | "forgot" | "reset">(
+    isResetPassword ? "reset" : signup ? "signup" : "login"
+  )
 
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [recoveryToken, setRecoveryToken] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successInfo, setSuccessInfo] = useState<{ title: string; text: string } | null>(null)
+
+  // Sync mode when pathname changes
+  useEffect(() => {
+    if (pathname === "/reset-password") {
+      setMode("reset")
+    } else if (pathname === "/signup") {
+      setMode("signup")
+    } else if (pathname === "/login" && mode !== "forgot" && mode !== "reset") {
+      setMode("login")
+    }
+  }, [pathname])
+
+  // Extract access token or code from URL hash or query params if returning from password reset link
+  useEffect(() => {
+    try {
+      const hash = window.location.hash
+      const params = new URLSearchParams(hash.startsWith("#") ? hash.substring(1) : hash)
+      const token = params.get("access_token")
+      const type = params.get("type")
+      if (token && type === "recovery") {
+        setRecoveryToken(token)
+        setMode("reset")
+      } else if (token) {
+        setRecoveryToken(token)
+        setMode("reset")
+      } else {
+        const queryParams = new URLSearchParams(search)
+        const qToken = queryParams.get("token") || queryParams.get("access_token")
+        if (qToken) {
+          setRecoveryToken(qToken)
+          setMode("reset")
+        }
+      }
+    } catch {
+      // Ignore URL parsing errors
+    }
+  }, [search])
 
   // Redirect destination if specified (defaults to home "/" or "/admin" or "/partner/dashboard")
   const getDefaultRedirect = (role?: string) => {
@@ -61,12 +105,12 @@ export function AuthPage() {
 
   const from = (state as any)?.from?.pathname || getDefaultRedirect(user?.role)
 
-  // If already authenticated and not showing success screen, redirect
+  // If already authenticated and not resetting password / showing success screen, redirect
   useEffect(() => {
-    if (isAuthenticated && !successInfo) {
+    if (isAuthenticated && !successInfo && mode !== "reset") {
       navigate(getDefaultRedirect(user?.role), { replace: true })
     }
-  }, [isAuthenticated, successInfo, navigate, user?.role])
+  }, [isAuthenticated, successInfo, navigate, user?.role, mode])
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -74,7 +118,56 @@ export function AuthPage() {
     setLoading(true)
 
     try {
-      if (signup) {
+      if (mode === "forgot") {
+        if (!email.trim()) {
+          setErrorMessage("Please enter your registered email address.")
+          setLoading(false)
+          return
+        }
+
+        const redirectTo = `${window.location.origin}/reset-password`
+        const res = await authApi.forgotPassword(email.trim().toLowerCase(), redirectTo)
+
+        if (res?.recoveryUrl) {
+          // If Supabase email was rate-limited or in development, direct link is provided
+          setSuccessInfo({
+            title: "Recovery link ready!",
+            text: `A reset link was generated. Click below or check your email to proceed:`,
+          })
+          setRecoveryToken(res.recoveryUrl.split("#")[1] || "")
+        } else {
+          setSuccessInfo({
+            title: "Recovery link sent!",
+            text: `A password reset link has been dispatched to ${email.trim().toLowerCase()}. Please check your inbox (and spam folder) to set your new password.`,
+          })
+        }
+      } else if (mode === "reset") {
+        if (!password) {
+          setErrorMessage("Please enter your new password.")
+          setLoading(false)
+          return
+        }
+        if (password.length < 8) {
+          setErrorMessage("Password must be at least 8 characters long.")
+          setLoading(false)
+          return
+        }
+        if (confirmPassword && password !== confirmPassword) {
+          setErrorMessage("Passwords do not match.")
+          setLoading(false)
+          return
+        }
+
+        await resetPassword(password, recoveryToken || undefined)
+
+        setSuccessInfo({
+          title: "Password updated successfully!",
+          text: "Your password has been changed and you are now logged in. Redirecting...",
+        })
+        window.setTimeout(() => {
+          navigate(from, { replace: true })
+        }, 1500)
+      } else if (mode === "signup") {
         if (!email.trim() || !password || !fullName.trim()) {
           setErrorMessage("Please fill in all required fields.")
           setLoading(false)
@@ -173,12 +266,25 @@ export function AuthPage() {
               <h2 className="mt-5 text-2xl font-black">
                 {successInfo.title}
               </h2>
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 text-sm text-slate-500 max-w-sm">
                 {successInfo.text}
               </p>
-              <Link className="mt-6" to="/account">
-                <Button>Go to Account Dashboard</Button>
-              </Link>
+              {mode === "forgot" && recoveryToken ? (
+                <div className="mt-6 flex flex-col gap-3">
+                  <Button
+                    onClick={() => {
+                      setSuccessInfo(null)
+                      setMode("reset")
+                    }}
+                  >
+                    Enter New Password Now
+                  </Button>
+                </div>
+              ) : (
+                <Link className="mt-6" to="/account">
+                  <Button>Go to Account Dashboard</Button>
+                </Link>
+              )}
             </div>
           ) : (
             <>
@@ -203,10 +309,20 @@ export function AuthPage() {
 
               <Badge tone="blue">Secure Account Access</Badge>
               <h2 className="mt-4 text-3xl font-black">
-                {signup ? "Create an account" : "Login to your account"}
+                {mode === "reset"
+                  ? "Set New Password"
+                  : mode === "forgot"
+                  ? "Reset Your Password"
+                  : mode === "signup"
+                  ? "Create an account"
+                  : "Login to your account"}
               </h2>
               <p className="mt-2 text-sm text-slate-500">
-                {signup
+                {mode === "reset"
+                  ? "Enter your new password below. Once saved, you will be automatically logged in."
+                  : mode === "forgot"
+                  ? "Enter your email address and we'll send you a link to reset your password."
+                  : mode === "signup"
                   ? "Register to save addresses and manage orders."
                   : "Enter your registered credentials to access your account."}
               </p>
@@ -221,7 +337,7 @@ export function AuthPage() {
                 onSubmit={handleSubmit}
                 className="mt-7 space-y-4"
               >
-                {signup && (
+                {mode === "signup" && (
                   <Label text="Full name">
                     <input
                       required
@@ -233,18 +349,22 @@ export function AuthPage() {
                     />
                   </Label>
                 )}
-                <Label text="Email address">
-                  <input
-                    required
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@example.com"
-                    className="field mt-2"
-                    disabled={loading}
-                  />
-                </Label>
-                {signup && (
+
+                {mode !== "reset" && (
+                  <Label text="Email address">
+                    <input
+                      required
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="name@example.com"
+                      className="field mt-2"
+                      disabled={loading}
+                    />
+                  </Label>
+                )}
+
+                {mode === "signup" && (
                   <Label text="Phone number (optional)">
                     <input
                       value={phone}
@@ -255,79 +375,121 @@ export function AuthPage() {
                     />
                   </Label>
                 )}
-                <Label text="Password">
-                  <div className="relative mt-2">
-                    <input
-                      required
-                      minLength={signup ? 8 : 1}
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder={signup ? "Minimum 8 characters" : "Enter your password"}
-                      className="field w-full pr-10"
-                      disabled={loading}
-                    />
+
+                {mode !== "forgot" && (
+                  <Label text={mode === "reset" ? "New Password" : "Password"}>
+                    <div className="relative mt-2">
+                      <input
+                        required
+                        minLength={mode === "login" ? 1 : 8}
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder={mode === "login" ? "Enter your password" : "Minimum 8 characters"}
+                        className="field w-full pr-10"
+                        disabled={loading}
+                      />
+                      <button
+                        type="button"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition p-1"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </Label>
+                )}
+
+                {mode === "reset" && (
+                  <Label text="Confirm New Password">
+                    <div className="relative mt-2">
+                      <input
+                        required
+                        minLength={8}
+                        type={showPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Re-enter your new password"
+                        className="field w-full pr-10"
+                        disabled={loading}
+                      />
+                    </div>
+                  </Label>
+                )}
+
+                {mode === "login" && (
+                  <div className="flex justify-end">
                     <button
                       type="button"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition p-1"
+                      onClick={() => {
+                        setErrorMessage(null)
+                        setMode("forgot")
+                      }}
+                      className="text-sm font-bold text-brand hover:underline"
                     >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      Forgot password?
                     </button>
                   </div>
-                </Label>
-
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!email.trim()) {
-                        setErrorMessage("Please enter your email above first to receive reset instructions.")
-                      } else {
-                        authApi
-                          .forgotPassword(email.trim().toLowerCase())
-                          .then(() => alert("If registered, a reset link has been sent to your email."))
-                          .catch((err) => setErrorMessage(err.message))
-                      }
-                    }}
-                    className="text-sm font-bold text-brand hover:underline"
-                  >
-                    Forgot password?
-                  </button>
-                </div>
+                )}
 
                 <Button className="w-full" type="submit" disabled={loading}>
                   {loading
-                    ? "Authenticating..."
-                    : signup
-                      ? "Create Account"
-                      : "Login"}
+                    ? "Processing..."
+                    : mode === "reset"
+                    ? "Save Password & Login"
+                    : mode === "forgot"
+                    ? "Send Reset Link"
+                    : mode === "signup"
+                    ? "Create Account"
+                    : "Login"}
                 </Button>
+
+                {mode === "forgot" && (
+                  <div className="text-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setErrorMessage(null)
+                        setMode("login")
+                      }}
+                      className="text-sm font-semibold text-slate-600 hover:text-brand"
+                    >
+                      Back to Login
+                    </button>
+                  </div>
+                )}
               </form>
 
-              <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
-                <span className="h-px flex-1 bg-border" />
-                OR
-                <span className="h-px flex-1 bg-border" />
-              </div>
-              <Link to="/cart">
-                <Button variant="outline" className="w-full">
-                  Continue as Guest
-                </Button>
-              </Link>
-              <p className="mt-6 text-center text-sm text-slate-500">
-                {signup
-                  ? "Already have an account?"
-                  : "New to Hindustan Hardware?"}{" "}
-                <Link
-                  className="font-bold text-brand"
-                  to={signup ? "/login" : "/signup"}
-                  onClick={() => setErrorMessage(null)}
-                >
-                  {signup ? "Login" : "Sign up"}
-                </Link>
-              </p>
+              {mode !== "reset" && (
+                <>
+                  <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
+                    <span className="h-px flex-1 bg-border" />
+                    OR
+                    <span className="h-px flex-1 bg-border" />
+                  </div>
+                  <Link to="/cart">
+                    <Button variant="outline" className="w-full">
+                      Continue as Guest
+                    </Button>
+                  </Link>
+                  <p className="mt-6 text-center text-sm text-slate-500">
+                    {mode === "signup"
+                      ? "Already have an account?"
+                      : "New to Hindustan Hardware?"}{" "}
+                    <Link
+                      className="font-bold text-brand"
+                      to={mode === "signup" ? "/login" : "/signup"}
+                      onClick={() => {
+                        setErrorMessage(null)
+                        setMode(mode === "signup" ? "login" : "signup")
+                      }}
+                    >
+                      {mode === "signup" ? "Login" : "Sign up"}
+                    </Link>
+                  </p>
+                </>
+              )}
             </>
           )}
         </div>

@@ -110,6 +110,7 @@ const router = createBrowserRouter([
       { path: "wishlist", Component: WishlistPage },
       { path: "login", Component: AuthPage },
       { path: "signup", Component: AuthPage },
+      { path: "reset-password", Component: AuthPage },
       { path: "about", Component: AboutPage },
       { path: "contact", Component: ContactPage },
       { path: "bulk-order", element: <ContactPage bulk /> },

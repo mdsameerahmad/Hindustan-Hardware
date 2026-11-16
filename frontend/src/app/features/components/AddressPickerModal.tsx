@@ -1,27 +1,62 @@
-import * as React from "react"
-import { useEffect, useRef, useState, useCallback } from "react"
-import * as L from "leaflet"
-import "leaflet/dist/leaflet.css"
 import {
+  AlertCircle,
+  Briefcase,
+  Building,
+  Check,
+  ChevronRight,
+  Crosshair,
+  Home,
+  Loader2,
   MapPin,
   Navigation,
-  Check,
-  AlertCircle,
-  Loader2,
-  Search,
-  Crosshair,
-  Building,
-  Home,
-  Briefcase,
-  ChevronRight,
-  ShieldCheck,
   RotateCcw,
+  Search,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react"
-import { Button, Badge } from "../../components"
-import { locationApi, type SupportedCity, type GeocodingSuggestion } from "../locationApi"
-import localityIndex from "../jehanabadLocalities.json"
+import * as React from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Badge, Button } from "../../components"
 import type { CreateAddressPayload } from "../commerceTypes"
+import localityIndex from "../jehanabadLocalities.json"
+import { locationApi, type GeocodingSuggestion, type SupportedCity } from "../locationApi"
+
+declare const google: any
+
+let googleMapsScriptPromise: Promise<void> | null = null
+
+function loadGoogleMapsScript(apiKey: string): Promise<void> {
+  if (typeof google !== "undefined" && google.maps) {
+    return Promise.resolve()
+  }
+  if (googleMapsScriptPromise) {
+    return googleMapsScriptPromise
+  }
+  googleMapsScriptPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.getElementById("google-maps-js-sdk")
+    if (existing) {
+      if (typeof google !== "undefined" && google.maps) {
+        resolve()
+      } else {
+        existing.addEventListener("load", () => resolve())
+        existing.addEventListener("error", (e) => reject(e))
+      }
+      return
+    }
+    const script = document.createElement("script")
+    script.id = "google-maps-js-sdk"
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker`
+    script.async = true
+    script.defer = true
+    script.onload = () => resolve()
+    script.onerror = (err) => {
+      googleMapsScriptPromise = null
+      reject(err)
+    }
+    document.head.appendChild(script)
+  })
+  return googleMapsScriptPromise
+}
 
 function normalizeSearchText(value: string) {
   return value
@@ -115,9 +150,11 @@ export function AddressPickerModal({
 
   // Map state
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
-  const mapInstanceRef = useRef<L.Map | null>(null)
-  const markerRef = useRef<L.Marker | null>(null)
-  const mapResizeObserverRef = useRef<ResizeObserver | null>(null)
+  const mapInstanceRef = useRef<any>(null)
+  const markerRef = useRef<any>(null)
+  const shopMarkerRef = useRef<any>(null)
+  const circleRef = useRef<any>(null)
+  const infoWindowRef = useRef<any>(null)
   const reverseGeocodeRequestIdRef = useRef(0)
 
   const [pinCoords, setPinCoords] = useState<{ latitude: number; longitude: number }>({
@@ -181,49 +218,232 @@ export function AddressPickerModal({
     }
   }, [selectedCity])
 
+  // ==========================================
+  // // Old Logic
   // Debounced address search using Google Places when configured, with Photon fallback.
+  // useEffect(() => {
+  //   const trimmed = searchQuery.trim()
+  //   if (step !== 1 || trimmed.length < 2) {
+  //     setSuggestions([])
+  //     setIsSearching(false)
+  //     setSearchError(null)
+  //     searchRequestIdRef.current += 1
+  //     return
+  //   }
+  //
+  //   const localSuggestions = findLocalitySuggestions(trimmed)
+  //   setSuggestions(localSuggestions)
+  //   setIsSearching(true)
+  //   setSearchError(null)
+  //
+  //   const timer = setTimeout(async () => {
+  //     const requestId = ++searchRequestIdRef.current
+  //     try {
+  //       const results = await locationApi.searchAddresses(trimmed, selectedCity, 12, {
+  //         lat: pinCoords.latitude,
+  //         lon: pinCoords.longitude,
+  //       }, searchSessionTokenRef.current)
+  //       if (requestId !== searchRequestIdRef.current) return
+  //       const mergedResults = [...localSuggestions, ...results]
+  //       setSuggestions(mergedResults)
+  //       if (mergedResults.length === 0) {
+  //         setSearchError("No matching street, road or landmark found. You can place the pin directly on the map.")
+  //       }
+  //     } catch (err: any) {
+  //       if (requestId === searchRequestIdRef.current && localSuggestions.length === 0) {
+  //         setSearchError("Address search unavailable. You can locate your address manually on the map.")
+  //       }
+  //     } finally {
+  //       if (requestId === searchRequestIdRef.current) setIsSearching(false)
+  //     }
+  //   }, 300)
+  //
+  //   return () => {
+  //     clearTimeout(timer)
+  //     searchRequestIdRef.current += 1
+  //   }
+  // }, [searchQuery, selectedCity, pinCoords.latitude, pinCoords.longitude, step])
+  // ==========================================
+
+  // ==========================================
+  // Store Config & Range Calculations
+  // ==========================================
+  const GOOGLE_API_KEY =
+    (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined) ||
+    "AIzaSyCnvKMMG0Ae6J34R9KESHIJCQmD6KYETPo"
+  const SHOP = {
+    name: "Hindustan Hardware",
+    lat: 25.215474989473233,
+    lng: 84.9867635966286,
+  }
+  const RADIUS_M = 50000
+  const RADIUS_KM = 50
+
+  // Distance between two coordinates in km
+  function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const R = 6371
+    const toRad = (d: number) => (d * Math.PI) / 180
+    const dLat = toRad(lat2 - lat1)
+    const dLon = toRad(lon2 - lon1)
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+    return 2 * R * Math.asin(Math.sqrt(a))
+  }
+
+  // ?? New Logic of address searching
+  // Uses Google Places API (New) for search and autocomplete restricted to 50 km circle around the shop
+  // Map stays on OpenStreetMap / Leaflet
+
+  // Autocomplete restricted to a 50 km circle around the shop, India only
+  async function autocompleteGoogle(text: string) {
+    const res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_API_KEY,
+      },
+      body: JSON.stringify({
+        input: text,
+        includedRegionCodes: ["in"],
+        locationRestriction: {
+          circle: {
+            center: { latitude: SHOP.lat, longitude: SHOP.lng },
+            radius: RADIUS_M,
+          },
+        },
+      }),
+    })
+    const data = await res.json()
+    return (data.suggestions || [])
+      .filter((s: any) => s.placePrediction)
+      .map((s: any) => ({
+        placeId: s.placePrediction.placeId,
+        label: s.placePrediction.text.text,
+      }))
+  }
+
+  // Get exact coordinates for a chosen place
+  async function getGoogleLocation(placeId: string) {
+    const res = await fetch(`https://places.googleapis.com/v1/places/${placeId}`, {
+      headers: {
+        "X-Goog-Api-Key": GOOGLE_API_KEY,
+        "X-Goog-FieldMask": "displayName,formattedAddress,location",
+      },
+    })
+    const p = await res.json()
+    return {
+      label: p.formattedAddress || p.displayName?.text || "",
+      lat: p.location?.latitude,
+      lng: p.location?.longitude,
+    }
+  }
+
+  // Live suggestions debounce effect using Google Places (50 km radius)
   useEffect(() => {
-    const trimmed = searchQuery.trim()
-    if (step !== 1 || trimmed.length < 2) {
+    const q = searchQuery.trim()
+    if (step !== 1 || q.length < 2) {
       setSuggestions([])
       setIsSearching(false)
       setSearchError(null)
-      searchRequestIdRef.current += 1
       return
     }
 
-    const localSuggestions = findLocalitySuggestions(trimmed)
-    setSuggestions(localSuggestions)
     setIsSearching(true)
     setSearchError(null)
 
     const timer = setTimeout(async () => {
-      const requestId = ++searchRequestIdRef.current
       try {
-        const results = await locationApi.searchAddresses(trimmed, selectedCity, 12, {
-          lat: pinCoords.latitude,
-          lon: pinCoords.longitude,
-        }, searchSessionTokenRef.current)
-        if (requestId !== searchRequestIdRef.current) return
-        const mergedResults = [...localSuggestions, ...results]
-        setSuggestions(mergedResults)
-        if (mergedResults.length === 0) {
-          setSearchError("No matching street, road or landmark found. You can place the pin directly on the map.")
+        const places = await autocompleteGoogle(q)
+        setIsSearching(false)
+
+        if (!places || places.length === 0) {
+          setSuggestions([])
+          setSearchError("No results within 50 km of Hindustan Hardware.")
+        } else {
+          const mapped: GeocodingSuggestion[] = places.map((s: any, idx: number) => ({
+            id: `google-${idx}-${s.placeId}`,
+            placeId: s.placeId,
+            name: s.label.split(",")[0] || s.label,
+            formattedAddress: s.label,
+            city: "Jehanabad",
+            state: "Bihar",
+            country: "India",
+            provider: "Google-Places",
+          }))
+          setSuggestions(mapped)
         }
-      } catch (err: any) {
-        if (requestId === searchRequestIdRef.current && localSuggestions.length === 0) {
-          setSearchError("Address search unavailable. You can locate your address manually on the map.")
-        }
-      } finally {
-        if (requestId === searchRequestIdRef.current) setIsSearching(false)
+      } catch {
+        setIsSearching(false)
+        setSearchError("Search request failed. Please check connection.")
       }
     }, 300)
 
-    return () => {
-      clearTimeout(timer)
-      searchRequestIdRef.current += 1
+    return () => clearTimeout(timer)
+  }, [searchQuery, step])
+
+  const showGooglePlace = async (s: { placeId?: string; label: string; lat?: number; lng?: number }) => {
+    try {
+      setIsSelectingSuggestion(true)
+      let lat = s.lat
+      let lng = s.lng
+      let label = s.label
+
+      if ((lat == null || lng == null) && s.placeId) {
+        const loc = await getGoogleLocation(s.placeId)
+        lat = loc.lat
+        lng = loc.lng
+        if (loc.label) label = loc.label
+      }
+
+      if (lat == null || lng == null) {
+        setSearchError("Could not retrieve coordinates for the selected place.")
+        return
+      }
+
+      const dist = distanceKm(SHOP.lat, SHOP.lng, lat, lng).toFixed(1)
+      setPinCoords({ latitude: lat, longitude: lng })
+      setAddressForm((prev) => ({
+        ...prev,
+        latitude: lat,
+        longitude: lng,
+        formattedAddress: label,
+        addressLine1: prev.addressLine1.trim() ? prev.addressLine1 : label.split(",")[0] || label,
+        city: selectedCity,
+        geocodingProvider: "Google-Places",
+      }))
+
+      setStep(2)
+
+      if (mapInstanceRef.current && markerRef.current) {
+        const newPos = { lat, lng }
+        mapInstanceRef.current.setCenter(newPos)
+        mapInstanceRef.current.setZoom(16)
+        markerRef.current.setPosition(newPos)
+
+        if (!infoWindowRef.current && typeof google !== "undefined" && google.maps) {
+          infoWindowRef.current = new google.maps.InfoWindow()
+        }
+        if (infoWindowRef.current) {
+          infoWindowRef.current.setContent(
+            `<b>${label}</b><br/><span style="color:#64748b;font-size:11px;">📍 ${dist} km from store</span>`
+          )
+          infoWindowRef.current.open(mapInstanceRef.current, markerRef.current)
+        }
+      }
+      runReverseGeocode(lat, lng)
+    } catch {
+      setSearchError("Failed to fetch location details.")
+    } finally {
+      setIsSelectingSuggestion(false)
     }
-  }, [searchQuery, selectedCity, pinCoords.latitude, pinCoords.longitude, step])
+  }
+
+  const handleNominatimSearch = async () => {
+    if (suggestions.length > 0) {
+      showGooglePlace(suggestions[0])
+    }
+  }
 
   // Reverse geocode when pin moves
   const runReverseGeocode = useCallback(async (lat: number, lon: number) => {
@@ -273,112 +493,123 @@ export function AddressPickerModal({
     }
   }, [selectedCity])
 
-  // Initialize Leaflet Map in Step 2
+  // Initialize Google Maps in Step 2
   useEffect(() => {
     if (step !== 2 || !isOpen) return
 
-    const timer = setTimeout(() => {
-      const container = mapContainerRef.current
-      if (!container) return
+    let isSubscribed = true
 
-      let map = mapInstanceRef.current
-      if (map && map.getContainer() !== container) {
-        mapResizeObserverRef.current?.disconnect()
-        map.remove()
-        mapInstanceRef.current = null
-        markerRef.current = null
-        map = null
-      }
+    loadGoogleMapsScript(GOOGLE_API_KEY)
+      .then(() => {
+        if (!isSubscribed) return
+        const container = mapContainerRef.current
+        if (!container || typeof google === "undefined" || !google.maps) return
 
-      if (!map) {
-        map = L.map(container, {
-          center: [pinCoords.latitude, pinCoords.longitude],
-          zoom: 16,
-          zoomControl: true,
-          scrollWheelZoom: true,
-        })
+        let map = mapInstanceRef.current
+        if (!map) {
+          map = new google.maps.Map(container, {
+            center: { lat: pinCoords.latitude, lng: pinCoords.longitude },
+            zoom: 16,
+            mapId: "DEMO_MAP_ID",
+            zoomControl: true,
+            streetViewControl: false,
+            mapTypeControl: false,
+            fullscreenControl: false,
+          })
 
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          maxZoom: 19,
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        }).addTo(map)
+          // Shop marker & InfoWindow
+          const shopMarker = new google.maps.Marker({
+            position: { lat: SHOP.lat, lng: SHOP.lng },
+            map,
+            title: SHOP.name,
+          })
+          const shopInfoWindow = new google.maps.InfoWindow({
+            content: "<b>Hindustan Hardware Store</b><br/><span style='font-size:11px;color:#64748b;'>PG Road, Jehanabad</span>",
+          })
+          shopMarker.addListener("click", () => {
+            shopInfoWindow.open(map, shopMarker)
+          })
+          shopMarkerRef.current = shopMarker
 
-        // Custom Destination Pin Icon
-        const destinationIcon = L.divIcon({
-          className: "custom-delivery-pin",
-          html: `
-            <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -100%);">
-              <div style="background: #111827; color: #D4AF37; padding: 6px 10px; border-radius: 9999px; font-size: 11px; font-weight: 800; border: 2px solid #D4AF37; box-shadow: 0 4px 12px rgba(0,0,0,0.4); white-space: nowrap; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
-                <span>📍 Deliver Here</span>
-              </div>
-              <div style="width: 28px; height: 28px; background: #D4AF37; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #ffffff; box-shadow: 0 6px 14px rgba(212,175,55,0.6); display: flex; align-items: center; justify-content: center;">
-                <div style="width: 10px; height: 10px; background: #111827; border-radius: 50%;"></div>
-              </div>
-            </div>
-          `,
-          iconSize: [32, 52],
-          iconAnchor: [16, 52],
-        })
+          // 50 km delivery circle
+          const circle = new google.maps.Circle({
+            map,
+            center: { lat: SHOP.lat, lng: SHOP.lng },
+            radius: RADIUS_M,
+            strokeColor: "#1976d2",
+            strokeWeight: 2,
+            fillColor: "#1976d2",
+            fillOpacity: 0.05,
+            editable: false,
+            clickable: false,
+          })
+          circleRef.current = circle
 
-        const marker = L.marker([pinCoords.latitude, pinCoords.longitude], {
-          icon: destinationIcon,
-          draggable: true,
-        }).addTo(map)
+          // Delivery Pin Marker
+          const marker = new google.maps.Marker({
+            position: { lat: pinCoords.latitude, lng: pinCoords.longitude },
+            map,
+            draggable: true,
+            title: "Deliver Here",
+          })
 
-        marker.on("dragend", () => {
-          const latLng = marker.getLatLng()
-          setPinCoords({ latitude: latLng.lat, longitude: latLng.lng })
-          runReverseGeocode(latLng.lat, latLng.lng)
-        })
+          marker.addListener("dragend", (e: any) => {
+            const lat = e.latLng.lat()
+            const lng = e.latLng.lng()
+            setPinCoords({ latitude: lat, longitude: lng })
+            runReverseGeocode(lat, lng)
+          })
 
-        map.on("click", (e: L.LeafletMouseEvent) => {
-          marker.setLatLng(e.latlng)
-          setPinCoords({ latitude: e.latlng.lat, longitude: e.latlng.lng })
-          runReverseGeocode(e.latlng.lat, e.latlng.lng)
-        })
+          map.addListener("click", (e: any) => {
+            const lat = e.latLng.lat()
+            const lng = e.latLng.lng()
+            marker.setPosition({ lat, lng })
+            setPinCoords({ latitude: lat, longitude: lng })
+            runReverseGeocode(lat, lng)
+          })
 
-        mapInstanceRef.current = map
-        markerRef.current = marker
+          mapInstanceRef.current = map
+          markerRef.current = marker
 
-        // Trigger reverse geocoding on initial map open
-        runReverseGeocode(pinCoords.latitude, pinCoords.longitude)
-      } else {
-        map.setView([pinCoords.latitude, pinCoords.longitude], Math.max(map.getZoom(), 16), { animate: false })
-        markerRef.current?.setLatLng([pinCoords.latitude, pinCoords.longitude])
-      }
-
-      mapResizeObserverRef.current?.disconnect()
-      const activeMap = map
-      const resizeObserver = new ResizeObserver(() => {
-        if (mapInstanceRef.current === activeMap) activeMap.invalidateSize({ pan: false })
+          // Initial reverse geocode
+          runReverseGeocode(pinCoords.latitude, pinCoords.longitude)
+        } else {
+          map.setCenter({ lat: pinCoords.latitude, lng: pinCoords.longitude })
+          markerRef.current?.setPosition({ lat: pinCoords.latitude, lng: pinCoords.longitude })
+          google.maps.event.trigger(map, "resize")
+        }
       })
-      resizeObserver.observe(container)
-      mapResizeObserverRef.current = resizeObserver
-      requestAnimationFrame(() => {
-        if (mapInstanceRef.current === activeMap) activeMap.invalidateSize({ pan: false })
+      .catch((err) => {
+        console.warn("Google Maps script load error:", err)
       })
-    }, 100)
-
-    const settleTimer = window.setTimeout(() => {
-      mapInstanceRef.current?.invalidateSize({ pan: false })
-    }, 350)
 
     return () => {
-      clearTimeout(timer)
-      clearTimeout(settleTimer)
-      mapResizeObserverRef.current?.disconnect()
-      mapResizeObserverRef.current = null
+      isSubscribed = false
     }
   }, [step, isOpen, pinCoords.latitude, pinCoords.longitude, runReverseGeocode])
 
-  // Leaflet keeps its original container, so discard the map when this step unmounts.
+  // Clear map instance and listeners when leaving step 2 or closing
   useEffect(() => {
     if ((!isOpen || step !== 2) && mapInstanceRef.current) {
-      mapResizeObserverRef.current?.disconnect()
-      mapResizeObserverRef.current = null
-      mapInstanceRef.current.remove()
+      if (typeof google !== "undefined" && google.maps?.event) {
+        if (mapInstanceRef.current) google.maps.event.clearInstanceListeners(mapInstanceRef.current)
+        if (markerRef.current) google.maps.event.clearInstanceListeners(markerRef.current)
+        if (shopMarkerRef.current) google.maps.event.clearInstanceListeners(shopMarkerRef.current)
+      }
+      if (circleRef.current) {
+        circleRef.current.setMap(null)
+        circleRef.current = null
+      }
+      if (shopMarkerRef.current) {
+        shopMarkerRef.current.setMap(null)
+        shopMarkerRef.current = null
+      }
+      if (markerRef.current) {
+        markerRef.current.setMap(null)
+        markerRef.current = null
+      }
       mapInstanceRef.current = null
-      markerRef.current = null
+      infoWindowRef.current = null
     }
   }, [isOpen, step])
 
@@ -402,8 +633,10 @@ export function AddressPickerModal({
         setStep(2)
 
         if (mapInstanceRef.current && markerRef.current) {
-          mapInstanceRef.current.setView([latitude, longitude], 17)
-          markerRef.current.setLatLng([latitude, longitude])
+          const pos = { lat: latitude, lng: longitude }
+          mapInstanceRef.current.setCenter(pos)
+          mapInstanceRef.current.setZoom(17)
+          markerRef.current.setPosition(pos)
           runReverseGeocode(latitude, longitude)
         }
       },
@@ -423,71 +656,80 @@ export function AddressPickerModal({
     )
   }
 
+  // ==========================================
+  // // Old Logic
   // Select an autocomplete suggestion
-  const handleSelectSuggestion = async (suggestion: GeocodingSuggestion) => {
-    setIsSelectingSuggestion(true)
-    setSearchError(null)
-    try {
-      let selected = suggestion
-      if (suggestion.id.startsWith("local-area:")) {
-        const localityQuery = [
-          suggestion.name,
-          suggestion.district,
-          suggestion.postalCode,
-          "Bihar",
-        ].filter(Boolean).join(", ")
-        const localityResults = await locationApi.searchAddresses(
-          localityQuery,
-          selectedCity,
-          8,
-          { lat: pinCoords.latitude, lon: pinCoords.longitude },
-          searchSessionTokenRef.current,
-        )
-        const resolvedLocality = localityResults.find((result) =>
-          result.latitude != null &&
-          result.longitude != null &&
-          result.postalCode === suggestion.postalCode,
-        ) || localityResults.find((result) =>
-          result.latitude != null && result.longitude != null,
-        )
-        if (!resolvedLocality) {
-          throw new Error("Could not locate this area on the map. Try its PIN code or select a nearby search result.")
-        }
-        selected = resolvedLocality
-      }
+  // const handleSelectSuggestion = async (suggestion: GeocodingSuggestion) => {
+  //   setIsSelectingSuggestion(true)
+  //   setSearchError(null)
+  //   try {
+  //     let selected = suggestion
+  //     if (suggestion.id.startsWith("local-area:")) {
+  //       const localityQuery = [
+  //         suggestion.name,
+  //         suggestion.district,
+  //         suggestion.postalCode,
+  //         "Bihar",
+  //       ].filter(Boolean).join(", ")
+  //       const localityResults = await locationApi.searchAddresses(
+  //         localityQuery,
+  //         selectedCity,
+  //         8,
+  //         { lat: pinCoords.latitude, lon: pinCoords.longitude },
+  //         searchSessionTokenRef.current,
+  //       )
+  //       const resolvedLocality = localityResults.find((result) =>
+  //         result.latitude != null &&
+  //         result.longitude != null &&
+  //         result.postalCode === suggestion.postalCode,
+  //       ) || localityResults.find((result) =>
+  //         result.latitude != null && result.longitude != null,
+  //       )
+  //       if (!resolvedLocality) {
+  //         throw new Error("Could not locate this area on the map. Try its PIN code or select a nearby search result.")
+  //       }
+  //       selected = resolvedLocality
+  //     }
+  //
+  //     if (selected.provider === "Google-Places" && selected.placeId) {
+  //       selected = await locationApi.getPlaceDetails(selected.placeId, searchSessionTokenRef.current)
+  //     }
+  //     const latitude = selected.latitude
+  //     const longitude = selected.longitude
+  //     if (latitude == null || longitude == null) {
+  //       throw new Error("The selected map result does not include exact coordinates.")
+  //     }
+  //
+  //     if (selected.provider === "Google-Places") {
+  //       searchSessionTokenRef.current = crypto.randomUUID()
+  //     }
+  //
+  //     setPinCoords({ latitude, longitude })
+  //     setAddressForm((prev) => ({
+  //       ...prev,
+  //       latitude,
+  //       longitude,
+  //       city: selected.city || selectedCity,
+  //       state: selected.state || "Bihar",
+  //       postalCode: selected.postalCode || suggestion.postalCode || prev.postalCode,
+  //       addressLine1: selected.street || selected.name,
+  //       addressLine2: selected.locality || "",
+  //       formattedAddress: selected.formattedAddress,
+  //       geocodingProvider: selected.provider || "Photon-OSM",
+  //     }))
+  //     setStep(2)
+  //   } catch (err: any) {
+  //     setSearchError(err?.message || "Could not resolve the selected map result. Please try another result.")
+  //   } finally {
+  //     setIsSelectingSuggestion(false)
+  //   }
+  // }
+  // ==========================================
 
-      if (selected.provider === "Google-Places" && selected.placeId) {
-        selected = await locationApi.getPlaceDetails(selected.placeId, searchSessionTokenRef.current)
-      }
-      const latitude = selected.latitude
-      const longitude = selected.longitude
-      if (latitude == null || longitude == null) {
-        throw new Error("The selected map result does not include exact coordinates.")
-      }
-
-      if (selected.provider === "Google-Places") {
-        searchSessionTokenRef.current = crypto.randomUUID()
-      }
-
-      setPinCoords({ latitude, longitude })
-      setAddressForm((prev) => ({
-        ...prev,
-        latitude,
-        longitude,
-        city: selected.city || selectedCity,
-        state: selected.state || "Bihar",
-        postalCode: selected.postalCode || suggestion.postalCode || prev.postalCode,
-        addressLine1: selected.street || selected.name,
-        addressLine2: selected.locality || "",
-        formattedAddress: selected.formattedAddress,
-        geocodingProvider: selected.provider || "Photon-OSM",
-      }))
-      setStep(2)
-    } catch (err: any) {
-      setSearchError(err?.message || "Could not resolve the selected map result. Please try another result.")
-    } finally {
-      setIsSelectingSuggestion(false)
-    }
+  // ?? New Logic of address searching
+  // Select an address directly using Google Places
+  const handleSelectSuggestion = (suggestion: GeocodingSuggestion) => {
+    showGooglePlace(suggestion)
   }
 
   // Save final confirmed address
@@ -632,28 +874,47 @@ export function AddressPickerModal({
               {/* Search Box */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                  Search Colony, Street, Road, Railway Station or Landmark in {selectedCity}
+                  Search Place, Colony, Street or Landmark (Press Enter to Pin on Map)
                 </label>
-                <div className="relative">
-                  <Search
-                    size={16}
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                  />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={`Search street, road, railway station, bus stand (e.g. PG Road, Station, Sadar Hospital...)`}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900/90 pl-10 pr-10 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 focus:outline-none"
-                    autoFocus
-                  />
-                  {isSearching && (
-                    <Loader2
-                      size={15}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 animate-spin text-amber-400"
+                <div className="relative flex gap-2">
+                  <div className="relative flex-1">
+                    <Search
+                      size={16}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
                     />
-                  )}
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          handleNominatimSearch()
+                        }
+                      }}
+                      placeholder="Type a place or street, then press Enter (e.g. Station Road, Sadar Hospital...)"
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900/90 pl-10 pr-10 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 focus:outline-none"
+                      autoFocus
+                    />
+                    {isSearching && (
+                      <Loader2
+                        size={15}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 animate-spin text-amber-400"
+                      />
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => handleNominatimSearch()}
+                    disabled={isSearching || !searchQuery.trim()}
+                    className="shrink-0 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs px-4"
+                  >
+                    {isSearching ? <Loader2 size={14} className="animate-spin" /> : "Search"}
+                  </Button>
                 </div>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Search powered by Google Places API (New) restricted to 50 km delivery circle around Hindustan Hardware.
+                </p>
               </div>
 
               {isSelectingSuggestion && (
