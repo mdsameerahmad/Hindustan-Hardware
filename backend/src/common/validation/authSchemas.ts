@@ -40,6 +40,11 @@ export const forgotPasswordSchema = z.object({
     .trim()
     .toLowerCase()
     .email('Please provide a valid email address'),
+  redirectTo: z
+    .string()
+    .trim()
+    .url('Redirect URL must be a valid URL')
+    .optional(),
 });
 
 export const resetPasswordSchema = z.object({

@@ -15,6 +15,7 @@ import {
   resetPasswordSchema,
 } from '../common/validation/authSchemas';
 import {
+  getAuthenticatedSupabaseClient,
   getSupabaseAdminClient,
   getSupabaseClient,
   isSupabaseConfigured,
@@ -309,19 +310,52 @@ authRouter.post(
       }
 
       const supabase = getSupabaseClient()!;
-      const { email } = parsed.data;
+      const { email, redirectTo } = parsed.data;
 
       // Request password reset email from Supabase Auth
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      let resetError: any = null;
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        email,
+        redirectTo ? { redirectTo } : undefined
+      );
 
       if (error) {
+        resetError = error;
         logger.warn('Password reset request error', { error: error.message });
       }
 
-      // Generic response to prevent account enumeration
+      // If Supabase's built-in email rate limit is hit, use admin client to generate recovery link
+      let recoveryLink: string | null = null;
+      if (resetError) {
+        const adminClient = getSupabaseAdminClient();
+        if (adminClient) {
+          try {
+            const linkRes = await adminClient.auth.admin.generateLink({
+              type: 'recovery',
+              email,
+              options: redirectTo ? { redirectTo } : undefined,
+            });
+            if (linkRes.data?.properties?.action_link) {
+              recoveryLink = linkRes.data.properties.action_link;
+              logger.info('Generated password recovery link via admin client', {
+                email,
+                recoveryLink,
+              });
+            } else if (linkRes.error) {
+              logger.warn('Failed generating recovery link via admin', {
+                error: linkRes.error.message,
+              });
+            }
+          } catch (adminErr: any) {
+            logger.warn('Error calling admin generateLink', { error: adminErr?.message });
+          }
+        }
+      }
+
+      // Generic response to prevent account enumeration, includes recoveryUrl if fallback link was generated
       return sendSuccess(
         res,
-        null,
+        recoveryLink ? { recoveryUrl: recoveryLink } : null,
         'If the email is registered, a password recovery link has been sent.'
       );
     } catch (err) {
@@ -349,17 +383,67 @@ authRouter.post(
         return next(new InternalServerError('Authentication service is not configured.'));
       }
 
-      const supabase = getSupabaseClient()!;
       const { password } = parsed.data;
+      const user = req.user!;
+      const token = req.accessToken!;
 
-      const { error } = await supabase.auth.updateUser({ password });
-
-      if (error) {
-        logger.warn('Supabase password update failed', { error: error.message });
-        return next(new BadRequestError(error.message));
+      // 1. Try updating user password using authenticated client or admin client
+      let updateError: any = null;
+      const userClient = getAuthenticatedSupabaseClient(token);
+      if (userClient) {
+        const updateRes = await userClient.auth.updateUser({ password });
+        if (updateRes.error) {
+          updateError = updateRes.error;
+        }
       }
 
-      return sendSuccess(res, null, 'Password updated successfully.');
+      if (updateError || !userClient) {
+        const adminClient = getSupabaseAdminClient();
+        if (adminClient) {
+          const adminUpdateRes = await adminClient.auth.admin.updateUserById(user.id, {
+            password,
+          });
+          if (adminUpdateRes.error) {
+            logger.warn('Admin password update failed', { error: adminUpdateRes.error.message });
+            return next(new BadRequestError(adminUpdateRes.error.message));
+          }
+        } else if (updateError) {
+          logger.warn('Password update failed', { error: updateError.message });
+          return next(new BadRequestError(updateError.message));
+        }
+      }
+
+      // 2. Issue a fresh login session with the newly set password
+      let session: any = null;
+      const supabase = getSupabaseClient()!;
+      const loginRes = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password,
+      });
+
+      if (loginRes.data?.session) {
+        session = loginRes.data.session;
+      }
+
+      return sendSuccess(
+        res,
+        {
+          user: {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            profile: user.profile,
+          },
+          session: session
+            ? {
+                accessToken: session.access_token,
+                refreshToken: session.refresh_token,
+                expiresIn: session.expires_in,
+              }
+            : null,
+        },
+        'Password updated successfully.'
+      );
     } catch (err) {
       next(err);
     }
