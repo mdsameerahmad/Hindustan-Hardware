@@ -23,6 +23,7 @@ export interface Category {
   slug: string;
   description: string | null;
   image_url: string | null;
+  discount_percentage?: number | null;
   parent_id: string | null;
   is_active: boolean;
   sort_order: number;
@@ -36,7 +37,6 @@ export interface Brand {
   slug: string;
   description: string | null;
   logo_url: string | null;
-  discount_percentage?: number | null;
   is_active: boolean;
   display_order: number;
   created_at: string;
@@ -288,6 +288,7 @@ export interface OrderItemRecord {
   productId: string | null;
   variantId: string | null;
   productName: string;
+  brandName?: string | null;
   sku: string | null;
   variantTitle: string | null;
   specifications: Record<string, string>;

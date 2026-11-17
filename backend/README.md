@@ -1066,9 +1066,9 @@ CATALOGUE_IMPORT_APPROVED=true npm run catalogue:seed -- --commit
 
 ## Map Search Provider
 
-The shared address picker uses Photon/OpenStreetMap search by default. To enable broader Google Places street, road, station, and landmark results, set `GOOGLE_MAPS_API_KEY` in the backend environment. Enable Places API (New), configure billing and usage quotas in Google Cloud, and restrict the server-side key to the backend's egress IP and Places API. Keep the key server-side; it is never returned to the frontend. Google Places autocomplete sessions are paired with place-detail lookups; Photon is also queried if Google is unconfigured, unavailable, or returns no matches.
+The shared address picker uses local postal locality indexing and free Photon/OpenStreetMap search, coupled with direct hardware GPS and interactive map pin dragging. External paid Places APIs are not required.
 
-Search quality and street completeness still depend on the map provider's data; neither provider guarantees every named path or address.
+Search quality and street completeness depend on the map provider's data; neither provider guarantees every named path or address.
 
 ---
 
@@ -1151,7 +1151,6 @@ Important settings:
 | `SUPABASE_URL` | Supabase project URL. |
 | `SUPABASE_ANON_KEY` | Public Supabase key used for non-privileged server operations where configured. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only key for administrative/database/storage operations; never expose it to the frontend. |
-| `GOOGLE_MAPS_API_KEY` | Optional server-side Places provider; keep it private. |
 | `DELIVERY_OTP_ENCRYPTION_KEY` | Optional/configured encryption key for delivery OTP storage. |
 | `TRACKING_FRESHNESS_THRESHOLD_SECONDS` | GPS freshness threshold (default `120`). |
 | `TRACKING_MAX_ACCURACY_METERS` | Accepted GPS accuracy ceiling (default `500`). |

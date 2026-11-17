@@ -3,6 +3,7 @@ import { InternalServerError, NotFoundError, ConflictError, BadRequestError } fr
 import { Product, PaginatedResult, ProductVariant, Inventory } from '../types';
 import { ImageService } from './imageService';
 import { logger } from '../common/utils/logger';
+import * as XLSX from 'xlsx';
 
 export interface ProductQueryOptions {
   page: number;
@@ -66,13 +67,13 @@ export class ProductService {
   public static parseProductRow(row: any): Product {
     if (!row) return row;
 
-    let brandDiscount: number | null = null;
-    let brandCleanDescription: string | null = row.brand?.description || null;
-    if (row.brand?.description && typeof row.brand.description === 'string') {
-      const match = row.brand.description.match(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]/i);
+    let categoryDiscount: number | null = null;
+    let categoryCleanDescription: string | null = row.category?.description || null;
+    if (row.category?.description && typeof row.category.description === 'string') {
+      const match = row.category.description.match(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]/i);
       if (match) {
-        brandDiscount = Number(match[1]);
-        brandCleanDescription = row.brand.description.replace(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]\s*/gi, '').trim() || null;
+        categoryDiscount = Number(match[1]);
+        categoryCleanDescription = row.category.description.replace(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]\s*/gi, '').trim() || null;
       }
     }
 
@@ -83,8 +84,8 @@ export class ProductService {
       productDiscount = Number(rawProdDiscount);
     }
 
-    // Product-level discount takes precedence over brand-level discount
-    const effectiveDiscount = productDiscount != null ? productDiscount : brandDiscount;
+    // Product-level discount takes precedence over category-level discount
+    const effectiveDiscount = productDiscount != null ? productDiscount : categoryDiscount;
 
     let storedBasePrice = Number(row.base_price || 0);
     let compareAtPrice = row.compare_at_price ? Number(row.compare_at_price) : null;
@@ -129,8 +130,14 @@ export class ProductService {
       brand: row.brand
         ? {
             ...row.brand,
-            description: brandCleanDescription,
-            discount_percentage: brandDiscount,
+            description: row.brand.description,
+          }
+        : null,
+      category: row.category
+        ? {
+            ...row.category,
+            description: categoryCleanDescription,
+            discount_percentage: categoryDiscount,
           }
         : null,
       inventory: Array.isArray(row.inventory) && row.inventory.length > 0 ? row.inventory[0] : null,
@@ -163,7 +170,7 @@ export class ProductService {
         `
         *,
         brand:brands(id, name, slug, logo_url, description),
-        category:categories(id, name, slug),
+        category:categories(id, name, slug, description),
         variants:product_variants(*),
         inventory:inventory(*),
         product_images:product_images(*)
@@ -223,10 +230,10 @@ export class ProductService {
       query = query.eq('is_featured', featured);
     }
 
-    // Filter by search keyword (safe text matching against name or description)
+    // Filter by search keyword (safe text matching against name, description, or SKU / Item Code)
     if (search && search.trim() !== '') {
       const sanitized = search.trim().replace(/[%_]/g, '');
-      query = query.or(`name.ilike.%${sanitized}%,description.ilike.%${sanitized}%`);
+      query = query.or(`name.ilike.%${sanitized}%,description.ilike.%${sanitized}%,sku.ilike.%${sanitized}%`);
     }
 
     // Sorting column mapping
@@ -294,7 +301,7 @@ export class ProductService {
         `
         *,
         brand:brands(id, name, slug, logo_url, description),
-        category:categories(id, name, slug),
+        category:categories(id, name, slug, description),
         variants:product_variants(*),
         inventory:inventory(*),
         product_images:product_images(*)
@@ -317,7 +324,7 @@ export class ProductService {
 
     const { data, error } = await client
       .from('products')
-      .select(`*, brand:brands(id, name, slug, logo_url, description), category:categories(id, name, slug), variants:product_variants(*), inventory:inventory(*), product_images:product_images(*)`)
+      .select(`*, brand:brands(id, name, slug, logo_url, description), category:categories(id, name, slug, description), variants:product_variants(*), inventory:inventory(*), product_images:product_images(*)`)
       .eq('id', id)
       .single();
 
@@ -341,7 +348,7 @@ export class ProductService {
         `
         *,
         brand:brands(id, name, slug, logo_url, description),
-        category:categories(id, name, slug),
+        category:categories(id, name, slug, description),
         variants:product_variants(*),
         inventory:inventory(*),
         product_images:product_images(*)
@@ -371,7 +378,7 @@ export class ProductService {
         `
         *,
         brand:brands(id, name, slug, logo_url),
-        category:categories(id, name, slug),
+        category:categories(id, name, slug, description),
         inventory:inventory(*)
       `
       )
@@ -665,5 +672,226 @@ export class ProductService {
     if (error || !data) throw new InternalServerError(`Failed to update inventory: ${error?.message}`);
 
     return data;
+  }
+
+  // ----------------- Bulk Price Update from Excel / CSV -----------------
+  static async bulkUpdatePricesFromBuffer(fileBuffer: Buffer): Promise<{
+    totalProcessed: number;
+    updatedCount: number;
+    failedCount: number;
+    errors: { itemCode: string; reason: string }[];
+    details: {
+      itemCode: string;
+      name: string;
+      oldMrp: number | null;
+      newMrp: number;
+      oldDiscount: number;
+      newDiscount: number;
+      oldPrice: number;
+      newPrice: number;
+    }[];
+  }> {
+    const adminClient = getSupabaseAdminClient();
+    if (!adminClient) throw new InternalServerError('Administrative database client is unavailable.');
+
+    let workbook: XLSX.WorkBook;
+    try {
+      workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+    } catch (err: any) {
+      throw new BadRequestError(`Failed to parse Excel file: ${err.message || 'Corrupt format'}`);
+    }
+
+    const firstSheetName = workbook.SheetNames[0];
+    if (!firstSheetName) {
+      throw new BadRequestError('Excel workbook contains no sheets.');
+    }
+
+    const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(workbook.Sheets[firstSheetName]);
+    if (!rawRows || rawRows.length === 0) {
+      throw new BadRequestError('Uploaded sheet is empty or contains no readable rows.');
+    }
+
+    const errors: { itemCode: string; reason: string }[] = [];
+    const details: any[] = [];
+    let updatedCount = 0;
+
+    for (let index = 0; index < rawRows.length; index++) {
+      const row = rawRows[index];
+
+      // Normalize row keys (lowercase and stripped of symbols like ₹, %, parens, spaces, underscores)
+      const normalizedRow: Record<string, any> = {};
+      for (const [k, v] of Object.entries(row)) {
+        const cleanKey = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+        normalizedRow[cleanKey] = v;
+      }
+
+      // Match item code from common variants: itemcode, item, sku, code, productcode
+      const rawCode =
+        normalizedRow['itemcode'] ??
+        normalizedRow['sku'] ??
+        normalizedRow['item'] ??
+        normalizedRow['code'] ??
+        normalizedRow['productcode'] ??
+        row['Item Code'] ??
+        row['ItemCode'] ??
+        row['SKU'];
+
+      if (!rawCode) {
+        errors.push({
+          itemCode: `Row #${index + 2}`,
+          reason: 'Missing ItemCode or SKU column value',
+        });
+        continue;
+      }
+
+      const itemCode = String(rawCode).trim();
+      if (!itemCode) {
+        errors.push({
+          itemCode: `Row #${index + 2}`,
+          reason: 'Empty ItemCode',
+        });
+        continue;
+      }
+
+      // Match MRP: mrp, mrpr, mrpinr, listprice, price, compareatprice, originalprice
+      const rawMrp =
+        normalizedRow['mrp'] ??
+        normalizedRow['mrpr'] ??
+        normalizedRow['mrpinr'] ??
+        normalizedRow['listprice'] ??
+        normalizedRow['compareatprice'] ??
+        normalizedRow['originalprice'] ??
+        normalizedRow['price'] ??
+        row['MRP (₹)'] ??
+        row['MRP(₹)'] ??
+        row['MRP (Rs)'] ??
+        row['MRP'] ??
+        row['mrp'];
+
+      // Match Discount: discount, discountpercentage, disc, discountpercent
+      const rawDiscount =
+        normalizedRow['discount'] ??
+        normalizedRow['discountpercentage'] ??
+        normalizedRow['discountpercent'] ??
+        normalizedRow['disc'] ??
+        row['Discount (%)'] ??
+        row['Discount(%)'] ??
+        row['Discount %'] ??
+        row['Discount%'] ??
+        row['Discount'];
+
+      if (rawMrp == null || rawMrp === '') {
+        errors.push({
+          itemCode,
+          reason: 'Missing MRP value',
+        });
+        continue;
+      }
+
+      const parsedMrp = Number(String(rawMrp).replace(/[^0-9.]/g, ''));
+      if (isNaN(parsedMrp) || parsedMrp < 0) {
+        errors.push({
+          itemCode,
+          reason: `Invalid MRP value: ${rawMrp}`,
+        });
+        continue;
+      }
+
+      let parsedDiscount = 0;
+      if (rawDiscount != null && rawDiscount !== '') {
+        const cleanDisc = Number(String(rawDiscount).replace(/[^0-9.]/g, ''));
+        if (!isNaN(cleanDisc) && cleanDisc >= 0 && cleanDisc <= 100) {
+          parsedDiscount = cleanDisc;
+        } else if (!isNaN(cleanDisc) && cleanDisc > 100) {
+          errors.push({
+            itemCode,
+            reason: `Discount percentage cannot exceed 100%: ${rawDiscount}`,
+          });
+          continue;
+        }
+      }
+
+      // Find product by SKU / ItemCode (case-insensitive)
+      const { data: matchedProducts, error: findError } = await adminClient
+        .from('products')
+        .select('id, name, sku, base_price, compare_at_price, specs')
+        .ilike('sku', itemCode)
+        .limit(1);
+
+      if (findError) {
+        errors.push({
+          itemCode,
+          reason: `Database error querying item: ${findError.message}`,
+        });
+        continue;
+      }
+
+      if (!matchedProducts || matchedProducts.length === 0) {
+        errors.push({
+          itemCode,
+          reason: 'Product not found with this Item Code / SKU',
+        });
+        continue;
+      }
+
+      const prod = matchedProducts[0];
+      const oldPrice = Number(prod.base_price || 0);
+      const oldMrp = prod.compare_at_price ? Number(prod.compare_at_price) : null;
+      const oldDiscount = prod.specs?.discount_percentage
+        ? Number(prod.specs.discount_percentage)
+        : (oldMrp && oldMrp > oldPrice ? Math.round(((oldMrp - oldPrice) / oldMrp) * 100) : 0);
+
+      // Calculate new selling price
+      const calculatedSellingPrice = parsedDiscount > 0
+        ? Math.round(parsedMrp * (1 - parsedDiscount / 100) * 100) / 100
+        : parsedMrp;
+
+      // Update specs
+      const updatedSpecs: Record<string, any> = {
+        ...(prod.specs || {}),
+      };
+      if (parsedDiscount > 0) {
+        updatedSpecs.discount_percentage = String(parsedDiscount);
+      } else {
+        delete updatedSpecs.discount_percentage;
+        delete updatedSpecs.discountPercentage;
+      }
+
+      const { error: updateError } = await adminClient
+        .from('products')
+        .update({
+          compare_at_price: parsedMrp,
+          base_price: calculatedSellingPrice,
+          specs: updatedSpecs,
+        })
+        .eq('id', prod.id);
+
+      if (updateError) {
+        errors.push({
+          itemCode,
+          reason: `Failed to update product: ${updateError.message}`,
+        });
+      } else {
+        updatedCount++;
+        details.push({
+          itemCode,
+          name: prod.name,
+          oldMrp,
+          newMrp: parsedMrp,
+          oldDiscount,
+          newDiscount: parsedDiscount,
+          oldPrice,
+          newPrice: calculatedSellingPrice,
+        });
+      }
+    }
+
+    return {
+      totalProcessed: rawRows.length,
+      updatedCount,
+      failedCount: errors.length,
+      errors,
+      details,
+    };
   }
 }

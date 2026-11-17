@@ -1,6 +1,5 @@
 import { logger } from '../common/utils/logger';
 import { BadRequestError, InternalServerError } from '../common/errors';
-import { env } from '../config/env';
 
 export interface GeocodingSuggestion {
   id: string;
@@ -41,172 +40,13 @@ interface CacheEntry<T> {
 
 export class GeocodingService {
   private static readonly PHOTON_BASE_URL = 'https://photon.komoot.io';
-  private static readonly GOOGLE_PLACES_BASE_URL = 'https://places.googleapis.com/v1';
   private static readonly REQUEST_TIMEOUT_MS = 5000;
   private static readonly CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes cache
   private static searchCache = new Map<string, CacheEntry<GeocodingSuggestion[]>>();
   private static reverseCache = new Map<string, CacheEntry<ReverseGeocodingResult>>();
 
-  private static async searchGooglePlaces(
-    query: string,
-    limit: number,
-    latitude: number,
-    longitude: number,
-    cityBias?: string,
-    sessionToken?: string,
-  ): Promise<GeocodingSuggestion[] | null> {
-    if (!env.GOOGLE_MAPS_API_KEY) return null;
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.REQUEST_TIMEOUT_MS);
-    try {
-      const response = await fetch(`${this.GOOGLE_PLACES_BASE_URL}/places:autocomplete`, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': env.GOOGLE_MAPS_API_KEY,
-          'X-Goog-FieldMask': [
-            'suggestions.placePrediction.placeId',
-            'suggestions.placePrediction.text.text',
-            'suggestions.placePrediction.structuredFormat.mainText.text',
-            'suggestions.placePrediction.structuredFormat.secondaryText.text',
-          ].join(','),
-        },
-        body: JSON.stringify({
-          input: query,
-          includedRegionCodes: ['in'],
-          locationBias: {
-            circle: {
-              center: { latitude, longitude },
-              radius: 50000,
-            },
-          },
-          ...(sessionToken ? { sessionToken } : {}),
-          languageCode: 'en',
-          regionCode: 'IN',
-        }),
-      });
-
-      if (!response.ok) {
-        logger.warn('Google Places autocomplete returned an unsuccessful response', {
-          status: response.status,
-        });
-        return null;
-      }
-
-      const body = (await response.json()) as {
-        suggestions?: Array<{
-          placePrediction?: {
-            placeId?: string;
-            text?: { text?: string };
-            structuredFormat?: {
-              mainText?: { text?: string };
-              secondaryText?: { text?: string };
-            };
-          };
-        }>;
-      };
-
-      return (body.suggestions || [])
-        .flatMap((suggestion) => {
-          const prediction = suggestion.placePrediction;
-          const placeId = prediction?.placeId;
-          const formattedAddress = prediction?.text?.text;
-          if (!placeId || !formattedAddress) return [];
-
-          return [{
-            id: `google:${placeId}`,
-            placeId,
-            provider: 'Google-Places' as const,
-            name: prediction.structuredFormat?.mainText?.text || formattedAddress,
-            formattedAddress,
-            city: cityBias || 'Jehanabad',
-            state: 'Bihar',
-            country: 'India',
-          }];
-        })
-        .slice(0, limit);
-    } catch (err: unknown) {
-      logger.warn('Google Places autocomplete request failed', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return null;
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  static async getGooglePlaceDetails(placeId: string, sessionToken?: string): Promise<GeocodingSuggestion> {
-    if (!env.GOOGLE_MAPS_API_KEY) {
-      throw new InternalServerError('Google Places is not configured.');
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.REQUEST_TIMEOUT_MS);
-    try {
-      const url = new URL(`${this.GOOGLE_PLACES_BASE_URL}/places/${encodeURIComponent(placeId)}`);
-      if (sessionToken) url.searchParams.set('sessionToken', sessionToken);
-      const response = await fetch(url.toString(), {
-        signal: controller.signal,
-        headers: {
-          'X-Goog-Api-Key': env.GOOGLE_MAPS_API_KEY,
-          'X-Goog-FieldMask': 'id,displayName,formattedAddress,location,addressComponents',
-        },
-      });
-      if (!response.ok) {
-        logger.warn('Google Places details returned an unsuccessful response', {
-          status: response.status,
-        });
-        throw new InternalServerError('Could not resolve the selected map result.');
-      }
-
-      const place = (await response.json()) as {
-        id?: string;
-        displayName?: { text?: string };
-        formattedAddress?: string;
-        location?: { latitude?: number; longitude?: number };
-        addressComponents?: Array<{ longText?: string; types?: string[] }>;
-      };
-      const components = place.addressComponents || [];
-      const component = (...types: string[]) =>
-        components.find((item) => types.some((type) => item.types?.includes(type)))?.longText;
-      const latitude = place.location?.latitude;
-      const longitude = place.location?.longitude;
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !place.formattedAddress) {
-        throw new InternalServerError('The selected map result has incomplete location details.');
-      }
-
-      const state = component('administrative_area_level_1') || 'Bihar';
-      if (state.toLowerCase() !== 'bihar') {
-        throw new BadRequestError('Please choose a delivery location in Bihar.');
-      }
-
-      return {
-        id: `google:${place.id || placeId}`,
-        placeId: place.id || placeId,
-        provider: 'Google-Places',
-        name: place.displayName?.text || place.formattedAddress.split(',')[0],
-        formattedAddress: place.formattedAddress,
-        street: [component('street_number'), component('route')].filter(Boolean).join(' ') || undefined,
-        locality: component('sublocality_level_1', 'sublocality'),
-        city: component('locality', 'postal_town', 'administrative_area_level_3') || 'Jehanabad',
-        district: component('administrative_area_level_2'),
-        state,
-        postalCode: component('postal_code'),
-        country: component('country') || 'India',
-        latitude,
-        longitude,
-      };
-    } catch (err: unknown) {
-      if (err instanceof BadRequestError || err instanceof InternalServerError) throw err;
-      logger.warn('Google Places details request failed', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      throw new InternalServerError('Could not resolve the selected map result.');
-    } finally {
-      clearTimeout(timeout);
-    }
+  static async getGooglePlaceDetails(_placeId: string, _sessionToken?: string): Promise<GeocodingSuggestion> {
+    throw new BadRequestError('External place lookup is disabled. Please select your address on the map.');
   }
 
   /**
@@ -244,7 +84,7 @@ export class GeocodingService {
     }
 
     const limit = Math.min(Math.max(options?.limit || 10, 1), 20);
-    const cacheKey = `${trimmed.toLowerCase()}_${options?.cityBias || ''}_${options?.lat || ''}_${options?.lon || ''}_${limit}_${env.GOOGLE_MAPS_API_KEY ? options?.sessionToken || '' : ''}`;
+    const cacheKey = `${trimmed.toLowerCase()}_${options?.cityBias || ''}_${options?.lat || ''}_${options?.lon || ''}_${limit}`;
 
     // Cache check
     const cached = this.searchCache.get(cacheKey);
@@ -269,19 +109,6 @@ export class GeocodingService {
         biasLat = 25.215475;
         biasLon = 84.986764;
       }
-    }
-
-    const googleResults = await this.searchGooglePlaces(
-      trimmed,
-      limit,
-      biasLat,
-      biasLon,
-      options?.cityBias,
-      options?.sessionToken,
-    );
-    if (googleResults !== null && googleResults.length > 0) {
-      this.searchCache.set(cacheKey, { data: googleResults, cachedAtMs: Date.now() });
-      return googleResults;
     }
 
     // 1. Prepare Photon queries:

@@ -23,6 +23,7 @@ import { broadcastOrderStatus } from '../common/socket/trackingSocket';
 import { HINDUSTAN_HARDWARE_STORE } from '../config/store';
 import { randomUUID } from 'crypto';
 import { getDeliveryFeeByOrderId, getDeliveryFeesByOrderIds } from './deliveryFeeService';
+import { EmailService } from './emailService';
 
 function getOrderPaymentAmounts(order: {
   total_amount: unknown;
@@ -357,7 +358,7 @@ export class AdminService {
     const deliveryFee = await getDeliveryFeeByOrderId(client, orderId);
     const { data: rawItems } = await client
       .from('order_items')
-      .select('*')
+      .select('*, product:products(id, name, brand:brands(id, name))')
       .eq('order_id', orderId)
       .order('created_at', { ascending: true });
 
@@ -383,20 +384,29 @@ export class AdminService {
       );
     }
 
-    const items: OrderItemRecord[] = (rawItems || []).map((row: any) => ({
-      id: row.id,
-      orderId: row.order_id,
-      productId: row.product_id,
-      variantId: row.variant_id,
-      productName: row.product_name,
-      sku: row.sku,
-      variantTitle: row.variant_title,
-      specifications: row.specifications || {},
-      unitPrice: Number(row.unit_price),
-      quantity: Number(row.quantity),
-      lineSubtotal: Number(row.line_subtotal),
-      createdAt: row.created_at,
-    }));
+    const items: OrderItemRecord[] = (rawItems || []).map((row: any) => {
+      const brandName =
+        row.product?.brand?.name ||
+        row.specifications?.brand_name ||
+        row.specifications?.brand ||
+        null;
+
+      return {
+        id: row.id,
+        orderId: row.order_id,
+        productId: row.product_id,
+        variantId: row.variant_id,
+        productName: row.product_name,
+        brandName,
+        sku: row.sku,
+        variantTitle: row.variant_title,
+        specifications: row.specifications || {},
+        unitPrice: Number(row.unit_price),
+        quantity: Number(row.quantity),
+        lineSubtotal: Number(row.line_subtotal),
+        createdAt: row.created_at,
+      };
+    });
 
     const statusHistory: OrderStatusHistoryItem[] = (rawHistory || []).map((h: any) => ({
       id: h.id,
@@ -661,6 +671,19 @@ export class AdminService {
         orderId,
       });
     }
+
+    // Send status update email to customer asynchronously (fails gracefully if SMTP not configured)
+    (async () => {
+      try {
+        const { data: userData } = await client.auth.admin.getUserById(order.user_id);
+        const recipientEmail = userData?.user?.email;
+        if (recipientEmail) {
+          await EmailService.sendOrderStatusUpdate(recipientEmail, order.order_number, newStatus, reason);
+        }
+      } catch (emailErr) {
+        logger.warn('Failed to dispatch order status email', { error: emailErr });
+      }
+    })();
 
     return this.getAdminOrderById(orderId);
   }
@@ -1011,8 +1034,9 @@ export class AdminService {
       query = query.eq('role', params.role);
     }
     if (params.search) {
-      countQuery = countQuery.ilike('full_name', `%${params.search}%`);
-      query = query.ilike('full_name', `%${params.search}%`);
+      const searchFilter = `full_name.ilike.%${params.search}%,phone.ilike.%${params.search}%`;
+      countQuery = countQuery.or(searchFilter);
+      query = query.or(searchFilter);
     }
 
     const { count } = await countQuery;

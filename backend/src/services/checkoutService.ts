@@ -8,6 +8,7 @@ import { logger } from '../common/utils/logger';
 import { createDeliveryOtp, decryptDeliveryOtp, DeliveryOtpBundle } from './deliveryOtpService';
 import { broadcastNewOrderToAdmins } from '../common/socket/trackingSocket';
 import { getDeliveryFeeByOrderId } from './deliveryFeeService';
+import { EmailService } from './emailService';
 
 export class CheckoutService {
   private static calculateEffectiveUnitPrice(
@@ -183,7 +184,7 @@ export class CheckoutService {
     for (const item of cart.items) {
       const { data: product, error: prodErr } = await client
         .from('products')
-        .select('id, name, base_price, compare_at_price, is_active, specs, brand:brands(id, name, description)')
+        .select('id, name, base_price, compare_at_price, is_active, specs, category:categories(id, name, description)')
         .eq('id', item.productId)
         .single();
 
@@ -191,11 +192,11 @@ export class CheckoutService {
         throw new BadRequestError(`Product "${item.name}" is no longer available.`);
       }
 
-      let brandDiscount: number | null = null;
-      const bDesc = (product.brand as any)?.description;
-      if (bDesc && typeof bDesc === 'string') {
-        const match = bDesc.match(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]/i);
-        if (match) brandDiscount = Number(match[1]);
+      let categoryDiscount: number | null = null;
+      const cDesc = (product.category as any)?.description;
+      if (cDesc && typeof cDesc === 'string') {
+        const match = cDesc.match(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]/i);
+        if (match) categoryDiscount = Number(match[1]);
       }
 
       let productDiscount: number | null = null;
@@ -205,7 +206,7 @@ export class CheckoutService {
         productDiscount = Number(rawProdDiscount);
       }
 
-      const effectiveDiscount = productDiscount != null ? productDiscount : brandDiscount;
+      const effectiveDiscount = productDiscount != null ? productDiscount : categoryDiscount;
 
       let rawUnitPrice = Number(product.base_price || 0);
 
@@ -435,6 +436,7 @@ export class CheckoutService {
       unitPrice: number;
       quantity: number;
       lineSubtotal: number;
+      specifications?: Record<string, unknown>;
       inventoryId: string;
       currentStock: number;
     }[] = [];
@@ -443,7 +445,7 @@ export class CheckoutService {
     for (const item of cartItems) {
       const { data: product } = await client
         .from('products')
-        .select('id, name, sku, base_price, compare_at_price, is_active, specs, brand:brands(id, name, description)')
+        .select('id, name, sku, base_price, compare_at_price, is_active, specs, category:categories(id, name, description), brand:brands(id, name)')
         .eq('id', item.product_id)
         .single();
 
@@ -451,11 +453,11 @@ export class CheckoutService {
         throw new BadRequestError(`Product ${item.product_id} is no longer available.`);
       }
 
-      let brandDiscount: number | null = null;
-      const bDesc = (product.brand as any)?.description;
-      if (bDesc && typeof bDesc === 'string') {
-        const match = bDesc.match(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]/i);
-        if (match) brandDiscount = Number(match[1]);
+      let categoryDiscount: number | null = null;
+      const cDesc = (product.category as any)?.description;
+      if (cDesc && typeof cDesc === 'string') {
+        const match = cDesc.match(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]/i);
+        if (match) categoryDiscount = Number(match[1]);
       }
 
       let productDiscount: number | null = null;
@@ -465,7 +467,7 @@ export class CheckoutService {
         productDiscount = Number(rawProdDiscount);
       }
 
-      const effectiveDiscount = productDiscount != null ? productDiscount : brandDiscount;
+      const effectiveDiscount = productDiscount != null ? productDiscount : categoryDiscount;
 
       let rawUnitPrice = Number(product.base_price || 0);
       let variantTitle: string | null = null;
@@ -514,6 +516,12 @@ export class CheckoutService {
       const lineSubtotal = Math.round(unitPrice * item.quantity * 100) / 100;
       subtotal += lineSubtotal;
 
+      const brandName = (product.brand as any)?.name || null;
+      const specsWithBrand = {
+        ...(product.specs as Record<string, string> || {}),
+        ...(brandName ? { brand_name: brandName, brand: brandName } : {}),
+      };
+
       preparedItems.push({
         productId: item.product_id,
         variantId: item.variant_id || null,
@@ -523,6 +531,7 @@ export class CheckoutService {
         unitPrice,
         quantity: item.quantity,
         lineSubtotal,
+        specifications: specsWithBrand,
         inventoryId: inv.id,
         currentStock: Number(inv.quantity_available),
       });
@@ -590,6 +599,7 @@ export class CheckoutService {
         unit_price: item.unitPrice,
         quantity: item.quantity,
         line_subtotal: item.lineSubtotal,
+        specifications: item.specifications || {},
       });
 
       // Deduct inventory
@@ -611,6 +621,41 @@ export class CheckoutService {
       orderNumber: orderResponse.orderNumber,
       createdAt: orderResponse.createdAt,
     });
+
+    // Send confirmation email asynchronously (fails gracefully if SMTP not configured)
+    (async () => {
+      try {
+        const { data: userData } = await client.auth.admin.getUserById(userId);
+        const recipientEmail = userData?.user?.email;
+        if (recipientEmail) {
+          await EmailService.sendOrderConfirmation(recipientEmail, {
+            orderNumber: orderResponse.orderNumber,
+            customerName:
+              (orderResponse.shippingAddress as any)?.recipientName ||
+              (orderResponse.shippingAddress as any)?.full_name ||
+              userData?.user?.user_metadata?.full_name ||
+              undefined,
+            total: orderResponse.totalPayable || orderResponse.totalAmount,
+            items: orderResponse.items.map((i) => ({
+              name: i.productName + (i.variantTitle ? ` (${i.variantTitle})` : ''),
+              quantity: i.quantity,
+              price: i.lineSubtotal,
+            })),
+            shippingAddress: orderResponse.shippingAddress
+              ? {
+                  street: (orderResponse.shippingAddress as any).streetAddress || (orderResponse.shippingAddress as any).street,
+                  city: (orderResponse.shippingAddress as any).city,
+                  state: (orderResponse.shippingAddress as any).state,
+                  postalCode: (orderResponse.shippingAddress as any).postalCode,
+                }
+              : undefined,
+          });
+        }
+      } catch (emailErr) {
+        logger.warn('Failed to dispatch order confirmation email', { error: emailErr });
+      }
+    })();
+
     return orderResponse;
   }
 
@@ -634,27 +679,36 @@ export class CheckoutService {
 
     const { data: items, error: itemsErr } = await client
       .from('order_items')
-      .select('*')
+      .select('*, product:products(id, name, brand:brands(id, name))')
       .eq('order_id', orderId)
       .order('created_at', { ascending: true });
 
     if (itemsErr) throw new InternalServerError(`Failed to query order items: ${itemsErr.message}`);
 
     const deliveryFee = await getDeliveryFeeByOrderId(client, orderId);
-    const formattedItems: OrderItemRecord[] = (items || []).map((row: any) => ({
-      id: row.id,
-      orderId: row.order_id,
-      productId: row.product_id,
-      variantId: row.variant_id,
-      productName: row.product_name,
-      sku: row.sku,
-      variantTitle: row.variant_title,
-      specifications: row.specifications || {},
-      unitPrice: Number(row.unit_price),
-      quantity: Number(row.quantity),
-      lineSubtotal: Number(row.line_subtotal),
-      createdAt: row.created_at,
-    }));
+    const formattedItems: OrderItemRecord[] = (items || []).map((row: any) => {
+      const brandName =
+        row.product?.brand?.name ||
+        row.specifications?.brand_name ||
+        row.specifications?.brand ||
+        null;
+
+      return {
+        id: row.id,
+        orderId: row.order_id,
+        productId: row.product_id,
+        variantId: row.variant_id,
+        productName: row.product_name,
+        brandName,
+        sku: row.sku,
+        variantTitle: row.variant_title,
+        specifications: row.specifications || {},
+        unitPrice: Number(row.unit_price),
+        quantity: Number(row.quantity),
+        lineSubtotal: Number(row.line_subtotal),
+        createdAt: row.created_at,
+      };
+    });
 
     return {
       id: order.id,

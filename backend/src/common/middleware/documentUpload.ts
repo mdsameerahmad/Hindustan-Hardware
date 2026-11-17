@@ -83,3 +83,26 @@ export const uploadInvoiceMiddleware = multer({
     cb(null, true);
   },
 }).single('invoice');
+
+export const uploadSpreadsheetMiddleware = multer({
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10 MB
+    files: 1,
+  },
+  fileFilter: (_req, file, cb) => {
+    const lowerName = file.originalname.toLowerCase();
+    const isSpreadsheet =
+      lowerName.endsWith('.xlsx') ||
+      lowerName.endsWith('.xls') ||
+      lowerName.endsWith('.csv') ||
+      file.mimetype.includes('spreadsheet') ||
+      file.mimetype.includes('excel') ||
+      file.mimetype.includes('csv');
+
+    if (!isSpreadsheet) {
+      return cb(new BadRequestError('Invalid file format. Please upload an Excel (.xlsx, .xls) or CSV file.'));
+    }
+    cb(null, true);
+  },
+}).single('file');

@@ -20,6 +20,7 @@ import {
   getSupabaseClient,
   isSupabaseConfigured,
 } from '../config/supabase';
+import { EmailService } from '../services/emailService';
 
 export const authRouter = Router();
 
@@ -314,21 +315,45 @@ authRouter.post(
 
       // Request password reset email from Supabase Auth
       let resetError: any = null;
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        email,
-        redirectTo ? { redirectTo } : undefined
-      );
-
-      if (error) {
-        resetError = error;
-        logger.warn('Password reset request error', { error: error.message });
-      }
-
-      // If Supabase's built-in email rate limit is hit, use admin client to generate recovery link
       let recoveryLink: string | null = null;
-      if (resetError) {
-        const adminClient = getSupabaseAdminClient();
-        if (adminClient) {
+      const adminClient = getSupabaseAdminClient();
+
+      // If custom SMTP is configured, exclusively generate the recovery link and send via your SMTP email
+      if (process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim() && adminClient) {
+        try {
+          const linkRes = await adminClient.auth.admin.generateLink({
+            type: 'recovery',
+            email,
+            options: redirectTo ? { redirectTo } : undefined,
+          });
+          if (linkRes.data?.properties?.action_link) {
+            recoveryLink = linkRes.data.properties.action_link;
+            await EmailService.sendPasswordResetEmail(email, recoveryLink);
+          } else if (linkRes.error) {
+            logger.warn('Failed to generate recovery link for email', {
+              email,
+              error: linkRes.error.message,
+            });
+          }
+        } catch (smtpErr: any) {
+          logger.warn('SMTP password reset generation failed', {
+            error: smtpErr?.message,
+          });
+        }
+      } else {
+        // Fallback only if custom SMTP credentials are NOT configured in .env
+        const { error } = await supabase.auth.resetPasswordForEmail(
+          email,
+          redirectTo ? { redirectTo } : undefined
+        );
+
+        if (error) {
+          resetError = error;
+          logger.warn('Password reset request error', { error: error.message });
+        }
+
+        // If Supabase's built-in email rate limit is hit, use admin client to generate recovery link
+        if (resetError && adminClient) {
           try {
             const linkRes = await adminClient.auth.admin.generateLink({
               type: 'recovery',
@@ -337,14 +362,6 @@ authRouter.post(
             });
             if (linkRes.data?.properties?.action_link) {
               recoveryLink = linkRes.data.properties.action_link;
-              logger.info('Generated password recovery link via admin client', {
-                email,
-                recoveryLink,
-              });
-            } else if (linkRes.error) {
-              logger.warn('Failed generating recovery link via admin', {
-                error: linkRes.error.message,
-              });
             }
           } catch (adminErr: any) {
             logger.warn('Error calling admin generateLink', { error: adminErr?.message });

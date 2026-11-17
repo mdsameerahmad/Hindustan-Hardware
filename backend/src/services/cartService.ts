@@ -1,7 +1,7 @@
 import crypto from 'crypto';
-import { getSupabaseClient, getSupabaseAdminClient } from '../config/supabase';
-import { InternalServerError, NotFoundError, BadRequestError } from '../common/errors';
-import { CartResponse, CartItemResponse } from '../types';
+import { BadRequestError, InternalServerError, NotFoundError } from '../common/errors';
+import { getSupabaseAdminClient, getSupabaseClient } from '../config/supabase';
+import { CartItemResponse, CartResponse } from '../types';
 import { ImageService } from './imageService';
 
 export class CartService {
@@ -30,12 +30,12 @@ export class CartService {
       const product = item.product || {};
       const variant = item.variant || null;
 
-      // Extract discount from product specs or brand description
-      let brandDiscount: number | null = null;
-      if (product.brand?.description && typeof product.brand.description === 'string') {
-        const match = product.brand.description.match(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]/i);
+      // Extract discount from product specs, category description, or brand description
+      let categoryDiscount: number | null = null;
+      if (product.category?.description && typeof product.category.description === 'string') {
+        const match = product.category.description.match(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]/i);
         if (match) {
-          brandDiscount = Number(match[1]);
+          categoryDiscount = Number(match[1]);
         }
       }
 
@@ -45,7 +45,7 @@ export class CartService {
         productDiscount = Number(rawProdDiscount);
       }
 
-      const effectiveDiscount = productDiscount != null ? productDiscount : brandDiscount;
+      const effectiveDiscount = productDiscount != null ? productDiscount : categoryDiscount;
 
       // Raw undiscounted unit price
       const rawUnitPrice = variant?.price_override != null
@@ -156,6 +156,7 @@ export class CartService {
         product:products(
           id, name, slug, base_price, compare_at_price, unit, unit_of_sale, is_active, image_url, specs,
           brand:brands(id, name, description),
+          category:categories(id, name, description),
           inventory:inventory(*),
           product_images:product_images(*)
         ),

@@ -58,6 +58,7 @@ export const createCategorySchema = z.object({
         .optional()
     ),
   description: z.string().trim().optional().nullable(),
+  discountPercentage: z.number().min(0).max(100).optional().nullable(),
   parentId: z.string().uuid('Invalid parentId UUID format').optional().nullable(),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().default(0),
@@ -94,7 +95,6 @@ export const createBrandSchema = z.object({
       }
       return val;
     }),
-  discountPercentage: z.number().min(0).max(100).optional().nullable(),
   isActive: z.boolean().default(true),
   displayOrder: z.number().int().default(0),
 });

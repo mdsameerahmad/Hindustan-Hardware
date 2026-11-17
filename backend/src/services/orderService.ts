@@ -178,7 +178,7 @@ export class OrderService {
     // Fetch order items (immutable historical snapshot)
     const { data: rawItems, error: itemsErr } = await client
       .from('order_items')
-      .select('*')
+      .select('*, product:products(id, name, brand:brands(id, name))')
       .eq('order_id', orderId)
       .order('created_at', { ascending: true });
 
@@ -215,20 +215,29 @@ export class OrderService {
       throw new InternalServerError('Failed to retrieve order payment history.');
     }
 
-    const items: OrderItemRecord[] = (rawItems || []).map((row: any) => ({
-      id: row.id,
-      orderId: row.order_id,
-      productId: row.product_id,
-      variantId: row.variant_id,
-      productName: row.product_name,
-      sku: row.sku,
-      variantTitle: row.variant_title,
-      specifications: row.specifications || {},
-      unitPrice: Number(row.unit_price),
-      quantity: Number(row.quantity),
-      lineSubtotal: Number(row.line_subtotal),
-      createdAt: row.created_at,
-    }));
+    const items: OrderItemRecord[] = (rawItems || []).map((row: any) => {
+      const brandName =
+        row.product?.brand?.name ||
+        row.specifications?.brand_name ||
+        row.specifications?.brand ||
+        null;
+
+      return {
+        id: row.id,
+        orderId: row.order_id,
+        productId: row.product_id,
+        variantId: row.variant_id,
+        productName: row.product_name,
+        brandName,
+        sku: row.sku,
+        variantTitle: row.variant_title,
+        specifications: row.specifications || {},
+        unitPrice: Number(row.unit_price),
+        quantity: Number(row.quantity),
+        lineSubtotal: Number(row.line_subtotal),
+        createdAt: row.created_at,
+      };
+    });
 
     const statusHistory: OrderStatusHistoryItem[] = (rawHistory || []).map((h: any) => ({
       id: h.id,

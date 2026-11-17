@@ -17,7 +17,7 @@ import {
   updateImageMetadataSchema,
 } from '../common/validation/imageSchemas';
 import { uploadImageMiddleware } from '../common/middleware/imageUpload';
-import { uploadInvoiceMiddleware } from '../common/middleware/documentUpload';
+import { uploadInvoiceMiddleware, uploadSpreadsheetMiddleware } from '../common/middleware/documentUpload';
 import { BadRequestError } from '../common/errors';
 import { CategoryService } from '../services/categoryService';
 import { BrandService } from '../services/brandService';
@@ -263,6 +263,28 @@ adminRouter.delete('/products/:id', async (req: Request, res: Response, next: Ne
     next(err);
   }
 });
+
+// ----------------- Bulk Price Update from Excel -----------------
+adminRouter.post(
+  '/products/bulk-price-update',
+  uploadSpreadsheetMiddleware,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.file || !req.file.buffer) {
+        throw new BadRequestError('No Excel or CSV file uploaded. Please upload a valid .xlsx or .csv file.');
+      }
+
+      const result = await ProductService.bulkUpdatePricesFromBuffer(req.file.buffer);
+      return sendSuccess(
+        res,
+        result,
+        `Bulk price update completed: ${result.updatedCount} products updated, ${result.failedCount} errors.`
+      );
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 // ----------------- Product Variants & Inventory -----------------
 adminRouter.post('/products/:id/variants', async (req: Request, res: Response, next: NextFunction) => {

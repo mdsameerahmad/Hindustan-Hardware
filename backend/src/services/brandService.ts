@@ -9,28 +9,15 @@ import { compressImageToWebp } from './imageProcessor';
 
 export class BrandService {
   /**
-   * Helper to parse and extract discount percentage and clean description
+   * Helper to parse and extract brand data
    */
   private static parseBrandRow(row: any): Brand {
     if (!row) return row;
-    let discount_percentage: number | null = null;
-    let cleanDescription = row.description || null;
-
-    if (row.description && typeof row.description === 'string') {
-      const match = row.description.match(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]/i);
-      if (match) {
-        discount_percentage = Number(match[1]);
-        cleanDescription = row.description.replace(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]\s*/gi, '').trim() || null;
-      }
-    }
-
     return {
       ...row,
       logoUrl: row.logo_url || row.logoUrl || null,
       logo_url: row.logo_url || row.logoUrl || null,
-      description: cleanDescription,
-      discount_percentage,
-      discountPercentage: discount_percentage,
+      description: row.description || null,
       displayOrder: row.display_order ?? row.displayOrder ?? 0,
       isActive: row.is_active ?? row.isActive ?? true,
     };
@@ -109,7 +96,6 @@ export class BrandService {
     slug?: string;
     description?: string | null;
     logoUrl?: string | null;
-    discountPercentage?: number | null;
     isActive?: boolean;
     displayOrder?: number;
   }): Promise<Brand> {
@@ -124,18 +110,12 @@ export class BrandService {
         .replace(/(^-|-$)/g, '');
     }
 
-    let storedDescription = payload.description ? payload.description.trim() : null;
-    if (payload.discountPercentage != null && payload.discountPercentage > 0) {
-      const tag = `[DISCOUNT:${payload.discountPercentage}%]`;
-      storedDescription = storedDescription ? `${tag} ${storedDescription}` : tag;
-    }
-
     const { data, error } = await adminClient
       .from('brands')
       .insert({
         name: payload.name,
         slug: finalSlug,
-        description: storedDescription,
+        description: payload.description || null,
         logo_url: payload.logoUrl || null,
         is_active: payload.isActive ?? true,
         display_order: payload.displayOrder ?? 0,
@@ -161,7 +141,6 @@ export class BrandService {
       slug?: string;
       description?: string | null;
       logoUrl?: string | null;
-      discountPercentage?: number | null;
       isActive?: boolean;
       displayOrder?: number;
     }
@@ -169,33 +148,10 @@ export class BrandService {
     const adminClient = getSupabaseAdminClient();
     if (!adminClient) throw new InternalServerError('Administrative database client is unavailable.');
 
-    // Fetch existing brand to preserve or update description cleanly
-    const { data: existing } = await adminClient.from('brands').select('description').eq('id', id).single();
-    let currentCleanDesc = existing?.description || '';
-    currentCleanDesc = currentCleanDesc.replace(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]\s*/gi, '').trim();
-
     const updateData: Record<string, unknown> = {};
     if (payload.name !== undefined) updateData.name = payload.name;
     if (payload.slug !== undefined) updateData.slug = payload.slug;
-
-    if (payload.description !== undefined || payload.discountPercentage !== undefined) {
-      let baseDesc = payload.description !== undefined ? (payload.description || '').trim() : currentCleanDesc;
-      baseDesc = baseDesc.replace(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]\s*/gi, '').trim();
-
-      let discountVal = payload.discountPercentage;
-      if (discountVal === undefined) {
-        // preserve existing tag if discountPercentage was not part of update payload
-        const match = (existing?.description || '').match(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]/i);
-        discountVal = match ? Number(match[1]) : null;
-      }
-
-      if (discountVal != null && discountVal > 0) {
-        updateData.description = baseDesc ? `[DISCOUNT:${discountVal}%] ${baseDesc}` : `[DISCOUNT:${discountVal}%]`;
-      } else {
-        updateData.description = baseDesc || null;
-      }
-    }
-
+    if (payload.description !== undefined) updateData.description = payload.description;
     if (payload.logoUrl !== undefined) updateData.logo_url = payload.logoUrl;
     if (payload.isActive !== undefined) updateData.is_active = payload.isActive;
     if (payload.displayOrder !== undefined) updateData.display_order = payload.displayOrder;
@@ -213,76 +169,7 @@ export class BrandService {
     }
     if (!data) throw new NotFoundError('Brand not found');
 
-    // If discountPercentage was updated, re-calculate and persist selling price (base_price)
-    // for all products of this brand using their stored MRP (compare_at_price)
-    if (payload.discountPercentage !== undefined) {
-      const newDiscount = payload.discountPercentage != null && payload.discountPercentage > 0
-        ? Number(payload.discountPercentage)
-        : 0;
-      await this.updateBrandProductPrices(id, newDiscount);
-    }
-
     return this.parseBrandRow(data);
-  }
-
-  /**
-   * Recalculates and updates the selling price (base_price) of all products belonging
-   * to a brand based on their MRP (compare_at_price) and the newly configured brand discount percentage.
-   */
-  public static async updateBrandProductPrices(brandId: string, discountPercentage: number): Promise<void> {
-    const adminClient = getSupabaseAdminClient();
-    if (!adminClient) return;
-
-    try {
-      // Fetch all products under this brand
-      const { data: products, error } = await adminClient
-        .from('products')
-        .select('id, base_price, compare_at_price, specs')
-        .eq('brand_id', brandId);
-
-      if (error || !products || products.length === 0) return;
-
-      const updates = products.map((prod) => {
-        // Effective MRP is compare_at_price if available and > 0, otherwise existing base_price
-        const mrp = Number(prod.compare_at_price) > 0 ? Number(prod.compare_at_price) : Number(prod.base_price || 0);
-        let newSellingPrice = mrp;
-
-        // If product has an individual discount override in specs, respect that; otherwise use brand discount
-        const rawOverride = prod.specs?.discount_percentage ?? prod.specs?.discountPercentage;
-        const hasOverride = rawOverride != null && !isNaN(Number(rawOverride));
-        const effectiveDisc = hasOverride ? Number(rawOverride) : discountPercentage;
-
-        if (effectiveDisc > 0) {
-          newSellingPrice = Math.round(mrp * (1 - effectiveDisc / 100) * 100) / 100;
-        }
-
-        return adminClient
-          .from('products')
-          .update({
-            base_price: newSellingPrice,
-            compare_at_price: mrp,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', prod.id);
-      });
-
-      // Execute in parallel batches of 25 for fast database throughput
-      const batchSize = 25;
-      for (let i = 0; i < updates.length; i += batchSize) {
-        await Promise.all(updates.slice(i, i + batchSize));
-      }
-
-      logger.info('Updated product selling prices for brand', {
-        brandId,
-        discountPercentage,
-        productCount: products.length,
-      });
-    } catch (err: any) {
-      logger.error('Failed to update product selling prices for brand discount change', {
-        brandId,
-        error: err?.message,
-      });
-    }
   }
 
   /**

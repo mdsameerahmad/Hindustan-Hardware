@@ -9,6 +9,38 @@ import { compressImageToWebp } from './imageProcessor';
 
 export class CategoryService {
   /**
+   * Helper to parse and extract discount percentage and clean description
+   */
+  private static parseCategoryRow(row: any): Category {
+    if (!row) return row;
+    let discount_percentage: number | null = null;
+    let cleanDescription = row.description || null;
+
+    if (row.description && typeof row.description === 'string') {
+      const match = row.description.match(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]/i);
+      if (match) {
+        discount_percentage = Number(match[1]);
+        cleanDescription = row.description.replace(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]\s*/gi, '').trim() || null;
+      }
+    }
+
+    return {
+      ...row,
+      description: cleanDescription,
+      discount_percentage,
+      discountPercentage: discount_percentage,
+      imageUrl: row.image_url || row.imageUrl || null,
+      image_url: row.image_url || row.imageUrl || null,
+      parentId: row.parent_id || row.parentId || null,
+      parent_id: row.parent_id || row.parentId || null,
+      sortOrder: row.sort_order ?? row.sortOrder ?? 0,
+      sort_order: row.sort_order ?? row.sortOrder ?? 0,
+      isActive: row.is_active ?? row.isActive ?? true,
+      is_active: row.is_active ?? row.isActive ?? true,
+    };
+  }
+
+  /**
    * Get all active categories (for public catalogue).
    */
   static async getActiveCategories(): Promise<Category[]> {
@@ -23,7 +55,7 @@ export class CategoryService {
       .order('name', { ascending: true });
 
     if (error) throw new InternalServerError(`Failed to fetch categories: ${error.message}`);
-    return data || [];
+    return (data || []).map(this.parseCategoryRow);
   }
 
   /**
@@ -40,7 +72,7 @@ export class CategoryService {
       .order('name', { ascending: true });
 
     if (error) throw new InternalServerError(`Failed to fetch categories: ${error.message}`);
-    return data || [];
+    return (data || []).map(this.parseCategoryRow);
   }
 
   /**
@@ -55,7 +87,7 @@ export class CategoryService {
 
     const { data, error } = await query.single();
     if (error || !data) throw new NotFoundError('Category not found');
-    return data;
+    return this.parseCategoryRow(data);
   }
 
   /**
@@ -70,7 +102,7 @@ export class CategoryService {
 
     const { data, error } = await query.single();
     if (error || !data) throw new NotFoundError('Category not found');
-    return data;
+    return this.parseCategoryRow(data);
   }
 
   /**
@@ -80,6 +112,7 @@ export class CategoryService {
     name: string;
     slug?: string;
     description?: string | null;
+    discountPercentage?: number | null;
     parentId?: string | null;
     isActive?: boolean;
     sortOrder?: number;
@@ -100,12 +133,18 @@ export class CategoryService {
         .replace(/(^-|-$)/g, '');
     }
 
+    let storedDescription = payload.description ? payload.description.trim() : null;
+    if (payload.discountPercentage != null && payload.discountPercentage > 0) {
+      const tag = `[DISCOUNT:${payload.discountPercentage}%]`;
+      storedDescription = storedDescription ? `${tag} ${storedDescription}` : tag;
+    }
+
     const { data, error } = await adminClient
       .from('categories')
       .insert({
         name: payload.name,
         slug: finalSlug,
-        description: payload.description || null,
+        description: storedDescription,
         parent_id: payload.parentId || null,
         is_active: payload.isActive ?? true,
         sort_order: payload.sortOrder ?? 0,
@@ -118,7 +157,7 @@ export class CategoryService {
       throw new InternalServerError(`Failed to create category: ${error.message}`);
     }
 
-    return data;
+    return this.parseCategoryRow(data);
   }
 
   /**
@@ -130,6 +169,7 @@ export class CategoryService {
       name?: string;
       slug?: string;
       description?: string | null;
+      discountPercentage?: number | null;
       parentId?: string | null;
       isActive?: boolean;
       sortOrder?: number;
@@ -142,10 +182,32 @@ export class CategoryService {
       throw new BadRequestError('A category cannot be its own parent.');
     }
 
+    // Fetch existing category to preserve or update description cleanly
+    const { data: existing } = await adminClient.from('categories').select('description').eq('id', id).single();
+    let currentCleanDesc = existing?.description || '';
+    currentCleanDesc = currentCleanDesc.replace(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]\s*/gi, '').trim();
+
     const updateData: Record<string, unknown> = {};
     if (payload.name !== undefined) updateData.name = payload.name;
     if (payload.slug !== undefined) updateData.slug = payload.slug;
-    if (payload.description !== undefined) updateData.description = payload.description;
+
+    if (payload.description !== undefined || payload.discountPercentage !== undefined) {
+      let baseDesc = payload.description !== undefined ? (payload.description || '').trim() : currentCleanDesc;
+      baseDesc = baseDesc.replace(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]\s*/gi, '').trim();
+
+      let discountVal = payload.discountPercentage;
+      if (discountVal === undefined) {
+        const match = (existing?.description || '').match(/\[DISCOUNT:(\d+(?:\.\d+)?)%\]/i);
+        discountVal = match ? Number(match[1]) : null;
+      }
+
+      if (discountVal != null && discountVal > 0) {
+        updateData.description = baseDesc ? `[DISCOUNT:${discountVal}%] ${baseDesc}` : `[DISCOUNT:${discountVal}%]`;
+      } else {
+        updateData.description = baseDesc || null;
+      }
+    }
+
     if (payload.parentId !== undefined) updateData.parent_id = payload.parentId;
     if (payload.isActive !== undefined) updateData.is_active = payload.isActive;
     if (payload.sortOrder !== undefined) updateData.sort_order = payload.sortOrder;
@@ -163,7 +225,72 @@ export class CategoryService {
     }
     if (!data) throw new NotFoundError('Category not found');
 
-    return data;
+    // If discountPercentage was updated, re-calculate and persist selling price (base_price)
+    // for all products of this category using their stored MRP (compare_at_price)
+    if (payload.discountPercentage !== undefined) {
+      const newDiscount = payload.discountPercentage != null && payload.discountPercentage > 0
+        ? Number(payload.discountPercentage)
+        : 0;
+      await this.updateCategoryProductPrices(id, newDiscount);
+    }
+
+    return this.parseCategoryRow(data);
+  }
+
+  /**
+   * Recalculates and updates the selling price (base_price) of all products belonging
+   * to a category based on their MRP (compare_at_price) and the newly configured category discount percentage.
+   */
+  public static async updateCategoryProductPrices(categoryId: string, discountPercentage: number): Promise<void> {
+    const adminClient = getSupabaseAdminClient();
+    if (!adminClient) return;
+
+    try {
+      const { data: products, error } = await adminClient
+        .from('products')
+        .select('id, base_price, compare_at_price, specs')
+        .eq('category_id', categoryId);
+
+      if (error || !products || products.length === 0) return;
+
+      const updates = products.map((prod) => {
+        const mrp = Number(prod.compare_at_price) > 0 ? Number(prod.compare_at_price) : Number(prod.base_price || 0);
+        let newSellingPrice = mrp;
+
+        const rawOverride = prod.specs?.discount_percentage ?? prod.specs?.discountPercentage;
+        const hasOverride = rawOverride != null && !isNaN(Number(rawOverride));
+        const effectiveDisc = hasOverride ? Number(rawOverride) : discountPercentage;
+
+        if (effectiveDisc > 0) {
+          newSellingPrice = Math.round(mrp * (1 - effectiveDisc / 100) * 100) / 100;
+        }
+
+        return adminClient
+          .from('products')
+          .update({
+            base_price: newSellingPrice,
+            compare_at_price: mrp,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', prod.id);
+      });
+
+      const batchSize = 25;
+      for (let i = 0; i < updates.length; i += batchSize) {
+        await Promise.all(updates.slice(i, i + batchSize));
+      }
+
+      logger.info('Updated product selling prices for category', {
+        categoryId,
+        discountPercentage,
+        productCount: products.length,
+      });
+    } catch (err: any) {
+      logger.error('Failed to update product selling prices for category discount change', {
+        categoryId,
+        error: err?.message,
+      });
+    }
   }
 
   /**
