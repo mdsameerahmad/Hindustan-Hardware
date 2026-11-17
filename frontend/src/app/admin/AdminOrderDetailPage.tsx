@@ -753,7 +753,12 @@ export function AdminOrderDetailPage() {
                     <div className="min-w-0">
                       <b className="block text-sm leading-snug text-slate-900">{item.productName}</b>
                       <small className="block text-xs text-slate-500">
-                        {item.sku ? `SKU: ${item.sku} · ` : ""}Qty: {item.quantity} × {formatPrice(item.unitPrice)}
+                        {item.brandName ? (
+                          <span className="font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/80 mr-1.5 inline-block">
+                            {item.brandName}
+                          </span>
+                        ) : null}
+                        {item.sku ? `Item Code: ${item.sku} · ` : ""}Qty: {item.quantity} × {formatPrice(item.unitPrice)}
                       </small>
                     </div>
                   </div>

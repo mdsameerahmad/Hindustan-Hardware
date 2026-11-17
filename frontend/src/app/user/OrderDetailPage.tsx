@@ -148,8 +148,13 @@ export function OrderDetailPage() {
                   <div className="flex-1 min-w-0">
                     <b className="text-ink block text-sm sm:text-base leading-snug">{item.productName}</b>
                     <p className="text-xs text-slate-500 mt-0.5">
+                      {item.brandName ? (
+                        <span className="font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/80 mr-1.5 inline-block">
+                          {item.brandName}
+                        </span>
+                      ) : null}
                       {item.variantTitle ? `Variant: ${item.variantTitle} · ` : ""}
-                      {item.sku ? `SKU: ${item.sku} · ` : ""}
+                      {item.sku ? `Item Code: ${item.sku} · ` : ""}
                       Qty: {item.quantity} &times; {formatPrice(item.unitPrice)}
                     </p>
                   </div>

@@ -65,6 +65,7 @@ export function transformBackendProduct(bp: BackendProduct): Product {
   return {
     id: bp.id,
     slug: bp.slug,
+    sku: bp.sku || null,
     name: bp.name,
     brand: brandName,
     brandId,

@@ -58,8 +58,6 @@ export function ProductDetailPage() {
   const [loadingSizeVariants, setLoadingSizeVariants] = useState(false)
   const [tab, setTab] = useState("Description")
   const [quantity, setQuantity] = useState(1)
-  const [pin, setPin] = useState("")
-  const [checked, setChecked] = useState(false)
 
   // Live Product Image Gallery from backend storage
   const {
@@ -256,7 +254,7 @@ export function ProductDetailPage() {
           </div>
 
           <p className="mt-1.5 text-xs text-slate-400 font-medium">
-            SKU: HH-{product.id.substring(0, 8).toUpperCase()} · Verified Original Item
+            Item Code: {product.sku || `HH-${product.id.substring(0, 8).toUpperCase()}`} · Verified Original Item
           </p>
 
           {/* Pricing Row */}
@@ -316,36 +314,6 @@ export function ProductDetailPage() {
             <Button onClick={buyNow} variant="secondary" className="flex-1 py-2.5 text-xs font-bold">
               Buy Now
             </Button>
-          </div>
-
-          {/* PIN Delivery Checker */}
-          <div className="mt-5 rounded-xl border border-slate-200/90 bg-slate-50/50 p-3.5">
-            <p className="text-xs font-extrabold text-slate-800">Check Local Delivery Availability</p>
-            <div className="mt-2.5 flex gap-2">
-              <input
-                maxLength={6}
-                value={pin}
-                onChange={(event) => {
-                  setPin(event.target.value.replace(/\D/g, ""))
-                  setChecked(false)
-                }}
-                className="w-full rounded-lg border border-slate-200 bg-white py-1.5 px-3 text-xs font-medium text-slate-800 outline-none focus:border-[#D4AF37]"
-                placeholder="Enter 6-digit PIN code"
-              />
-              <Button
-                variant="outline"
-                disabled={pin.length !== 6}
-                onClick={() => setChecked(true)}
-                className="py-1.5 px-4 text-xs font-bold shrink-0 border-[#D4AF37] text-slate-900 hover:bg-[#D4AF37]"
-              >
-                Check
-              </Button>
-            </div>
-            {checked && (
-              <p className="mt-2 text-xs font-semibold text-emerald-700">
-                ✓ Delivery available for PIN {pin}. Standard dispatch within 24-48 hours.
-              </p>
-            )}
           </div>
         </div>
       </div>

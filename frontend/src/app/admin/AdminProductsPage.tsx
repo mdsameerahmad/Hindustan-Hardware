@@ -1,6 +1,7 @@
 import {
   Edit3,
   Eye,
+  FileSpreadsheet,
   Loader2,
   Package,
   Plus,
@@ -20,6 +21,7 @@ import { type Product } from "../data"
 import { ProductImage } from "../features/components/ProductImage"
 import { useAdminCategories } from "../features/hooks/useAdminCategories"
 import { useAdminProducts } from "../features/hooks/useAdminProducts"
+import { BulkPriceUpdateModal } from "./BulkPriceUpdateModal"
 
 export function AdminProductsPage() {
   const { categories: backendCategories } = useAdminCategories()
@@ -27,6 +29,7 @@ export function AdminProductsPage() {
   const [categoryFilter, setCategoryFilter] = useState("")
   const [pendingDelete, setPendingDelete] = useState<Product | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
 
   const {
     products,
@@ -83,12 +86,22 @@ export function AdminProductsPage() {
         title="Product catalog"
         description="Authoritative database product records, search, pagination, and inventory status."
         action={
-          <Link to="/admin/products/new">
-            <Button>
-              <Plus size={16} />
-              Add Product
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsBulkModalOpen(true)}
+              className="border-amber-300 text-amber-900 bg-amber-50/50 hover:bg-amber-100/60"
+            >
+              <FileSpreadsheet size={16} className="text-amber-700" />
+              <span>Bulk Price Update (Excel)</span>
             </Button>
-          </Link>
+            <Link to="/admin/products/new">
+              <Button>
+                <Plus size={16} />
+                Add Product
+              </Button>
+            </Link>
+          </div>
         }
       />
 
@@ -103,7 +116,7 @@ export function AdminProductsPage() {
               className="field !pl-10 w-full text-xs sm:text-sm"
               value={searchQuery}
               onChange={(event) => handleSearchChange(event.target.value)}
-              placeholder="Search products by name or description..."
+              placeholder="Search products by name, Item Code, or description..."
             />
           </div>
 
@@ -152,144 +165,190 @@ export function AdminProductsPage() {
                 <thead>
                   <tr>
                     <th>Product</th>
-                    <th>SKU</th>
+                    <th>Item Code</th>
                     <th>Category</th>
-                    <th>Price</th>
+                    <th>MRP</th>
+                    <th>Discount %</th>
                     <th>Stock</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map((product) => (
-                    <tr key={product.id}>
-                      <td>
-                        <div className="flex min-w-56 items-center gap-3">
-                          <ProductImage
-                            src={product.image}
-                            alt=""
-                            className="h-11 w-11 rounded-lg object-contain bg-slate-100 p-1 shrink-0"
-                          />
-                          <div className="min-w-0">
-                            <b className="block font-semibold text-slate-900 truncate">{product.name}</b>
-                            <small className="text-slate-500 truncate block">
-                              {typeof product.brand === "string"
-                                ? product.brand
-                                : (product.brand as any)?.name || product.brandName || "Generic"}
-                            </small>
+                  {products.map((product) => {
+                    const mrpVal = product.mrp && product.mrp > 0 ? product.mrp : product.price
+                    const discountVal =
+                      product.discountPercentage != null
+                        ? Number(product.discountPercentage)
+                        : product.mrp && product.mrp > product.price
+                        ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
+                        : 0
+
+                    return (
+                      <tr key={product.id}>
+                        <td>
+                          <div className="flex min-w-56 items-center gap-3">
+                            <ProductImage
+                              src={product.image}
+                              alt=""
+                              className="h-11 w-11 rounded-lg object-contain bg-slate-100 p-1 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <b className="block font-semibold text-slate-900 truncate">{product.name}</b>
+                              <small className="text-slate-500 truncate block">
+                                {typeof product.brand === "string"
+                                  ? product.brand
+                                  : (product.brand as any)?.name || product.brandName || "Generic"}
+                              </small>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="font-mono text-xs">{product.id ? `HH-${product.id.slice(0, 8).toUpperCase()}` : "—"}</td>
-                      <td>
-                        {typeof product.category === "string"
-                          ? product.category
-                          : (product.category as any)?.name || "Unassigned"}
-                      </td>
-                      <td>
-                        <b className="text-slate-900">{formatPrice(product.price)}</b>
-                      </td>
-                      <td>
-                        <span
-                          className={
-                            product.stock < 10 ? "font-bold text-amber-700" : "text-slate-700"
-                          }
-                        >
-                          {product.stock ?? 0}
-                        </span>
-                      </td>
-                      <td>
-                        <Badge
-                          tone={product.active === false ? "neutral" : "success"}
-                        >
-                          {product.active === false ? "Inactive" : "Active"}
-                        </Badge>
-                      </td>
-                      <td>
-                        <div className="flex gap-1">
-                          <Link to={`/product/${product.slug || product.id}`}>
-                            <button className="table-action" title="View Customer Storefront Page">
-                              <Eye size={16} />
-                            </button>
-                          </Link>
-                          <Link to={`/admin/products/${product.id}/edit`}>
-                            <button className="table-action" title="Edit Product">
-                              <Edit3 size={16} />
-                            </button>
-                          </Link>
-                          <button
-                            onClick={() => {
-                              setDeleteError(null)
-                              setPendingDelete(product)
-                            }}
-                            className="table-action text-red-600 hover:bg-red-50"
-                            title="Delete Product"
+                        </td>
+                        <td className="font-mono text-xs">
+                          {product.sku ? (
+                            <span className="font-bold text-slate-800">{product.sku}</span>
+                          ) : (
+                            <span className="text-slate-400 italic">None (Null)</span>
+                          )}
+                        </td>
+                        <td>
+                          {typeof product.category === "string"
+                            ? product.category
+                            : (product.category as any)?.name || "Unassigned"}
+                        </td>
+                        <td>
+                          <b className="text-slate-900">{formatPrice(mrpVal)}</b>
+                        </td>
+                        <td>
+                          {discountVal > 0 ? (
+                            <Badge tone="warning">
+                              {discountVal}% OFF
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-slate-400 font-medium">0%</span>
+                          )}
+                        </td>
+                        <td>
+                          <span
+                            className={
+                              product.stock < 10 ? "font-bold text-amber-700" : "text-slate-700"
+                            }
                           >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {product.stock ?? 0}
+                          </span>
+                        </td>
+                        <td>
+                          <Badge
+                            tone={product.active === false ? "neutral" : "success"}
+                          >
+                            {product.active === false ? "Inactive" : "Active"}
+                          </Badge>
+                        </td>
+                        <td>
+                          <div className="flex gap-1">
+                            <Link to={`/product/${product.slug || product.id}`}>
+                              <button className="table-action" title="View Customer Storefront Page">
+                                <Eye size={16} />
+                              </button>
+                            </Link>
+                            <Link to={`/admin/products/${product.id}/edit`}>
+                              <button className="table-action" title="Edit Product">
+                                <Edit3 size={16} />
+                              </button>
+                            </Link>
+                            <button
+                              onClick={() => {
+                                setDeleteError(null)
+                                setPendingDelete(product)
+                              }}
+                              className="table-action text-red-600 hover:bg-red-50"
+                              title="Delete Product"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
 
             {/* Mobile Card List */}
             <div className="block md:hidden divide-y divide-border">
-              {products.map((product) => (
-                <div key={product.id} className="p-3.5 space-y-3">
-                  <div className="flex items-start gap-3">
-                    <ProductImage
-                      src={product.image}
-                      alt=""
-                      className="h-12 w-12 rounded-lg object-contain bg-slate-100 p-1 shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <b className="block text-xs font-bold text-slate-900 leading-snug">{product.name}</b>
-                      <span className="block text-[11px] text-slate-500 mt-0.5">
-                        {typeof product.brand === "string"
-                          ? product.brand
-                          : (product.brand as any)?.name || product.brandName || "Generic"} · {typeof product.category === "string" ? product.category : (product.category as any)?.name || "Unassigned"}
+              {products.map((product) => {
+                const mrpVal = product.mrp && product.mrp > 0 ? product.mrp : product.price
+                const discountVal =
+                  product.discountPercentage != null
+                    ? Number(product.discountPercentage)
+                    : product.mrp && product.mrp > product.price
+                    ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
+                    : 0
+
+                return (
+                  <div key={product.id} className="p-3.5 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <ProductImage
+                        src={product.image}
+                        alt=""
+                        className="h-12 w-12 rounded-lg object-contain bg-slate-100 p-1 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <b className="block text-xs font-bold text-slate-900 leading-snug">{product.name}</b>
+                        <span className="block text-[11px] text-slate-500 mt-0.5">
+                          {typeof product.brand === "string"
+                            ? product.brand
+                            : (product.brand as any)?.name || product.brandName || "Generic"} · {typeof product.category === "string" ? product.category : (product.category as any)?.name || "Unassigned"}
+                        </span>
+                        <div className="text-[11px] font-mono text-slate-500 mt-0.5">
+                          Item Code: {product.sku ? <b className="text-slate-800">{product.sku}</b> : <span className="text-slate-400 italic">None (Null)</span>}
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-black text-slate-900">MRP: {formatPrice(mrpVal)}</span>
+                          {discountVal > 0 ? (
+                            <Badge tone="warning">
+                              {discountVal}% OFF
+                            </Badge>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 font-medium">0% Disc</span>
+                          )}
+                          <Badge tone={product.active === false ? "neutral" : "success"}>
+                            {product.active === false ? "Inactive" : "Active"}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                      <span className={product.stock < 10 ? "font-bold text-amber-700" : "text-slate-600"}>
+                        Stock: {product.stock ?? 0}
                       </span>
-                      <div className="mt-1 flex items-center gap-2">
-                        <span className="text-xs font-black text-slate-900">{formatPrice(product.price)}</span>
-                        <Badge tone={product.active === false ? "neutral" : "success"}>
-                          {product.active === false ? "Inactive" : "Active"}
-                        </Badge>
+                      <div className="flex gap-2">
+                        <Link to={`/product/${product.slug || product.id}`}>
+                          <button className="table-action" title="View Storefront Page">
+                            <Eye size={15} />
+                          </button>
+                        </Link>
+                        <Link to={`/admin/products/${product.id}/edit`}>
+                          <button className="table-action" title="Edit Product">
+                            <Edit3 size={15} />
+                          </button>
+                        </Link>
+                        <button
+                          onClick={() => {
+                            setDeleteError(null)
+                            setPendingDelete(product)
+                          }}
+                          className="table-action text-red-600 hover:bg-red-50"
+                          title="Delete Product"
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </div>
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
-                    <span className={product.stock < 10 ? "font-bold text-amber-700" : "text-slate-600"}>
-                      Stock: {product.stock ?? 0}
-                    </span>
-                    <div className="flex gap-2">
-                      <Link to={`/product/${product.slug || product.id}`}>
-                        <button className="table-action" title="View Storefront Page">
-                          <Eye size={15} />
-                        </button>
-                      </Link>
-                      <Link to={`/admin/products/${product.id}/edit`}>
-                        <button className="table-action" title="Edit Product">
-                          <Edit3 size={15} />
-                        </button>
-                      </Link>
-                      <button
-                        onClick={() => {
-                          setDeleteError(null)
-                          setPendingDelete(product)
-                        }}
-                        className="table-action text-red-600 hover:bg-red-50"
-                        title="Delete Product"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </>
         )}
@@ -359,6 +418,15 @@ export function AdminProductsPage() {
           </div>
         </div>
       )}
+
+      {/* Bulk Price Update Modal */}
+      <BulkPriceUpdateModal
+        isOpen={isBulkModalOpen}
+        onClose={() => setIsBulkModalOpen(false)}
+        onSuccess={() => {
+          refetch()
+        }}
+      />
     </>
   )
 }

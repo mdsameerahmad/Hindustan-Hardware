@@ -173,6 +173,7 @@ export interface OrderItemSnapshot {
   productId: string
   variantId: string | null
   productName: string
+  brandName?: string | null
   sku: string | null
   variantTitle: string | null
   specifications?: Record<string, unknown>
@@ -332,6 +333,7 @@ export interface AdminCategory {
   description?: string | null
   imageUrl?: string | null
   image_url?: string | null
+  discountPercentage?: number | null
   parentId?: string | null
   isActive: boolean
   sortOrder: number
@@ -344,6 +346,7 @@ export interface CreateCategoryPayload {
   name: string
   slug: string
   description?: string | null
+  discountPercentage?: number | null
   parentId?: string | null
   isActive?: boolean
   sortOrder?: number
@@ -357,7 +360,6 @@ export interface AdminBrand {
   slug: string
   description?: string | null
   logoUrl?: string | null
-  discountPercentage?: number | null
   isActive: boolean
   displayOrder: number
   productCount?: number
@@ -370,7 +372,6 @@ export interface CreateBrandPayload {
   slug: string
   description?: string | null
   logoUrl?: string | null
-  discountPercentage?: number | null
   isActive?: boolean
   displayOrder?: number
 }

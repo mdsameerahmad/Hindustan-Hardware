@@ -1,9 +1,11 @@
 import {
   Building2,
   Check,
+  Eye,
   Loader2,
   Mail,
   MapPin,
+  Package,
   Phone,
   RefreshCcw,
   Search,
@@ -92,18 +94,25 @@ export function Customers() {
                     <th>Orders Count</th>
                     <th>Total Spent</th>
                     <th>Registered</th>
+                    <th className="text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {customers.map((c) => (
                     <tr key={c.id}>
                       <td>
-                        <div>
-                          <b className="block text-slate-900">{c.fullName || "Unspecified"}</b>
+                        <Link
+                          to={`/admin/orders?userId=${c.id}`}
+                          className="group block hover:opacity-90"
+                          title="Click to view this customer's orders"
+                        >
+                          <b className="block text-slate-900 group-hover:text-amber-700 underline-offset-2 group-hover:underline">
+                            {c.fullName || "Unspecified"}
+                          </b>
                           <small className="font-mono text-xs text-slate-400">
                             {c.id.slice(0, 8)}...
                           </small>
-                        </div>
+                        </Link>
                       </td>
                       <td>
                         <Badge tone={c.role === "admin" ? "danger" : c.role === "staff" ? "warning" : "blue"}>
@@ -112,13 +121,29 @@ export function Customers() {
                       </td>
                       <td>{c.phone || "—"}</td>
                       <td>
-                        <b className="text-slate-900">{c.orderCount}</b>
+                        <Link
+                          to={`/admin/orders?userId=${c.id}`}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-900 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800"
+                          title="View order history"
+                        >
+                          <Package size={13} className="text-slate-400" />
+                          <span>{c.orderCount} orders</span>
+                        </Link>
                       </td>
                       <td>
                         <b className="text-emerald-700">{formatPrice(c.totalSpent)}</b>
                       </td>
                       <td className="text-xs text-slate-500">
                         {new Date(c.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="text-right">
+                        <Link
+                          to={`/admin/orders?userId=${c.id}`}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-800 hover:underline"
+                        >
+                          <Eye size={14} />
+                          <span>Orders</span>
+                        </Link>
                       </td>
                     </tr>
                   ))}
@@ -131,12 +156,18 @@ export function Customers() {
               {customers.map((c) => (
                 <div key={c.id} className="p-4 space-y-2.5">
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <b className="block text-sm font-bold text-slate-900">{c.fullName || "Unspecified"}</b>
+                    <Link
+                      to={`/admin/orders?userId=${c.id}`}
+                      className="group block hover:opacity-90"
+                      title="Click to view this customer's orders"
+                    >
+                      <b className="block text-sm font-bold text-slate-900 group-hover:text-amber-700 group-hover:underline">
+                        {c.fullName || "Unspecified"}
+                      </b>
                       <small className="font-mono text-[11px] text-slate-400">
                         ID: {c.id.slice(0, 8)}...
                       </small>
-                    </div>
+                    </Link>
                     <Badge tone={c.role === "admin" ? "danger" : c.role === "staff" ? "warning" : "blue"}>
                       {c.role}
                     </Badge>
@@ -146,10 +177,16 @@ export function Customers() {
                       <span className="text-slate-500 text-[10px] block uppercase font-semibold">Phone</span>
                       <span className="font-medium text-slate-800">{c.phone || "—"}</span>
                     </div>
-                    <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                      <span className="text-slate-500 text-[10px] block uppercase font-semibold">Orders</span>
-                      <span className="font-bold text-slate-900">{c.orderCount}</span>
-                    </div>
+                    <Link
+                      to={`/admin/orders?userId=${c.id}`}
+                      className="bg-slate-50 hover:bg-amber-50 p-2 rounded-lg border border-slate-100 hover:border-amber-200 transition-colors block"
+                    >
+                      <span className="text-slate-500 text-[10px] block uppercase font-semibold">Orders (Click to view)</span>
+                      <span className="font-bold text-amber-800 flex items-center gap-1">
+                        <Package size={12} />
+                        {c.orderCount} orders
+                      </span>
+                    </Link>
                   </div>
                   <div className="flex items-center justify-between text-xs pt-1">
                     <span className="text-slate-500">

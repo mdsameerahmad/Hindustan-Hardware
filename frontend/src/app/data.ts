@@ -13,6 +13,7 @@ export type Brand = {
 export type Product = {
   id: string
   slug: string
+  sku?: string | null
   name: string
   brand: string
   brandId: string

@@ -239,4 +239,33 @@ export const catalogueApi = {
   getBrandBySlug: async (slug: string): Promise<BackendBrand> => {
     return apiRequest<BackendBrand>(`/brands/slug/${slug}`)
   },
+
+  /**
+   * Bulk update product prices and discounts from Excel/CSV file (Admin).
+   */
+  bulkUpdatePrices: async (file: File): Promise<{
+    totalProcessed: number
+    updatedCount: number
+    failedCount: number
+    errors: { itemCode: string; reason: string }[]
+    details: {
+      itemCode: string
+      name: string
+      oldMrp: number | null
+      newMrp: number
+      oldDiscount: number
+      newDiscount: number
+      oldPrice: number
+      newPrice: number
+    }[]
+  }> => {
+    const formData = new FormData()
+    formData.append("file", file)
+
+    return apiRequest("/admin/products/bulk-price-update", {
+      method: "POST",
+      body: formData,
+      requiresAuth: true,
+    })
+  },
 }

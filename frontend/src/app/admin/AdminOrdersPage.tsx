@@ -1,9 +1,11 @@
 import {
+  Calendar,
   Loader2,
   Phone,
   RefreshCcw,
   Search,
   ShoppingBag,
+  X,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router"
@@ -13,8 +15,8 @@ import {
   PageHeader,
   statusTone,
 } from "../components"
-import { formatAdminPrice as formatPrice } from "./formatAdminPrice"
 import { useAdminOrders } from "../features/hooks/useAdminOrders"
+import { formatAdminPrice as formatPrice } from "./formatAdminPrice"
 
 function getRemainingDue(order: {
   amountDue?: number
@@ -32,6 +34,8 @@ function getRemainingDue(order: {
 export function AdminOrdersPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const initialPaymentStatus = searchParams.get("paymentStatus") || ""
+  const initialUserId = searchParams.get("userId") || ""
+  const [selectedUserId, setSelectedUserId] = useState<string>(initialUserId)
   const [selectedStatus, setSelectedStatus] = useState<string>("")
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<string>(
     ["pending", "paid", "failed", "cancelled"].includes(initialPaymentStatus)
@@ -39,13 +43,18 @@ export function AdminOrdersPage() {
       ? initialPaymentStatus
       : "",
   )
+  const [selectedDate, setSelectedDate] = useState<string>("")
   const [searchTerm, setSearchTerm] = useState<string>("")
+
   const { orders, pagination, setQuery, loading, error, refetch } = useAdminOrders({
     page: 1,
     limit: 10,
     status: undefined,
+    userId: initialUserId || undefined,
+    sortBy: "created_at",
+    sortOrder: "desc",
     paymentStatus: selectedPaymentStatus
-      ? selectedPaymentStatus as "pending" | "partially_paid" | "paid" | "failed" | "cancelled"
+      ? (selectedPaymentStatus as "pending" | "partially_paid" | "paid" | "failed" | "cancelled")
       : undefined,
   })
 
@@ -79,6 +88,29 @@ export function AdminOrdersPage() {
     }))
   }
 
+  const handleDateChange = (dateStr: string) => {
+    setSelectedDate(dateStr)
+    if (!dateStr) {
+      setQuery((prev) => ({
+        ...prev,
+        page: 1,
+        startDate: undefined,
+        endDate: undefined,
+      }))
+      return
+    }
+
+    const start = new Date(`${dateStr}T00:00:00.000Z`).toISOString()
+    const end = new Date(`${dateStr}T23:59:59.999Z`).toISOString()
+
+    setQuery((prev) => ({
+      ...prev,
+      page: 1,
+      startDate: start,
+      endDate: end,
+    }))
+  }
+
   const handlePageChange = (newPage: number) => {
     if (newPage < 1 || newPage > pagination.totalPages) return
     setQuery((prev) => ({ ...prev, page: newPage }))
@@ -109,6 +141,29 @@ export function AdminOrdersPage() {
         }
       />
 
+      {selectedUserId && (
+        <div className="mb-4 flex items-center justify-between rounded-lg bg-amber-50 px-4 py-2.5 border border-amber-200 text-xs text-amber-900">
+          <span>
+            Filtering orders for customer account <b>{selectedUserId}</b>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedUserId("")
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev)
+                next.delete("userId")
+                return next
+              })
+              setQuery((prev) => ({ ...prev, page: 1, userId: undefined }))
+            }}
+            className="font-bold underline hover:text-amber-950 ml-3"
+          >
+            Show All Orders
+          </button>
+        </div>
+      )}
+
       {error && (
         <div className="mb-6 rounded-lg bg-red-50 p-4 border border-red-200 text-sm text-red-700">
           {error}
@@ -116,22 +171,49 @@ export function AdminOrdersPage() {
       )}
 
       <div className="overflow-hidden rounded-xl border border-border bg-white shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border p-3.5 sm:p-4">
-          <div className="relative w-full sm:max-w-sm flex-1">
+        {/* Responsive Control Bar */}
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 border-b border-border p-3.5 sm:p-4">
+          {/* Search box */}
+          <div className="relative w-full xl:max-w-xs flex-1">
             <Search
               className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-              size={18}
+              size={17}
             />
             <input
               className="field !pl-10 w-full text-xs sm:text-sm"
-              placeholder="Search by order number or ID"
+              placeholder="Search by order # or ID"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex w-full gap-2 sm:w-auto">
+
+          {/* Filters & Calendar Date Picker */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full xl:w-auto">
+            {/* Calendar Single-Day Date Selector */}
+            <div className="relative flex items-center">
+              <Calendar className="absolute left-3 text-slate-400 pointer-events-none" size={15} />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => handleDateChange(e.target.value)}
+                className="field !pl-9 !pr-7 w-full text-xs text-slate-700"
+                title="Filter by exact date"
+              />
+              {selectedDate && (
+                <button
+                  type="button"
+                  onClick={() => handleDateChange("")}
+                  className="absolute right-2 text-slate-400 hover:text-slate-600 p-0.5 rounded"
+                  title="Clear date filter"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Fulfillment Status */}
             <select
-              className="field min-w-0 flex-1 text-xs sm:w-auto sm:flex-none sm:text-sm"
+              className="field w-full text-xs sm:text-sm"
               value={selectedStatus}
               onChange={(e) => handleStatusChange(e.target.value)}
               aria-label="Filter by fulfillment status"
@@ -144,8 +226,10 @@ export function AdminOrdersPage() {
               <option value="delivered">Delivered</option>
               <option value="cancelled">Cancelled</option>
             </select>
+
+            {/* Payment Status */}
             <select
-              className="field min-w-0 flex-1 text-xs sm:w-auto sm:flex-none sm:text-sm"
+              className="field w-full text-xs sm:text-sm"
               value={selectedPaymentStatus}
               onChange={(e) => handlePaymentStatusChange(e.target.value)}
               aria-label="Filter by payment status"
@@ -169,7 +253,11 @@ export function AdminOrdersPage() {
           <div className="py-16 text-center">
             <ShoppingBag className="mx-auto h-10 w-10 text-slate-300" />
             <h3 className="mt-2 text-base font-bold text-slate-700">No orders found</h3>
-            <p className="text-xs text-slate-500 mt-1">No orders match the selected criteria.</p>
+            <p className="text-xs text-slate-500 mt-1">
+              {selectedDate
+                ? `No orders match date "${selectedDate}".`
+                : "No orders match the selected criteria."}
+            </p>
           </div>
         ) : (
           <>
@@ -288,7 +376,6 @@ export function AdminOrdersPage() {
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              size="sm"
               disabled={!pagination.hasPrevPage || loading}
               onClick={() => handlePageChange(pagination.page - 1)}
             >
@@ -299,7 +386,6 @@ export function AdminOrdersPage() {
             </span>
             <Button
               variant="outline"
-              size="sm"
               disabled={!pagination.hasNextPage || loading}
               onClick={() => handlePageChange(pagination.page + 1)}
             >

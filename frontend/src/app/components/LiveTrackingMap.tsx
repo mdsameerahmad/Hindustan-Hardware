@@ -1,7 +1,8 @@
-import * as L from "leaflet"
-import "leaflet/dist/leaflet.css"
 import * as React from "react"
 import { useEffect, useRef } from "react"
+import { loadGoogleMapsSDK } from "../utils/googleMapsLoader"
+
+declare const google: any
 
 export interface Coordinate {
   latitude: number
@@ -48,7 +49,7 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
   routeCoordinates,
   isStale = false,
   className = "",
-  zoom = 13,
+  zoom = 14,
   interactive = true,
   height = "100%",
   onMapClick,
@@ -58,117 +59,23 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
   headingUp = false,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
-  const mapInstanceRef = useRef<L.Map | null>(null)
-  const storeMarkerRef = useRef<L.Marker | null>(null)
-  const partnerMarkerRef = useRef<L.Marker | null>(null)
-  const destinationMarkerRef = useRef<L.Marker | null>(null)
-  const customerMarkerRef = useRef<L.Marker | null>(null)
-  const routePolylineRef = useRef<L.Polyline | null>(null)
-  const routeGlowPolylineRef = useRef<L.Polyline | null>(null)
+  const mapInstanceRef = useRef<any>(null)
+  const storeMarkerRef = useRef<any>(null)
+  const partnerOverlayRef = useRef<any>(null)
+  const destinationMarkerRef = useRef<any>(null)
+  const customerMarkerRef = useRef<any>(null)
+  const routePolylineRef = useRef<any>(null)
+  const routeGlowPolylineRef = useRef<any>(null)
+
   const targetPartnerLocationRef = useRef<Coordinate | null>(null)
   const lastPartnerTargetTimeRef = useRef<number | null>(null)
-  const partnerMarkerStyleRef = useRef<string | null>(null)
   const currentRenderedPosRef = useRef<Coordinate | null>(null)
   const currentRenderedHeadingRef = useRef<number>(0)
   const animFrameIdRef = useRef<number | null>(null)
   const lastHeadingRef = useRef<number>(0)
-  const lastMapBearingRef = useRef<number>(0)
-  const lastMapBearingLocationRef = useRef<Coordinate | null>(null)
   const hasInitializedBoundsRef = useRef<boolean>(false)
 
-  // Initialize Map
-  useEffect(() => {
-    if (!mapContainerRef.current) return
-
-    // Avoid duplicate initialization
-    if (!mapInstanceRef.current) {
-      const initialLat =
-        partnerLocation?.latitude ??
-        storeLocation?.latitude ??
-        destinationLocation?.latitude ??
-        25.215474989473233
-      const initialLng =
-        partnerLocation?.longitude ??
-        storeLocation?.longitude ??
-        destinationLocation?.longitude ??
-        84.9867635966286
-
-      const map = L.map(mapContainerRef.current, {
-        center: [initialLat, initialLng],
-        zoom,
-        zoomControl: interactive,
-        dragging: interactive,
-        touchZoom: interactive,
-        scrollWheelZoom: false, // Prevent page scroll hijack
-        doubleClickZoom: interactive,
-        attributionControl: true,
-      })
-
-      // Standard OpenStreetMap tiles
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        keepBuffer: 2,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(map)
-
-      if (onMapClick) {
-        map.on("click", onMapClick)
-      }
-
-      mapInstanceRef.current = map
-    }
-
-    return () => {
-      if (animFrameIdRef.current) {
-        cancelAnimationFrame(animFrameIdRef.current)
-        animFrameIdRef.current = null
-      }
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove()
-        mapInstanceRef.current = null
-        partnerMarkerRef.current = null
-        destinationMarkerRef.current = null
-        routePolylineRef.current = null
-        routeGlowPolylineRef.current = null
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    const map = mapInstanceRef.current
-    const mapPane = map?.getPane("mapPane")
-    if (!map || !mapPane) return
-
-    const updateMapBearing = () => {
-      if (partnerHeading != null && Number.isFinite(partnerHeading)) {
-        lastMapBearingRef.current = partnerHeading
-      } else if (partnerLocation) {
-        const previousLocation = lastMapBearingLocationRef.current
-        if (
-          previousLocation &&
-          (previousLocation.latitude !== partnerLocation.latitude ||
-            previousLocation.longitude !== partnerLocation.longitude)
-        ) {
-          lastMapBearingRef.current = calculateBearing(previousLocation, partnerLocation)
-        }
-      }
-      if (partnerLocation) lastMapBearingLocationRef.current = partnerLocation
-
-      const bearing = headingUp && autoFollow ? lastMapBearingRef.current : 0
-      const center = map.containerPointToLayerPoint(map.getSize().divideBy(2))
-      mapPane.style.transformOrigin = `${center.x}px ${center.y}px`
-      mapPane.style.rotate = `${-bearing}deg`
-      mapPane.style.transition = "rotate 300ms linear"
-    }
-
-    updateMapBearing()
-    map.on("move resize", updateMapBearing)
-    return () => {
-      map.off("move resize", updateMapBearing)
-    }
-  }, [headingUp, autoFollow, partnerHeading, partnerLocation?.latitude, partnerLocation?.longitude])
-
-  // Calculate bearing angle (0 - 360) between two coordinates for turn-by-turn arrow rotation
+  // Calculate bearing angle between two coordinates
   const calculateBearing = (from: Coordinate, to: Coordinate): number => {
     const lat1 = (from.latitude * Math.PI) / 180
     const lat2 = (to.latitude * Math.PI) / 180
@@ -179,245 +86,220 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
     return (brng + 360) % 360
   }
 
-  // Create Modern Turn-by-Turn Navigation Arrow (Google Maps / Uber / Blinkit Driver Navigation style)
-  const createNavigationArrowIcon = (heading: number, stale: boolean) => {
-    return L.divIcon({
-      className: "custom-nav-arrow-marker",
-      html: `
-        <div style="position: relative; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; pointer-events: auto;">
-          <!-- GPS Accuracy Pulse Glow Wave -->
-          <div style="
-            position: absolute;
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background: ${stale ? "rgba(148, 163, 184, 0.25)" : "rgba(37, 99, 235, 0.28)"};
-            animation: ${stale ? "none" : "nav-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite"};
-            pointer-events: none;
-          "></div>
-          
-          <!-- Outer Floating Halo Ring -->
-          <div class="tracking-marker-rotation" style="
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: #ffffff;
-            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35), 0 0 0 2.5px ${stale ? "#94a3b8" : "#2563eb"};
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transform: rotate(${Math.round(heading)}deg);
-            will-change: transform;
-          ">
-            <!-- 3D Navigation Arrow Pointer -->
-            <svg viewBox="0 0 24 24" width="22" height="22" style="fill: ${stale ? "#64748b" : "#2563eb"}; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));">
-              <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" />
-            </svg>
-          </div>
-
-          <!-- Live Indicator Badge -->
-          <div style="
-            position: absolute;
-            bottom: -6px;
-            background: #0f172a;
-            color: ${stale ? "#cbd5e1" : "#38bdf8"};
-            padding: 1.5px 6px;
-            border-radius: 9999px;
-            font-size: 8.5px;
-            font-weight: 800;
-            letter-spacing: 0.5px;
-            border: 1px solid ${stale ? "#64748b" : "#38bdf8"};
-            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-            white-space: nowrap;
-            display: flex;
-            align-items: center;
-            gap: 3px;
-          ">
-            <span style="display: inline-block; width: 4.5px; height: 4.5px; border-radius: 50%; background: ${stale ? "#94a3b8" : "#22c55e"};"></span>
-            <span>YOU</span>
-          </div>
-        </div>
-      `,
-      iconSize: [56, 56],
-      iconAnchor: [28, 28],
-      popupAnchor: [0, -28],
-    })
+  // Calculate shortest angular rotation distance (-180 to +180)
+  const getShortestAngle = (start: number, end: number) => {
+    let diff = (end - start) % 360
+    if (diff > 180) diff -= 360
+    if (diff < -180) diff += 360
+    return diff
   }
 
-  // Create Delivery Partner Custom Truck Icon (for customer tracking view)
-  const createTruckIcon = (heading: number, stale: boolean) => {
-    // truckLogo.png is drawn facing DOWNWARDS (180 deg). To align with GPS standard 0 deg (North), add 180 deg.
+  // 1. Initialize Google Map
+  useEffect(() => {
+    if (!mapContainerRef.current) return
+    let isSubscribed = true
+
+    loadGoogleMapsSDK()
+      .then(() => {
+        if (!isSubscribed || !mapContainerRef.current || typeof google === "undefined" || !google.maps) return
+
+        if (!mapInstanceRef.current) {
+          const initialLat =
+            partnerLocation?.latitude ??
+            storeLocation?.latitude ??
+            destinationLocation?.latitude ??
+            25.215474989473233
+          const initialLng =
+            partnerLocation?.longitude ??
+            storeLocation?.longitude ??
+            destinationLocation?.longitude ??
+            84.9867635966286
+
+          const map = new google.maps.Map(mapContainerRef.current, {
+            center: { lat: initialLat, lng: initialLng },
+            zoom,
+            mapId: "DEMO_MAP_ID",
+            zoomControl: interactive,
+            gestureHandling: interactive ? "greedy" : "none",
+            streetViewControl: false,
+            mapTypeControl: false,
+            fullscreenControl: false,
+            rotateControl: true,
+          })
+
+          if (onMapClick) {
+            map.addListener("click", onMapClick)
+          }
+
+          mapInstanceRef.current = map
+        }
+      })
+      .catch((err) => {
+        console.warn("Google Maps script load error:", err)
+      })
+
+    return () => {
+      isSubscribed = false
+      if (animFrameIdRef.current) {
+        cancelAnimationFrame(animFrameIdRef.current)
+        animFrameIdRef.current = null
+      }
+    }
+  }, [])
+
+  // 2. Custom OverlayView class for HTML elements (Truck / Nav arrow, Destination Pin, Store Pin)
+  const createHtmlOverlay = (position: { lat: number; lng: number }, contentHtml: string, onClick?: () => void) => {
+    if (typeof google === "undefined" || !google.maps) return null
+
+    class CustomMarkerOverlay extends google.maps.OverlayView {
+      div: HTMLDivElement | null = null
+      pos: { lat: number; lng: number }
+
+      constructor(pos: { lat: number; lng: number }) {
+        super()
+        this.pos = pos
+      }
+
+      onAdd() {
+        this.div = document.createElement("div")
+        this.div.style.position = "absolute"
+        this.div.style.cursor = onClick ? "pointer" : "default"
+        this.div.style.transform = "translate(-50%, -50%)"
+        this.div.style.zIndex = "100"
+        this.div.innerHTML = contentHtml
+
+        if (onClick) {
+          this.div.addEventListener("click", onClick)
+        }
+
+        const panes = this.getPanes()
+        panes?.overlayMouseTarget.appendChild(this.div)
+      }
+
+      draw() {
+        if (!this.div) return
+        const overlayProjection = this.getProjection()
+        if (!overlayProjection) return
+        const googlePos = new google.maps.LatLng(this.pos.lat, this.pos.lng)
+        const point = overlayProjection.fromLatLngToDivPixel(googlePos)
+        if (point) {
+          this.div.style.left = `${point.x}px`
+          this.div.style.top = `${point.y}px`
+        }
+      }
+
+      onRemove() {
+        if (this.div && this.div.parentNode) {
+          this.div.parentNode.removeChild(this.div)
+          this.div = null
+        }
+      }
+
+      setPosition(newPos: { lat: number; lng: number }) {
+        this.pos = newPos
+        this.draw()
+      }
+
+      setHtml(newHtml: string) {
+        if (this.div) {
+          this.div.innerHTML = newHtml
+        }
+      }
+
+      getRotationElement(): HTMLElement | null {
+        return this.div?.querySelector(".tracking-marker-rotation") || null
+      }
+    }
+
+    const overlay = new CustomMarkerOverlay(position)
+    overlay.setMap(mapInstanceRef.current)
+    return overlay
+  }
+
+  // HTML content generators
+  const getNavArrowHtml = (heading: number, stale: boolean) => `
+    <div style="position: relative; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; pointer-events: auto;">
+      <div style="position: absolute; width: 48px; height: 48px; border-radius: 50%; background: ${stale ? "rgba(148, 163, 184, 0.25)" : "rgba(37, 99, 235, 0.28)"}; animation: ${stale ? "none" : "nav-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite"}; pointer-events: none;"></div>
+      <div class="tracking-marker-rotation" style="position: absolute; width: 40px; height: 40px; border-radius: 50%; background: #ffffff; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35), 0 0 0 2.5px ${stale ? "#94a3b8" : "#2563eb"}; display: flex; align-items: center; justify-content: center; transform: rotate(${Math.round(heading)}deg); will-change: transform;">
+        <svg viewBox="0 0 24 24" width="22" height="22" style="fill: ${stale ? "#64748b" : "#2563eb"}; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));">
+          <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" />
+        </svg>
+      </div>
+      <div style="position: absolute; bottom: -6px; background: #0f172a; color: ${stale ? "#cbd5e1" : "#38bdf8"}; padding: 1.5px 6px; border-radius: 9999px; font-size: 8.5px; font-weight: 800; letter-spacing: 0.5px; border: 1px solid ${stale ? "#64748b" : "#38bdf8"}; box-shadow: 0 2px 6px rgba(0,0,0,0.4); white-space: nowrap; display: flex; align-items: center; gap: 3px;">
+        <span style="display: inline-block; width: 4.5px; height: 4.5px; border-radius: 50%; background: ${stale ? "#94a3b8" : "#22c55e"};"></span>
+        <span>YOU</span>
+      </div>
+    </div>
+  `
+
+  const getTruckHtml = (heading: number, stale: boolean) => {
     const rotationDeg = (Math.round(heading) + 180) % 360
-
-    return L.divIcon({
-      className: "custom-truck-marker",
-      html: `
-        <div style="position: relative; width: 96px; height: 96px; display: flex; align-items: center; justify-content: center; pointer-events: auto;">
-          <!-- Floating status pill above truck -->
-          <div style="
-            position: absolute;
-            top: -28px;
-            background: #0f172a;
-            color: #38bdf8;
-            padding: 3px 9px;
-            border-radius: 9999px;
-            font-size: 10px;
-            font-weight: 800;
-            border: 1.5px solid #38bdf8;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.55);
-            white-space: nowrap;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            z-index: 10;
-            pointer-events: none;
-          ">
-            <span style="display: inline-block; width: 5.5px; height: 5.5px; border-radius: 50%; background: ${stale ? '#94a3b8' : '#22c55e'}; animation: ${stale ? 'none' : 'ping 1.5s cubic-bezier(0,0,0.2,1) infinite'};"></span>
-            <span>Delivery Partner</span>
-          </div>
-
-          <!-- Rotating Truck Centered on GPS Coordinate (1.5x scale: 82px) -->
-          <div style="
-            width: 88px;
-            height: 88px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transform: rotate(${rotationDeg}deg);
-            will-change: transform;
-            z-index: 2;
-          ">
-            <img 
-              src="/truckLogo.png" 
-              alt="Delivery Partner Truck" 
-              style="
-                width: 82px; 
-                height: 82px; 
-                object-fit: contain;
-                filter: ${stale ? "grayscale(80%) drop-shadow(0 6px 12px rgba(0,0,0,0.4))" : "drop-shadow(0 8px 16px rgba(0,0,0,0.6))"};
-              "
-            />
-          </div>
+    return `
+      <div style="position: relative; width: 96px; height: 96px; display: flex; align-items: center; justify-content: center; pointer-events: auto;">
+        <div style="position: absolute; top: -28px; background: #0f172a; color: #38bdf8; padding: 3px 9px; border-radius: 9999px; font-size: 10px; font-weight: 800; border: 1.5px solid #38bdf8; box-shadow: 0 4px 12px rgba(0,0,0,0.55); white-space: nowrap; display: flex; align-items: center; gap: 4px; z-index: 10; pointer-events: none;">
+          <span style="display: inline-block; width: 5.5px; height: 5.5px; border-radius: 50%; background: ${stale ? '#94a3b8' : '#22c55e'}; animation: ${stale ? 'none' : 'ping 1.5s cubic-bezier(0,0,0.2,1) infinite'};"></span>
+          <span>Delivery Partner</span>
         </div>
-      `,
-      iconSize: [96, 96],
-      iconAnchor: [48, 48],
-      popupAnchor: [0, -48],
-    })
+        <div class="tracking-marker-rotation" style="width: 88px; height: 88px; display: flex; align-items: center; justify-content: center; transform: rotate(${rotationDeg}deg); will-change: transform; z-index: 2;">
+          <img src="/truckLogo.png" alt="Delivery Partner Truck" style="width: 82px; height: 82px; object-fit: contain; filter: ${stale ? "grayscale(80%) drop-shadow(0 6px 12px rgba(0,0,0,0.4))" : "drop-shadow(0 8px 16px rgba(0,0,0,0.6))"};" />
+        </div>
+      </div>
+    `
   }
 
-  // Create Hindustan Hardware Store Icon
-  const createStoreIcon = () => {
-    return L.divIcon({
-      className: "custom-store-marker",
-      html: `
-        <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -100%);">
-          <div style="background: #0f172a; color: #fbbf24; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 800; border: 1.5px solid #fbbf24; box-shadow: 0 4px 12px rgba(0,0,0,0.5); white-space: nowrap; margin-bottom: 2px; display: flex; align-items: center; gap: 4px;">
-            <span>🏬 Store Origin</span>
-          </div>
-          <div style="width: 28px; height: 28px; background: #0f172a; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fbbf24; box-shadow: 0 4px 14px rgba(251,191,36,0.4); display: flex; align-items: center; justify-content: center;">
-            <div style="transform: rotate(45deg); font-size: 13px;">🏬</div>
-          </div>
-        </div>
-      `,
-      iconSize: [36, 52],
-      iconAnchor: [18, 52],
-      popupAnchor: [0, -52],
-    })
-  }
+  const getStoreHtml = () => `
+    <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(0, -50%); pointer-events: auto;">
+      <div style="background: #0f172a; color: #fbbf24; padding: 4px 8px; border-radius: 9999px; font-size: 10px; font-weight: 800; border: 1.5px solid #fbbf24; box-shadow: 0 4px 12px rgba(0,0,0,0.5); white-space: nowrap; margin-bottom: 2px; display: flex; align-items: center; gap: 4px;">
+        <span>🏬 Store Origin</span>
+      </div>
+      <div style="width: 28px; height: 28px; background: #0f172a; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fbbf24; box-shadow: 0 4px 14px rgba(251,191,36,0.4); display: flex; align-items: center; justify-content: center;">
+        <div style="transform: rotate(45deg); font-size: 13px;">🏬</div>
+      </div>
+    </div>
+  `
 
-  // Create Destination Pin Icon (Matching Address Picker Pin)
-  const createDestinationIcon = () => {
-    return L.divIcon({
-      className: "custom-destination-marker",
-      html: `
-        <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -100%);">
-          <div style="background: #111827; color: #D4AF37; padding: 5px 9px; border-radius: 9999px; font-size: 10.5px; font-weight: 800; border: 2px solid #D4AF37; box-shadow: 0 4px 12px rgba(0,0,0,0.45); white-space: nowrap; margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
-            <span>📍 Delivery Address</span>
-          </div>
-          <div style="width: 28px; height: 28px; background: #D4AF37; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #ffffff; box-shadow: 0 6px 14px rgba(212,175,55,0.6); display: flex; align-items: center; justify-content: center;">
-            <div style="width: 10px; height: 10px; background: #111827; border-radius: 50%;"></div>
-          </div>
-        </div>
-      `,
-      iconSize: [36, 54],
-      iconAnchor: [18, 54],
-      popupAnchor: [0, -54],
-    })
-  }
+  const getDestinationHtml = () => `
+    <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(0, -50%); pointer-events: auto;">
+      <div style="background: #111827; color: #D4AF37; padding: 5px 9px; border-radius: 9999px; font-size: 10.5px; font-weight: 800; border: 2px solid #D4AF37; box-shadow: 0 4px 12px rgba(0,0,0,0.45); white-space: nowrap; margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+        <span>📍 Delivery Address</span>
+      </div>
+      <div style="width: 28px; height: 28px; background: #D4AF37; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #ffffff; box-shadow: 0 6px 14px rgba(212,175,55,0.6); display: flex; align-items: center; justify-content: center;">
+        <div style="width: 10px; height: 10px; background: #111827; border-radius: 50%;"></div>
+      </div>
+    </div>
+  `
 
-  // Create Customer Current Location (Blue Dot) Icon
-  const createCustomerDotIcon = () => {
-    return L.divIcon({
-      className: "custom-customer-dot",
-      html: `
-        <div style="
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 28px;
-          height: 28px;
-        ">
-          <div style="
-            position: absolute;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: rgba(59, 130, 246, 0.35);
-            animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
-          "></div>
-          <div style="
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: #2563eb;
-            border: 2px solid #ffffff;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-          "></div>
-        </div>
-      `,
-      iconSize: [28, 28],
-      iconAnchor: [14, 14],
-      popupAnchor: [0, -14],
-    })
-  }
+  const getCustomerDotHtml = () => `
+    <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;">
+      <div style="position: absolute; width: 24px; height: 24px; border-radius: 50%; background: rgba(59, 130, 246, 0.35); animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+      <div style="width: 14px; height: 14px; border-radius: 50%; background: #2563eb; border: 2px solid #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>
+    </div>
+  `
 
-  // Update Route, Markers, and Viewport Bounds
+  // 3. Update Markers, Polyline, and Viewport
   useEffect(() => {
     const map = mapInstanceRef.current
-    if (!map) return
+    if (!map || typeof google === "undefined" || !google.maps) return
 
-    const bounds = L.latLngBounds([])
+    const bounds = new google.maps.LatLngBounds()
     let hasPoints = false
 
-    // 1. Store Marker (Fixed Hindustan Hardware Hub)
-    if (
-      storeLocation &&
-      typeof storeLocation.latitude === "number" &&
-      typeof storeLocation.longitude === "number"
-    ) {
-      const storeLatLng: L.LatLngExpression = [storeLocation.latitude, storeLocation.longitude]
-      const icon = createStoreIcon()
-
+    // A. Store Marker
+    if (storeLocation && typeof storeLocation.latitude === "number" && typeof storeLocation.longitude === "number") {
+      const pos = { lat: storeLocation.latitude, lng: storeLocation.longitude }
       if (storeMarkerRef.current) {
-        storeMarkerRef.current.setLatLng(storeLatLng)
+        storeMarkerRef.current.setPosition(pos)
       } else {
-        const marker = L.marker(storeLatLng, { icon }).addTo(map)
-        marker.bindPopup(
-          `<b>${storeLocation.name || "Hindustan Hardware"}</b><br/>${storeLocation.address || "PG Road, Opposite Eidgah"}<br/><small style="color:#d97706;">Origin Warehouse (Approximate Locality)</small>`
-        )
-        storeMarkerRef.current = marker
+        storeMarkerRef.current = createHtmlOverlay(pos, getStoreHtml())
       }
-      bounds.extend(storeLatLng)
+      bounds.extend(pos)
       hasPoints = true
     } else if (storeMarkerRef.current) {
-      map.removeLayer(storeMarkerRef.current)
+      storeMarkerRef.current.setMap(null)
       storeMarkerRef.current = null
     }
 
-    // 2. Partner / Rider Marker
+    // B. Partner / Rider Marker
     const effectivePartnerLocation =
       partnerLocation &&
       typeof partnerLocation.latitude === "number" &&
@@ -428,9 +310,8 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
           : null
 
     if (effectivePartnerLocation) {
-      const partnerLatLng: L.LatLngExpression = [effectivePartnerLocation.latitude, effectivePartnerLocation.longitude]
+      const partnerPos = { lat: effectivePartnerLocation.latitude, lng: effectivePartnerLocation.longitude }
 
-      // Determine target Heading / Bearing
       let targetHeading = lastHeadingRef.current
       if (partnerHeading != null && Number.isFinite(partnerHeading)) {
         targetHeading = partnerHeading
@@ -439,57 +320,22 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
         (targetPartnerLocationRef.current.latitude !== effectivePartnerLocation.latitude ||
           targetPartnerLocationRef.current.longitude !== effectivePartnerLocation.longitude)
       ) {
-        const computed = calculateBearing(targetPartnerLocationRef.current, effectivePartnerLocation)
-        targetHeading = computed
-      }
-      const markerStyle = `${markerMode}:${isStale}`
-
-      // Calculate shortest angular rotation distance (-180 to +180) to prevent 360-degree spins
-      const getShortestAngle = (start: number, end: number) => {
-        let diff = (end - start) % 360
-        if (diff > 180) diff -= 360
-        if (diff < -180) diff += 360
-        return diff
+        targetHeading = calculateBearing(targetPartnerLocationRef.current, effectivePartnerLocation)
       }
 
-      // If marker does not exist yet or no prior position, instantiate immediately
-      if (!partnerMarkerRef.current || !currentRenderedPosRef.current) {
+      if (!partnerOverlayRef.current || !currentRenderedPosRef.current) {
         currentRenderedPosRef.current = effectivePartnerLocation
         currentRenderedHeadingRef.current = targetHeading
         lastHeadingRef.current = targetHeading
         targetPartnerLocationRef.current = effectivePartnerLocation
         lastPartnerTargetTimeRef.current = performance.now()
-        partnerMarkerStyleRef.current = markerStyle
-        const icon =
-          markerMode === "navigation"
-            ? createNavigationArrowIcon(targetHeading, isStale)
-            : createTruckIcon(targetHeading, isStale)
 
-        if (partnerMarkerRef.current) {
-          partnerMarkerRef.current.setLatLng(partnerLatLng)
-          partnerMarkerRef.current.setIcon(icon)
-        } else {
-          const marker = L.marker(partnerLatLng, { icon, zIndexOffset: 1000 }).addTo(map)
-          marker.bindPopup(
-            markerMode === "navigation"
-              ? `<b>You (Delivery Partner)</b><br/>${isStale ? "GPS Signal delayed" : "Live GPS Navigating"}`
-              : `<b>Hindustan Hardware Delivery Partner</b><br/>${
-                  partnerLocation
-                    ? isStale
-                      ? "Status: Signal delayed"
-                      : "Status: Active & moving"
-                    : "Status: Starting from Store Warehouse"
-                }`
-          )
-          partnerMarkerRef.current = marker
-        }
+        const html = markerMode === "navigation" ? getNavArrowHtml(targetHeading, isStale) : getTruckHtml(targetHeading, isStale)
+        partnerOverlayRef.current = createHtmlOverlay(partnerPos, html)
       } else {
         const targetChanged =
           targetPartnerLocationRef.current?.latitude !== effectivePartnerLocation.latitude ||
           targetPartnerLocationRef.current?.longitude !== effectivePartnerLocation.longitude
-        const styleChanged = partnerMarkerStyleRef.current !== markerStyle
-        const headingChanged =
-          Math.abs(getShortestAngle(lastHeadingRef.current, targetHeading)) > 0.1
 
         if (targetChanged) {
           if (animFrameIdRef.current) {
@@ -508,12 +354,8 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
           const deltaAngle = getShortestAngle(startHeading, targetHeading)
           const animDuration = Math.min(Math.max(updateInterval, 1200), 12000)
 
-          partnerMarkerRef.current.setIcon(
-            markerMode === "navigation"
-              ? createNavigationArrowIcon(startHeading, isStale)
-              : createTruckIcon(startHeading, isStale),
-          )
-          partnerMarkerStyleRef.current = markerStyle
+          const html = markerMode === "navigation" ? getNavArrowHtml(startHeading, isStale) : getTruckHtml(startHeading, isStale)
+          partnerOverlayRef.current.setHtml(html)
           lastHeadingRef.current = targetHeading
 
           targetPartnerLocationRef.current = effectivePartnerLocation
@@ -528,11 +370,9 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
             currentRenderedPosRef.current = { latitude: currLat, longitude: currLng }
             currentRenderedHeadingRef.current = currHeading
 
-            if (partnerMarkerRef.current) {
-              partnerMarkerRef.current.setLatLng([currLat, currLng])
-              const rotationNode = partnerMarkerRef.current
-                .getElement()
-                ?.querySelector<HTMLElement>(".tracking-marker-rotation")
+            if (partnerOverlayRef.current) {
+              partnerOverlayRef.current.setPosition({ lat: currLat, lng: currLng })
+              const rotationNode = partnerOverlayRef.current.getRotationElement()
               if (rotationNode) {
                 const rotation = markerMode === "navigation" ? currHeading : (currHeading + 180) % 360
                 rotationNode.style.transform = `rotate(${rotation}deg)`
@@ -547,156 +387,116 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
           }
 
           animFrameIdRef.current = requestAnimationFrame(animateStep)
-        } else if (styleChanged || headingChanged) {
-          partnerMarkerRef.current.setIcon(
-            markerMode === "navigation"
-              ? createNavigationArrowIcon(targetHeading, isStale)
-              : createTruckIcon(targetHeading, isStale),
-          )
-          partnerMarkerStyleRef.current = markerStyle
+        } else {
+          const html = markerMode === "navigation" ? getNavArrowHtml(targetHeading, isStale) : getTruckHtml(targetHeading, isStale)
+          partnerOverlayRef.current.setHtml(html)
           currentRenderedHeadingRef.current = targetHeading
           lastHeadingRef.current = targetHeading
         }
       }
 
-      bounds.extend(partnerLatLng)
+      bounds.extend(partnerPos)
       hasPoints = true
-    } else if (partnerMarkerRef.current) {
+    } else if (partnerOverlayRef.current) {
       if (animFrameIdRef.current) {
         cancelAnimationFrame(animFrameIdRef.current)
         animFrameIdRef.current = null
       }
-      map.removeLayer(partnerMarkerRef.current)
-      partnerMarkerRef.current = null
+      partnerOverlayRef.current.setMap(null)
+      partnerOverlayRef.current = null
       currentRenderedPosRef.current = null
       targetPartnerLocationRef.current = null
       lastPartnerTargetTimeRef.current = null
-      partnerMarkerStyleRef.current = null
     }
 
-    // 3. Destination Marker (Customer Shipping Address)
-    if (
-      destinationLocation &&
-      typeof destinationLocation.latitude === "number" &&
-      typeof destinationLocation.longitude === "number"
-    ) {
-      const destLatLng: L.LatLngExpression = [destinationLocation.latitude, destinationLocation.longitude]
-      const destIcon = createDestinationIcon()
-
+    // C. Destination Marker
+    if (destinationLocation && typeof destinationLocation.latitude === "number" && typeof destinationLocation.longitude === "number") {
+      const destPos = { lat: destinationLocation.latitude, lng: destinationLocation.longitude }
       if (destinationMarkerRef.current) {
-        destinationMarkerRef.current.setLatLng(destLatLng)
-        destinationMarkerRef.current.setIcon(destIcon)
-        destinationMarkerRef.current.setZIndexOffset(1200)
+        destinationMarkerRef.current.setPosition(destPos)
       } else {
-        const marker = L.marker(destLatLng, { icon: destIcon, zIndexOffset: 1200 }).addTo(map)
-        marker.bindPopup("<b>Delivery Destination</b><br/>Confirmed Order Delivery Address")
-        destinationMarkerRef.current = marker
+        destinationMarkerRef.current = createHtmlOverlay(destPos, getDestinationHtml())
       }
-      bounds.extend(destLatLng)
+      bounds.extend(destPos)
       hasPoints = true
     } else if (destinationMarkerRef.current) {
-      map.removeLayer(destinationMarkerRef.current)
+      destinationMarkerRef.current.setMap(null)
       destinationMarkerRef.current = null
     }
 
-    // 4. Customer Reference Location Marker (if customer shares GPS)
-    if (
-      customerLocation &&
-      typeof customerLocation.latitude === "number" &&
-      typeof customerLocation.longitude === "number"
-    ) {
-      const custLatLng: L.LatLngExpression = [customerLocation.latitude, customerLocation.longitude]
-      const custIcon = createCustomerDotIcon()
-
+    // D. Customer Dot Marker
+    if (customerLocation && typeof customerLocation.latitude === "number" && typeof customerLocation.longitude === "number") {
+      const custPos = { lat: customerLocation.latitude, lng: customerLocation.longitude }
       if (customerMarkerRef.current) {
-        customerMarkerRef.current.setLatLng(custLatLng)
+        customerMarkerRef.current.setPosition(custPos)
       } else {
-        const marker = L.marker(custLatLng, { icon: custIcon }).addTo(map)
-        marker.bindPopup("<b>Your Current Location</b><br/>Device GPS Reference")
-        customerMarkerRef.current = marker
+        customerMarkerRef.current = createHtmlOverlay(custPos, getCustomerDotHtml())
       }
-      bounds.extend(custLatLng)
+      bounds.extend(custPos)
       hasPoints = true
     } else if (customerMarkerRef.current) {
-      map.removeLayer(customerMarkerRef.current)
+      customerMarkerRef.current.setMap(null)
       customerMarkerRef.current = null
     }
 
-    // 5. Road Route Polyline (Convert GeoJSON [lng, lat] to Leaflet [lat, lng])
+    // E. Road Route Polyline (GeoJSON [lng, lat] -> Google Maps {lat, lng})
     if (routeCoordinates && routeCoordinates.length > 0) {
-      const leafletCoords: [number, number][] = routeCoordinates.map(([lng, lat]) => [lat, lng])
+      const gCoords = routeCoordinates.map(([lng, lat]) => ({ lat, lng }))
 
-      // Outer glow polyline for professional crispness
       if (routeGlowPolylineRef.current) {
-        routeGlowPolylineRef.current.setLatLngs(leafletCoords)
+        routeGlowPolylineRef.current.setPath(gCoords)
       } else {
-        const glowPolyline = L.polyline(leafletCoords, {
-          color: "#1d4ed8",
-          weight: 9,
-          opacity: 0.45,
-          lineJoin: "round",
-          lineCap: "round",
-        }).addTo(map)
-        routeGlowPolylineRef.current = glowPolyline
+        routeGlowPolylineRef.current = new google.maps.Polyline({
+          path: gCoords,
+          geodesic: true,
+          strokeColor: "#1d4ed8",
+          strokeOpacity: 0.45,
+          strokeWeight: 9,
+          map,
+        })
       }
 
       if (routePolylineRef.current) {
-        routePolylineRef.current.setLatLngs(leafletCoords)
+        routePolylineRef.current.setPath(gCoords)
       } else {
-        const polyline = L.polyline(leafletCoords, {
-          color: "#3b82f6", // Vibrant turn-by-turn navigation blue
-          weight: 5,
-          opacity: 0.95,
-          lineJoin: "round",
-          lineCap: "round",
-          dashArray: isStale ? "6, 8" : undefined,
-        }).addTo(map)
-        routePolylineRef.current = polyline
+        routePolylineRef.current = new google.maps.Polyline({
+          path: gCoords,
+          geodesic: true,
+          strokeColor: "#3b82f6",
+          strokeOpacity: 0.95,
+          strokeWeight: 5,
+          map,
+        })
       }
 
-      leafletCoords.forEach((coord) => bounds.extend(coord))
+      gCoords.forEach((pt) => bounds.extend(pt))
       hasPoints = true
     } else {
       if (routePolylineRef.current) {
-        map.removeLayer(routePolylineRef.current)
+        routePolylineRef.current.setMap(null)
         routePolylineRef.current = null
       }
       if (routeGlowPolylineRef.current) {
-        map.removeLayer(routeGlowPolylineRef.current)
+        routeGlowPolylineRef.current.setMap(null)
         routeGlowPolylineRef.current = null
       }
     }
 
-    // 6. Viewport handling: PREVENT UNWANTED ZOOM-OUT ON LIVE UPDATES
-    // On the first render with valid points, fit the full route bounds.
-    // On subsequent live location updates:
-    // - If autoFollow is enabled, smooth pan to partner WITHOUT resetting the user's zoom level!
-    // - If autoFollow is disabled, do not touch the map viewport so the user can freely zoom and pan.
+    // F. Viewport handling
     if (headingUp && effectivePartnerLocation) {
       if (!hasInitializedBoundsRef.current) {
-        map.setView([effectivePartnerLocation.latitude, effectivePartnerLocation.longitude], zoom)
+        map.setCenter({ lat: effectivePartnerLocation.latitude, lng: effectivePartnerLocation.longitude })
+        map.setZoom(zoom)
         hasInitializedBoundsRef.current = true
       } else if (autoFollow) {
-        map.panTo([effectivePartnerLocation.latitude, effectivePartnerLocation.longitude], {
-          animate: true,
-          duration: 0.8,
-        })
+        map.panTo({ lat: effectivePartnerLocation.latitude, lng: effectivePartnerLocation.longitude })
       }
-    } else if (!hasInitializedBoundsRef.current && hasPoints && bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [45, 45], maxZoom: 16 })
+    } else if (!hasInitializedBoundsRef.current && hasPoints) {
+      map.fitBounds(bounds, { top: 45, right: 45, bottom: 45, left: 45 })
       hasInitializedBoundsRef.current = true
     } else if (autoFollow && effectivePartnerLocation) {
-      // Smoothly pan to new partner coordinate while PRESERVING the user-chosen zoom level
-      map.panTo([effectivePartnerLocation.latitude, effectivePartnerLocation.longitude], {
-        animate: true,
-        duration: 0.8,
-      })
+      map.panTo({ lat: effectivePartnerLocation.latitude, lng: effectivePartnerLocation.longitude })
     }
-
-    // Invalidate map size to handle container dimension settling
-    setTimeout(() => {
-      map.invalidateSize()
-    }, 150)
   }, [storeLocation, partnerLocation, partnerHeading, destinationLocation, customerLocation, routeCoordinates, isStale, markerMode, autoFollow, headingUp, zoom])
 
   return (
@@ -705,13 +505,8 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
       className={`overflow-hidden rounded-lg ${className}`}
     >
       <div ref={mapContainerRef} style={{ height: "100%", width: "100%", zIndex: 1 }} />
-      
-      {/* Frosted Glass Blur Bar overlapping the bottom watermark */}
-      <div
-        className="pointer-events-none absolute bottom-0 left-0 right-0 h-6 z-[400] backdrop-blur-lg bg-white/10 dark:bg-white/5 border-t border-white/20 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]"
-      />
 
-      {/* Pulse keyframe animation for truck live ring and nav arrow */}
+      {/* Animations */}
       <style>
         {`
           @keyframes ping {
@@ -733,17 +528,6 @@ export const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
               transform: scale(1.7);
               opacity: 0;
             }
-          }
-          .custom-nav-arrow-marker {
-            background: transparent !important;
-            border: none !important;
-          }
-          .custom-truck-marker {
-            background: transparent !important;
-            border: none !important;
-          }
-          .leaflet-control-attribution {
-            display: none !important;
           }
         `}
       </style>

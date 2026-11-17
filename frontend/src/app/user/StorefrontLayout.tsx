@@ -340,17 +340,6 @@ export function Footer() {
           <p className="max-w-sm text-xs leading-6 text-[#888888]">
             Premium sanitaryware, bath fittings, pipes, hardware and architectural solutions. Trusted quality since 1993.
           </p>
-          <div className="mt-5 flex gap-3 text-[#D4AF37]">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-[#1C1C1C] text-[#D4AF37] hover:bg-[#D4AF37] hover:text-[#0B0B0B] transition cursor-pointer">
-              <Camera size={16} />
-            </span>
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-[#1C1C1C] text-[#D4AF37] hover:bg-[#D4AF37] hover:text-[#0B0B0B] transition cursor-pointer">
-              <AtSign size={16} />
-            </span>
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-[#1C1C1C] text-[#D4AF37] hover:bg-[#D4AF37] hover:text-[#0B0B0B] transition cursor-pointer">
-              <Phone size={16} />
-            </span>
-          </div>
         </div>
         <FooterColumn
           title="Quick Links"
@@ -421,6 +410,10 @@ function FooterColumn({ title, links }: { title: string; links: string[] }) {
     "Contact Us": "/contact",
     "Bulk Orders": "/bulk-order",
     "About Us": "/about",
+    "Terms & Conditions": "/terms",
+    "Track Order": "/my-orders",
+    "Return & Refund": "/return-policy",
+    "Return Policy": "/return-policy",
   }
   return (
     <div>
@@ -475,12 +468,12 @@ export function StorefrontLayout() {
               <span className="flex items-center gap-1.5 font-medium">
                 <Truck size={14} className="text-[#D4AF37]" /> Free Delivery*
               </span>
-              <span className="flex items-center gap-1.5 font-medium">
+              <Link to="/terms" className="flex items-center gap-1.5 font-medium hover:text-white transition">
                 <BadgeIndianRupee size={14} className="text-[#D4AF37]" /> GST Invoice
-              </span>
-              <span className="flex items-center gap-1.5 font-medium">
+              </Link>
+              <Link to="/return-policy" className="flex items-center gap-1.5 font-medium hover:text-white transition">
                 <Clock3 size={14} className="text-[#D4AF37]" /> Easy Returns
-              </span>
+              </Link>
             </div>
             <div className="flex items-center gap-6">
               <span className="flex items-center gap-1.5 text-white">

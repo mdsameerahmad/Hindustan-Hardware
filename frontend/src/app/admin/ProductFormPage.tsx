@@ -61,7 +61,7 @@ export function ProductFormPage() {
         setFormData({
           name: prod.name || "",
           slug: prod.slug || "",
-          sku: prod.id ? `HH-${prod.id.slice(0, 8).toUpperCase()}` : "",
+          sku: prod.sku || "",
           brandId: prod.brand_id || prod.brandId || prod.brand?.id || "",
           categoryId: prod.category_id || prod.categoryId || prod.category?.id || "",
           productType: prod.productType || prod.specs?.product_type || "Pipes & Fittings",
@@ -147,6 +147,7 @@ export function ProductFormPage() {
         await adminApi.updateProduct(id, {
           name: formData.name.trim(),
           slug: generatedSlug,
+          sku: formData.sku.trim() || null,
           description: formData.description,
           brandId: formData.brandId || null,
           categoryId: formData.categoryId,
@@ -196,7 +197,7 @@ export function ProductFormPage() {
         await adminApi.createProduct({
           name: formData.name.trim(),
           slug: generatedSlug,
-          sku: formData.sku.trim() || undefined,
+          sku: formData.sku.trim() || null,
           description: formData.description,
           brandId: formData.brandId || null,
           categoryId: formData.categoryId,
@@ -275,6 +276,30 @@ export function ProductFormPage() {
                 value={formData.slug}
                 onChange={(value) => set("slug", value)}
               />
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="field-label block text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Item Code (SKU)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => set("sku", "")}
+                    className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 transition"
+                  >
+                    Set as Null / Clear
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  className="field w-full font-mono text-xs sm:text-sm"
+                  value={formData.sku}
+                  onChange={(e) => set("sku", e.target.value)}
+                  placeholder="e.g. HH-ASTR-1002 (or leave blank for null)"
+                />
+                <p className="text-[11px] text-slate-400">
+                  Unique product identifier. Leave empty or click &quot;Set as Null&quot; if this item has no item code.
+                </p>
+              </div>
               <label className="field-label block text-xs font-bold uppercase tracking-wider text-slate-600">
                 Brand
                 <select

@@ -43,7 +43,6 @@ export function BrandsAdminPage() {
     slug: "",
     logoUrl: "",
     description: "",
-    discountPercentage: 0,
     displayOrder: 1,
     isActive: true,
   }
@@ -54,7 +53,6 @@ export function BrandsAdminPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [filterDiscount, setFilterDiscount] = useState<"all" | "discounted" | "no-discount">("all")
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all")
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -72,9 +70,6 @@ export function BrandsAdminPage() {
           const matchDesc = (b.description || "").toLowerCase().includes(q)
           if (!matchName && !matchSlug && !matchDesc) return false
         }
-        const disc = Number((b as any).discountPercentage ?? (b as any).discount_percentage ?? 0)
-        if (filterDiscount === "discounted" && disc <= 0) return false
-        if (filterDiscount === "no-discount" && disc > 0) return false
 
         if (filterStatus === "active" && !b.isActive) return false
         if (filterStatus === "inactive" && b.isActive) return false
@@ -82,7 +77,7 @@ export function BrandsAdminPage() {
         return true
       })
       .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
-  }, [brands, searchQuery, filterDiscount, filterStatus])
+  }, [brands, searchQuery, filterStatus])
 
   const totalPages = Math.max(1, Math.ceil(filteredBrands.length / pageSize))
   const safePage = Math.min(currentPage, totalPages)
@@ -112,7 +107,6 @@ export function BrandsAdminPage() {
       slug: brand.slug,
       logoUrl: brand.logoUrl || brand.logo_url || "",
       description: brand.description || "",
-      discountPercentage: Number((brand as any).discountPercentage ?? (brand as any).discount_percentage ?? 0),
       displayOrder: brand.displayOrder ?? 1,
       isActive: brand.isActive !== false,
     })
@@ -180,14 +174,12 @@ export function BrandsAdminPage() {
     }
 
     try {
-      const discVal = Number(form.discountPercentage) || 0
       if (form.id) {
         await updateBrand(form.id, {
           name: form.name.trim(),
           slug,
           logoUrl: normalizedLogo,
           description: form.description.trim() || undefined,
-          discountPercentage: discVal,
           displayOrder: Number(form.displayOrder) || 1,
           isActive: form.isActive,
         })
@@ -197,7 +189,6 @@ export function BrandsAdminPage() {
           slug,
           logoUrl: normalizedLogo,
           description: form.description.trim() || undefined,
-          discountPercentage: discVal,
           displayOrder: Number(form.displayOrder) || 1,
           isActive: form.isActive,
         })
@@ -238,7 +229,7 @@ export function BrandsAdminPage() {
       <>
         <PageHeader
           title={form.id ? `Edit Brand: ${form.name}` : "Add New Brand"}
-          description="Configure manufacturer identity, automated bulk discount rates, catalog ordering, and logos."
+          description="Configure manufacturer identity, catalog ordering, and logos."
         />
 
         {formError && (
@@ -278,46 +269,6 @@ export function BrandsAdminPage() {
                       placeholder="e.g. Authentic CPVC, PVC and fittings plumbing supplies portfolio..."
                     />
                   </label>
-                </div>
-              </div>
-            </FormCard>
-
-            <FormCard title="Bulk Brand Discount Rate">
-              <div className="grid gap-4 sm:grid-cols-2 items-center">
-                <div>
-                  <AdminField
-                    label="Discount % (Applied to all products of this brand)"
-                    type="number"
-                    value={String(form.discountPercentage)}
-                    onChange={(value) => setForm({ ...form, discountPercentage: Number(value) })}
-                  />
-                  <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px] font-bold text-slate-500 mr-1">Quick presets:</span>
-                    {[0, 10, 20, 25, 30, 35, 40].map((preset) => (
-                      <button
-                        type="button"
-                        key={preset}
-                        onClick={() => setForm({ ...form, discountPercentage: preset })}
-                        className={`rounded-lg px-2.5 py-1 text-xs font-bold transition border ${
-                          form.discountPercentage === preset
-                            ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
-                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                        }`}
-                      >
-                        {preset === 0 ? "None" : `${preset}%`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-4">
-                  <div className="flex items-center gap-2 text-amber-900 font-extrabold text-xs uppercase tracking-wider">
-                    <Sparkles size={15} className="text-amber-600 shrink-0" />
-                    <span>Automated Selling Price Sync</span>
-                  </div>
-                  <p className="mt-1 text-xs text-amber-800/90 leading-relaxed font-medium">
-                    Saving this brand will automatically recalculate and persist the <b>selling price</b> (base price) of every product belonging to this brand in the database against its recorded <b>MRP</b>.
-                  </p>
                 </div>
               </div>
             </FormCard>
@@ -437,7 +388,7 @@ export function BrandsAdminPage() {
     <>
       <PageHeader
         title="Brand catalog"
-        description="Authoritative database manufacturer records, bulk discount controls, active catalog status, and logos."
+        description="Authoritative database manufacturer records, active catalog status, and logos."
         action={
           <Button onClick={openCreateModal}>
             <Plus size={16} />
@@ -463,16 +414,6 @@ export function BrandsAdminPage() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto flex-wrap">
-            <select
-              className="field flex-1 sm:w-auto text-xs sm:text-sm"
-              value={filterDiscount}
-              onChange={(e) => setFilterDiscount(e.target.value as any)}
-            >
-              <option value="all">All Discounts</option>
-              <option value="discounted">Discounted Brands Only</option>
-              <option value="no-discount">Standard MRP (No Discount)</option>
-            </select>
-
             <select
               className="field flex-1 sm:w-auto text-xs sm:text-sm"
               value={filterStatus}
@@ -504,7 +445,7 @@ export function BrandsAdminPage() {
           <div className="py-16 text-center">
             <Package className="mx-auto h-10 w-10 text-slate-300" />
             <h3 className="mt-2 text-base font-bold text-slate-700">No brands found</h3>
-            <p className="text-xs text-slate-500 mt-1">Try adjusting your search query or discount filter.</p>
+            <p className="text-xs text-slate-500 mt-1">Try adjusting your search query or filter.</p>
           </div>
         ) : (
           <>
@@ -515,7 +456,6 @@ export function BrandsAdminPage() {
                   <tr>
                     <th>Brand & Identity</th>
                     <th>Catalog Slug</th>
-                    <th>Bulk Discount %</th>
                     <th>Display Order</th>
                     <th>Storefront Status</th>
                     <th>Actions</th>
@@ -523,8 +463,6 @@ export function BrandsAdminPage() {
                 </thead>
                 <tbody>
                   {paginatedBrands.map((brand) => {
-                    const disc = Number((brand as any).discountPercentage ?? (brand as any).discount_percentage ?? 0)
-
                     return (
                       <tr key={brand.id}>
                         <td>
@@ -559,16 +497,6 @@ export function BrandsAdminPage() {
                         </td>
                         <td className="font-mono text-xs text-slate-600">
                           /{brand.slug}
-                        </td>
-                        <td>
-                          {disc > 0 ? (
-                            <Badge tone="success">
-                              <Percent size={11} className="mr-1 inline" />
-                              {disc}% OFF
-                            </Badge>
-                          ) : (
-                            <span className="text-xs text-slate-400">None (MRP)</span>
-                          )}
                         </td>
                         <td>
                           <span className="font-mono text-xs text-slate-700 font-semibold">
@@ -619,8 +547,6 @@ export function BrandsAdminPage() {
             {/* Mobile Card List matching AdminProductsPage */}
             <div className="block md:hidden divide-y divide-border">
               {paginatedBrands.map((brand) => {
-                const disc = Number((brand as any).discountPercentage ?? (brand as any).discount_percentage ?? 0)
-
                 return (
                   <div key={brand.id} className="p-3.5 space-y-3">
                     <div className="flex items-start gap-3">
@@ -646,13 +572,6 @@ export function BrandsAdminPage() {
                         <b className="block text-xs font-bold text-slate-900 leading-snug">{brand.name}</b>
                         <span className="block font-mono text-[11px] text-slate-400 mt-0.5">/{brand.slug}</span>
                         <div className="mt-1.5 flex items-center gap-2">
-                          {disc > 0 ? (
-                            <Badge tone="success">
-                              {disc}% OFF
-                            </Badge>
-                          ) : (
-                            <span className="text-[11px] text-slate-400">Standard MRP</span>
-                          )}
                           <Badge tone={brand.isActive ? "success" : "neutral"}>
                             {brand.isActive ? "Active" : "Inactive"}
                           </Badge>
@@ -699,12 +618,11 @@ export function BrandsAdminPage() {
               <b className="text-slate-800">{filteredBrands.length}</b> brands
               {filteredBrands.length !== brands.length ? ` (filtered from ${brands.length})` : ""}
             </span>
-            {searchQuery || filterDiscount !== "all" || filterStatus !== "all" ? (
+            {searchQuery || filterStatus !== "all" ? (
               <button
                 type="button"
                 onClick={() => {
                   setSearchQuery("")
-                  setFilterDiscount("all")
                   setFilterStatus("all")
                   setCurrentPage(1)
                 }}

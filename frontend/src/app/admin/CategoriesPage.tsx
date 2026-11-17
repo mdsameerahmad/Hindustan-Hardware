@@ -42,6 +42,7 @@ export function CategoriesPage() {
     parentId: "",
     sortOrder: 0,
     isActive: true,
+    discountPercentage: 0,
   }
 
   // Active view: "list" (matches AdminProductsPage table/cards) or "editor" (matches ProductFormPage layout)
@@ -53,6 +54,7 @@ export function CategoriesPage() {
   const [convertingImage, setConvertingImage] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all")
+  const [filterDiscount, setFilterDiscount] = useState<"all" | "discounted" | "no-discount">("all")
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
@@ -83,10 +85,14 @@ export function CategoriesPage() {
         if (filterStatus === "active" && !cat.isActive) return false
         if (filterStatus === "inactive" && cat.isActive) return false
 
+        const disc = Number((cat as any).discountPercentage ?? (cat as any).discount_percentage ?? 0)
+        if (filterDiscount === "discounted" && disc <= 0) return false
+        if (filterDiscount === "no-discount" && disc > 0) return false
+
         return true
       })
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-  }, [items, searchQuery, filterStatus])
+  }, [items, searchQuery, filterStatus, filterDiscount])
 
   const totalPages = Math.max(1, Math.ceil(filteredCategories.length / pageSize))
   const safePage = Math.min(currentPage, totalPages)
@@ -120,6 +126,7 @@ export function CategoriesPage() {
       parentId: cat.parentId || cat.parent_id || "",
       sortOrder: cat.sortOrder ?? cat.sort_order ?? 0,
       isActive: cat.isActive !== false,
+      discountPercentage: Number(cat.discountPercentage ?? cat.discount_percentage ?? 0),
     })
     setImageFile(null)
     setFormError(null)
@@ -185,6 +192,7 @@ export function CategoriesPage() {
       parentId: form.parentId.trim() || null,
       sortOrder: Number(form.sortOrder) || 0,
       isActive: form.isActive,
+      discountPercentage: Number(form.discountPercentage) || 0,
     }
 
     try {
@@ -302,6 +310,44 @@ export function CategoriesPage() {
                       placeholder="e.g. Professional-grade CPVC piping, elbows, tees, unions, and industrial hardware supplies..."
                     />
                   </label>
+                </div>
+              </div>
+            </FormCard>
+
+            <FormCard title="Bulk Category Discount Rate">
+              <div className="space-y-4">
+                <AdminField
+                  label="Discount Percentage (%)"
+                  type="number"
+                  min="0"
+                  max="90"
+                  step="0.5"
+                  value={String(form.discountPercentage ?? 0)}
+                  onChange={(value) =>
+                    setForm({ ...form, discountPercentage: Math.max(0, Math.min(90, Number(value) || 0)) })
+                  }
+                  placeholder="e.g. 15 for 15% off"
+                />
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs text-slate-500 mr-1">Quick presets:</span>
+                  {[0, 10, 15, 20, 25, 30, 40].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setForm({ ...form, discountPercentage: preset })}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-md border transition ${
+                        Number(form.discountPercentage) === preset
+                          ? "bg-amber-500 text-white border-amber-600 shadow-xs"
+                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      {preset === 0 ? "0% (No discount)" : `${preset}%`}
+                    </button>
+                  ))}
+                </div>
+                <div className="rounded-lg bg-amber-50/70 border border-amber-200/80 p-3 text-xs text-amber-900 leading-relaxed">
+                  <p className="font-semibold mb-0.5">Automated Selling Price Sync</p>
+                  Applying a discount percentage here recalculates the selling price (Base Price) against MRP (Compare-at Price) across all products in this category upon saving. Products with an individual discount rate set in their own specifications will keep their custom override.
                 </div>
               </div>
             </FormCard>
@@ -432,6 +478,16 @@ export function CategoriesPage() {
               <option value="inactive">Inactive Only</option>
             </select>
 
+            <select
+              className="field flex-1 sm:w-auto text-xs sm:text-sm"
+              value={filterDiscount}
+              onChange={(e) => setFilterDiscount(e.target.value as any)}
+            >
+              <option value="all">All Discounts</option>
+              <option value="discounted">Discounted Only</option>
+              <option value="no-discount">No Discount</option>
+            </select>
+
             <Button variant="ghost" onClick={refetch} title="Refresh categories" className="p-2 shrink-0">
               <RefreshCcw size={15} />
             </Button>
@@ -464,6 +520,7 @@ export function CategoriesPage() {
                   <tr>
                     <th>Category & Scope</th>
                     <th>Catalog Slug</th>
+                    <th>Bulk Discount %</th>
                     <th>Sort Order</th>
                     <th>Storefront Status</th>
                     <th>Actions</th>
@@ -497,6 +554,15 @@ export function CategoriesPage() {
                       </td>
                       <td className="font-mono text-xs text-slate-600">
                         /{item.slug}
+                      </td>
+                      <td>
+                        {Number((item as any).discountPercentage ?? (item as any).discount_percentage ?? 0) > 0 ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                            {Number((item as any).discountPercentage ?? (item as any).discount_percentage)}% OFF
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400 font-medium">None (0%)</span>
+                        )}
                       </td>
                       <td>
                         <span className="font-mono text-xs text-slate-700 font-semibold">
@@ -566,6 +632,11 @@ export function CategoriesPage() {
                         <Badge tone={item.isActive ? "success" : "neutral"}>
                           {item.isActive ? "Active" : "Inactive"}
                         </Badge>
+                        {Number((item as any).discountPercentage ?? (item as any).discount_percentage ?? 0) > 0 && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                            {Number((item as any).discountPercentage ?? (item as any).discount_percentage)}% OFF
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

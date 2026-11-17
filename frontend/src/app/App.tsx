@@ -27,7 +27,7 @@ import {
     BrandsPage, CartPage,
     CheckoutPage, ComparePage, ContactPage, HomePage, LiveTrackingDetailPage, OrderDetailPage,
     OrdersPage,
-    OrderSuccessPage, ProductDetailPage, ProductsPage, SharedTrackingPage, StorefrontLayout, TrackingPage, WishlistPage
+    OrderSuccessPage, ProductDetailPage, ProductsPage, ReturnRefundPage, SharedTrackingPage, StorefrontLayout, TermsPage, TrackingPage, WishlistPage
 } from "./user"
 
 function RouteErrorBoundary() {
@@ -114,6 +114,11 @@ const router = createBrowserRouter([
       { path: "about", Component: AboutPage },
       { path: "contact", Component: ContactPage },
       { path: "bulk-order", element: <ContactPage bulk /> },
+      { path: "terms", Component: TermsPage },
+      { path: "terms-and-conditions", Component: TermsPage },
+      { path: "return-policy", Component: ReturnRefundPage },
+      { path: "return-and-refund", Component: ReturnRefundPage },
+      { path: "returns", Component: ReturnRefundPage },
       // Customer Protected Routes
       {
         Component: CustomerRoute,

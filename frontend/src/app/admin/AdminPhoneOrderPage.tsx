@@ -620,7 +620,7 @@ export function AdminPhoneOrderPage() {
             />
             <input
               className="field h-10 w-full !pl-9 text-xs"
-              placeholder="Search products by name, SKU or brand..."
+              placeholder="Search products by name, Item Code or brand..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />

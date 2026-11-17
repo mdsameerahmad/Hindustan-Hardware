@@ -109,9 +109,12 @@ export function CartPage() {
                   className="h-20 w-20 sm:h-24 sm:w-24 shrink-0 rounded-lg object-contain bg-slate-50 p-1 border border-slate-100"
                 />
                 <div className="sm:hidden flex-1 min-w-0">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                    {product.brandName || (typeof product.brand === "string" ? product.brand : (product.brand as any)?.name) || "Hindustan Hardware"}
+                  </div>
                   <Link
                     to={`/product/${product.id}`}
-                    className="font-extrabold text-sm text-ink hover:text-brand line-clamp-2"
+                    className="font-extrabold text-sm text-ink hover:text-brand line-clamp-2 mt-0.5"
                   >
                     {product.name}
                   </Link>
@@ -131,9 +134,12 @@ export function CartPage() {
                 </div>
               </div>
               <div className="hidden sm:block">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                  {product.brandName || (typeof product.brand === "string" ? product.brand : (product.brand as any)?.name) || "Hindustan Hardware"}
+                </div>
                 <Link
                   to={`/product/${product.id}`}
-                  className="font-extrabold text-ink hover:text-brand"
+                  className="font-extrabold text-ink hover:text-brand mt-0.5 block"
                 >
                   {product.name}
                 </Link>

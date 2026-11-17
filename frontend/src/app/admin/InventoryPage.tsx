@@ -17,6 +17,7 @@ import { type Product } from "../data"
 import { ProductImage } from "../features/components/ProductImage"
 import { useAdminInventory } from "../features/hooks/useAdminInventory"
 import { useAdminProducts } from "../features/hooks/useAdminProducts"
+import { useAdminCategories } from "../features/hooks/useAdminCategories"
 import { useStore } from "../store"
 import { transformBackendProduct } from "../utils/productTransform"
 
@@ -41,8 +42,10 @@ function MiniStat({
 }
 
 export function InventoryPage() {
-  const { products, pagination: productPagination, setFilters: setProductFilters, loading: productsLoading, refetch: refetchProducts } = useAdminProducts({ page: 1, limit: 10 })
-  const { movements, pagination: movPagination, loading: movLoading, error: movError, actionLoading, adjustStock, fetchPage: fetchMovPage } = useAdminInventory()
+  const [selectedCategory, setSelectedCategory] = useState<string>("")
+  const { categories, loading: categoriesLoading } = useAdminCategories()
+  const { products, pagination: productPagination, setFilters: setProductFilters, loading: productsLoading, refetch: refetchProducts } = useAdminProducts({ page: 1, limit: 10, category: undefined })
+  const { actionLoading, adjustStock } = useAdminInventory()
   const { notify } = useStore()
   const [searchParams] = useSearchParams()
   const showingLowStock = searchParams.get("filter") === "low-stock"
@@ -57,14 +60,23 @@ export function InventoryPage() {
   const [adjustReason, setAdjustReason] = useState<string>("")
   const [adjustError, setAdjustError] = useState<string | null>(null)
 
+  const handleCategoryChange = (catIdOrSlug: string) => {
+    setSelectedCategory(catIdOrSlug)
+    setProductFilters((curr) => ({
+      ...curr,
+      category: catIdOrSlug.trim() || undefined,
+      page: 1,
+    }))
+  }
+
   const fetchAllLowStockProducts = useCallback(async () => {
     setLowStockLoading(true)
     setLowStockError(null)
     try {
-      const firstPage = await catalogueApi.listProducts({ page: 1, limit: 100 })
+      const firstPage = await catalogueApi.listProducts({ page: 1, limit: 100, category: selectedCategory.trim() || undefined })
       const pages = [firstPage]
       for (let page = 2; page <= firstPage.pagination.totalPages; page += 1) {
-        pages.push(await catalogueApi.listProducts({ page, limit: 100 }))
+        pages.push(await catalogueApi.listProducts({ page, limit: 100, category: selectedCategory.trim() || undefined }))
       }
 
       setLowStockProducts(
@@ -79,7 +91,7 @@ export function InventoryPage() {
     } finally {
       setLowStockLoading(false)
     }
-  }, [])
+  }, [selectedCategory])
 
   useEffect(() => {
     if (showingLowStock) void fetchAllLowStockProducts()
@@ -155,7 +167,6 @@ export function InventoryPage() {
               variant="ghost"
               onClick={() => {
                 refetchProducts()
-                fetchMovPage(1)
                 if (showingLowStock) void fetchAllLowStockProducts()
               }}
               title="Refresh inventory"
@@ -185,9 +196,38 @@ export function InventoryPage() {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border bg-white shadow-xs">
-        <div className="border-b border-border p-4 sm:p-5">
-          <h2 className="text-base sm:text-lg font-black text-slate-900">Current Stock by Product</h2>
-          <p className="text-xs text-slate-500">Live authoritative inventory levels across catalog products</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border p-4 sm:p-5">
+          <div>
+            <h2 className="text-base sm:text-lg font-black text-slate-900">Current Stock by Product</h2>
+            <p className="text-xs text-slate-500">Live authoritative inventory levels across catalog products</p>
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <span className="text-xs font-bold text-slate-600 whitespace-nowrap">Filter by Category:</span>
+            <select
+              className="field flex-1 sm:w-64 text-xs sm:text-sm font-medium"
+              value={selectedCategory}
+              onChange={(e) => handleCategoryChange(e.target.value)}
+              disabled={categoriesLoading}
+            >
+              <option value="">All Categories ({categories.length})</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+            {selectedCategory && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleCategoryChange("")}
+                className="text-xs px-2.5 py-1.5 shrink-0"
+              >
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
 
         {productsLoading || (showingLowStock && lowStockLoading) ? (
@@ -403,127 +443,6 @@ export function InventoryPage() {
           </>
         )}
       </div>
-
-      <section className="mt-8 overflow-hidden rounded-xl border border-border bg-white shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border p-4 sm:p-5">
-          <div>
-            <h2 className="text-base sm:text-lg font-black text-slate-900">Inventory movement history</h2>
-            <p className="text-xs text-slate-500">Authoritative audit trail of stock adjustments, orders, and restocks</p>
-          </div>
-          <Button variant="ghost" onClick={() => fetchMovPage(movPagination.page)} title="Refresh history" className="self-start sm:self-auto">
-            <RefreshCcw size={15} />
-          </Button>
-        </div>
-
-        {movError && (
-          <div className="m-4 rounded-lg bg-red-50 p-4 border border-red-200 text-sm text-red-700">
-            {movError}
-          </div>
-        )}
-
-        {movLoading ? (
-          <div className="flex h-48 flex-col items-center justify-center gap-3">
-            <Loader2 className="h-7 w-7 animate-spin text-brand" />
-            <p className="text-sm font-medium text-slate-500">Querying movement history...</p>
-          </div>
-        ) : movements.length === 0 ? (
-          <div className="py-12 text-center text-sm text-slate-400">
-            No inventory movement records found yet.
-          </div>
-        ) : (
-          <>
-            {/* Desktop & Tablet Table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="data-table w-full">
-                <thead>
-                  <tr>
-                    <th>Timestamp</th>
-                    <th>Product</th>
-                    <th>Movement Type</th>
-                    <th>Quantity Delta</th>
-                    <th>Resulting Stock</th>
-                    <th>Reason / Reference</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {movements.map((mov) => (
-                    <tr key={mov.id}>
-                      <td className="text-xs text-slate-500">
-                        {new Date(mov.createdAt).toLocaleString()}
-                      </td>
-                      <td>
-                        <b className="text-slate-900">{mov.productName || "Product"}</b>
-                      </td>
-                      <td>
-                        <Badge tone={mov.movementType.includes("cancellation") || mov.movementType === "restock" ? "success" : mov.movementType.includes("deduction") ? "warning" : "blue"}>
-                          {mov.movementType}
-                        </Badge>
-                      </td>
-                      <td>
-                        <b className={mov.quantityChange > 0 ? "text-emerald-700" : "text-rose-700"}>
-                          {mov.quantityChange > 0 ? `+${mov.quantityChange}` : mov.quantityChange}
-                        </b>
-                      </td>
-                      <td>
-                        <span className="font-semibold text-slate-700">{mov.quantityAfter}</span>
-                      </td>
-                      <td className="text-xs text-slate-600 max-w-xs truncate" title={mov.reason}>
-                        {mov.reason}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Card List */}
-            <div className="block md:hidden divide-y divide-border">
-              {movements.map((mov) => (
-                <div key={mov.id} className="p-3.5 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <b className="text-xs font-bold text-slate-900 leading-snug">{mov.productName || "Product"}</b>
-                    <Badge tone={mov.movementType.includes("cancellation") || mov.movementType === "restock" ? "success" : mov.movementType.includes("deduction") ? "warning" : "blue"}>
-                      {mov.movementType}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500 text-[11px]">{new Date(mov.createdAt).toLocaleString()}</span>
-                    <span className="font-bold">
-                      Delta: <b className={mov.quantityChange > 0 ? "text-emerald-700" : "text-rose-700"}>{mov.quantityChange > 0 ? `+${mov.quantityChange}` : mov.quantityChange}</b> (Stock: {mov.quantityAfter})
-                    </span>
-                  </div>
-                  {mov.reason && (
-                    <p className="text-[11px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">{mov.reason}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border px-4 py-3 sm:px-5 sm:py-3 text-xs text-slate-500">
-          <span>Showing {movements.length} of {movPagination.total} movement records</span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!movPagination.hasPrevPage || movLoading}
-              onClick={() => fetchMovPage(movPagination.page - 1)}
-            >
-              Previous
-            </Button>
-            <span className="font-semibold text-slate-700">Page {movPagination.page} of {movPagination.totalPages}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!movPagination.hasNextPage || movLoading}
-              onClick={() => fetchMovPage(movPagination.page + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      </section>
 
       {adjustModalProduct && (
         <div className="modal-backdrop">
