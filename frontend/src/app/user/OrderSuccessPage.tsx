@@ -1,4 +1,5 @@
-import { CheckCircle2 } from "lucide-react"
+import { Check, CheckCircle2, Copy, ExternalLink, QrCode, Smartphone } from "lucide-react"
+import { useState } from "react"
 import { Link, useLocation, useParams } from "react-router"
 import { Badge, Button, formatPrice } from "../components"
 import { DeliveryOtpCard } from "../components/DeliveryOtpCard"
@@ -6,16 +7,44 @@ import { DeliveryOtpCard } from "../components/DeliveryOtpCard"
 export function OrderSuccessPage() {
   const { id } = useParams()
   const location = useLocation()
+  const [copiedUpi, setCopiedUpi] = useState(false)
+  const [copiedPhone, setCopiedPhone] = useState(false)
 
   // Retrieve authoritative order returned by backend checkout response
-  const routeOrder = (location.state as { order?: any })?.order
+  const stateData = location.state as { order?: any; chosenPaymentMethod?: "cod" | "upi" } | undefined
+  const routeOrder = stateData?.order
+  const chosenPaymentMethod = stateData?.chosenPaymentMethod
 
   const orderNumber = routeOrder?.orderNumber || routeOrder?.id || id
   const totalAmount = routeOrder?.totalPayable ?? routeOrder?.totalAmount ?? 0
   const deliveryFee = routeOrder?.deliveryFee ?? 0
-  const paymentMethod = routeOrder?.paymentMethod === "cod" ? "Cash on Delivery" : (routeOrder?.paymentMethod || "Cash on Delivery")
+  const paymentMethod = chosenPaymentMethod === "upi"
+    ? "Online via UPI"
+    : routeOrder?.paymentMethod === "cod"
+    ? "Cash on Delivery"
+    : (routeOrder?.paymentMethod || "Cash on Delivery")
   const paymentStatus = routeOrder?.paymentStatus || "pending"
   const orderStatus = routeOrder?.status || "pending"
+
+  const UPI_ID = "eazypay.2fw1ea1efmkfv8f@icici"
+  const UPI_PHONE = "8935926021"
+  const PAYEE_NAME = "Hindustan Hardware"
+
+  const upiIntentUri = `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(PAYEE_NAME)}&am=${Number(totalAmount).toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Order ${orderNumber}`)}`
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(upiIntentUri)}`
+
+  const copyToClipboard = (text: string, type: "upi" | "phone") => {
+    try {
+      navigator.clipboard.writeText(text)
+      if (type === "upi") {
+        setCopiedUpi(true)
+        setTimeout(() => setCopiedUpi(false), 2000)
+      } else {
+        setCopiedPhone(true)
+        setTimeout(() => setCopiedPhone(false), 2000)
+      }
+    } catch {}
+  }
 
   // Shipping address snapshot
   const rawAddr = routeOrder?.shippingAddress
@@ -58,7 +87,9 @@ export function OrderSuccessPage() {
           </div>
           <div className="summary-line mt-2">
             <span>Payment Status</span>
-            <b className="capitalize text-amber-700">{paymentStatus.replace(/_/g, " ")} (Pay upon delivery)</b>
+            <b className="capitalize text-amber-700">
+              {chosenPaymentMethod === "upi" ? "Pending UPI Transfer Verification" : `${paymentStatus.replace(/_/g, " ")} (Pay upon delivery)`}
+            </b>
           </div>
           <div className="summary-line mt-2">
             <span>Delivery Fee</span>
@@ -88,6 +119,66 @@ export function OrderSuccessPage() {
                     </span>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* If UPI Payment was chosen, show quick action & QR */}
+          {chosenPaymentMethod === "upi" && (
+            <div className="mt-5 border-t border-border pt-5 space-y-3.5">
+              <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="h-5 w-5 text-amber-700" />
+                  <b className="text-sm font-bold text-slate-900">Complete Your UPI Payment</b>
+                </div>
+
+                {/* Direct App Open Button for Mobile */}
+                <div className="block sm:hidden">
+                  <a
+                    href={upiIntentUri}
+                    className="flex items-center justify-center gap-2 w-full rounded-xl bg-black text-[#D4AF37] font-bold text-sm py-2.5 px-4 shadow-sm"
+                  >
+                    <Smartphone size={16} />
+                    <span>Open PhonePe / GPay / Paytm ({formatPrice(totalAmount)})</span>
+                    <ExternalLink size={14} className="opacity-70" />
+                  </a>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block uppercase">UPI ID</span>
+                      <code className="font-mono font-bold text-slate-800">{UPI_ID}</code>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(UPI_ID, "upi")}
+                      className="p-1 text-slate-500 hover:text-amber-700"
+                    >
+                      {copiedUpi ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block uppercase">Phone Number</span>
+                      <span className="font-bold text-slate-800">+91 {UPI_PHONE}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(UPI_PHONE, "phone")}
+                      className="p-1 text-slate-500 hover:text-amber-700"
+                    >
+                      {copiedPhone ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-slate-200">
+                  <img src={qrCodeUrl} alt="UPI QR" className="h-16 w-16 object-contain shrink-0" />
+                  <p className="text-[11px] text-slate-600">
+                    Scan with any UPI app to pay <b>{formatPrice(totalAmount)}</b>. Include order #{orderNumber} in remarks.
+                  </p>
+                </div>
               </div>
             </div>
           )}

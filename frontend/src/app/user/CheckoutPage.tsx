@@ -4,9 +4,13 @@ import {
   ArrowRight,
   Banknote,
   Check,
+  Copy,
+  ExternalLink,
   Loader2,
   Lock,
+  QrCode,
   ShieldCheck,
+  Smartphone,
 } from "lucide-react"
 import { useState } from "react"
 import { Link, useNavigate } from "react-router"
@@ -72,6 +76,14 @@ export function CheckoutPage() {
     validateCartAndInventory,
     submitOrder,
   } = useCheckout()
+
+  const [paymentChoice, setPaymentChoice] = useState<"cod" | "upi">("cod")
+  const [copiedUpi, setCopiedUpi] = useState(false)
+  const [copiedPhone, setCopiedPhone] = useState(false)
+
+  const UPI_ID = "eazypay.2fw1ea1efmkfv8f@icici"
+  const UPI_PHONE = "8935926021"
+  const PAYEE_NAME = "Hindustan Hardware"
 
   // Auto-select default address if user has saved addresses
   useState(() => {
@@ -170,14 +182,33 @@ export function CheckoutPage() {
 
     const order = await submitOrder(selectedSnapshot)
     if (order) {
-      notify("Order placed successfully via Cash on Delivery")
+      notify(paymentChoice === "upi" ? "Order placed successfully! Complete your UPI payment." : "Order placed successfully via Cash on Delivery")
       // Clear or refresh the authenticated cart from backend (which backend wiped)
       await refreshBackendCart()
       navigate(`/order-success/${order.id}`, {
-        state: { order },
+        state: { order, chosenPaymentMethod: paymentChoice },
       })
     }
   }
+
+  const copyToClipboard = (text: string, type: "upi" | "phone") => {
+    try {
+      navigator.clipboard.writeText(text)
+      if (type === "upi") {
+        setCopiedUpi(true)
+        setTimeout(() => setCopiedUpi(false), 2000)
+      } else {
+        setCopiedPhone(true)
+        setTimeout(() => setCopiedPhone(false), 2000)
+      }
+    } catch {
+      // ignore clipboard error
+    }
+  }
+
+  const payableAmount = validationResult?.totalAmount ?? cartTotal
+  const upiIntentUri = `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(PAYEE_NAME)}&am=${payableAmount.toFixed(2)}&cu=INR&tn=${encodeURIComponent("Hindustan Hardware Order")}`
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(upiIntentUri)}`
   const displayAddress = selectedSavedObj
     ? {
         name: selectedSavedObj.recipient_name,
@@ -390,35 +421,168 @@ export function CheckoutPage() {
             </>
           )}
 
-          {/* STEP 3: Payment Method (Cash on Delivery ONLY) */}
+          {/* STEP 3: Payment Method (Cash on Delivery or Instant UPI Online) */}
           {step === 3 && (
             <>
               <h2 className="text-xl font-black">Payment method</h2>
               <p className="mt-2 text-sm text-slate-500">
-                Hindustan Hardware strictly operates on verified Cash on Delivery (COD). Pay in cash upon physical receipt of goods at your delivery address.
+                Choose your preferred payment method. You can pay securely online via UPI or choose Cash on Delivery at your doorstep.
               </p>
 
-              <div className="mt-6 space-y-3">
-                <label className="flex cursor-pointer items-start gap-4 rounded-xl border-2 border-brand bg-blue-50/50 p-4 shadow-sm">
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    checked={true}
-                    readOnly
-                    className="mt-1 text-brand"
-                  />
-                  <Banknote className="h-6 w-6 text-brand shrink-0 mt-0.5" />
-                  <div>
-                    <b className="block text-ink text-base">Cash on Delivery (COD)</b>
-                    <p className="mt-0.5 text-xs text-slate-600 leading-relaxed">
-                      Pay cash upon delivery. Inspect pipes, fittings, and sanitary ware at your doorstep before payment.
-                    </p>
-                    <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-                      <ShieldCheck size={16} />
-                      Zero advance fees · Genuine goods guarantee
+              <div className="mt-6 space-y-3.5">
+                {/* Instant UPI Online Option */}
+                <div
+                  onClick={() => setPaymentChoice("upi")}
+                  className={`cursor-pointer rounded-2xl border-2 p-4 sm:p-5 transition-all ${
+                    paymentChoice === "upi"
+                      ? "border-[#D4AF37] bg-amber-50/40 shadow-sm"
+                      : "border-slate-200 bg-white hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex items-start gap-3.5">
+                    <input
+                      type="radio"
+                      name="paymentChoice"
+                      checked={paymentChoice === "upi"}
+                      onChange={() => setPaymentChoice("upi")}
+                      className="mt-1 text-[#D4AF37] focus:ring-[#D4AF37]"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <Smartphone className="h-5 w-5 text-amber-600 shrink-0" />
+                          <b className="text-ink text-base">Pay Online via UPI (PhonePe / GPay / Paytm)</b>
+                        </div>
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 uppercase tracking-wide">
+                          Instant App Open
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                        Tap on mobile to open PhonePe, Google Pay, or Paytm directly with the amount pre-filled, or scan QR code.
+                      </p>
+
+                      {/* Expanded UPI Details when selected */}
+                      {paymentChoice === "upi" && (
+                        <div className="mt-4 pt-4 border-t border-amber-200/60 space-y-3.5">
+                          {/* Direct Mobile UPI Intent Button (Opens phone's installed UPI apps) */}
+                          <div className="block sm:hidden">
+                            <a
+                              href={upiIntentUri}
+                              className="flex items-center justify-center gap-2 w-full rounded-xl bg-[#0B0B0B] hover:bg-black text-[#D4AF37] font-bold text-sm py-3 px-4 shadow-sm transition active:scale-[0.99]"
+                            >
+                              <Smartphone size={18} />
+                              <span>Pay {formatPrice(payableAmount)} via Installed UPI App</span>
+                              <ExternalLink size={14} className="opacity-70" />
+                            </a>
+                            <p className="text-[11px] text-slate-500 text-center mt-1.5">
+                              Tapping opens PhonePe, Google Pay, Paytm, or BHIM directly
+                            </p>
+                          </div>
+
+                          {/* Desktop QR Code & App details */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                                Payee UPI ID
+                              </span>
+                              <div className="flex items-center justify-between gap-2">
+                                <code className="text-xs font-mono font-bold text-slate-800 select-all break-all">
+                                  {UPI_ID}
+                                </code>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    copyToClipboard(UPI_ID, "upi")
+                                  }}
+                                  className="shrink-0 p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-md transition"
+                                  title="Copy UPI ID"
+                                >
+                                  {copiedUpi ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                                Online Pay Phone Number
+                              </span>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-bold text-slate-800">
+                                  +91 {UPI_PHONE}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    copyToClipboard(UPI_PHONE, "phone")
+                                  }}
+                                  className="shrink-0 p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-md transition"
+                                  title="Copy Phone Number"
+                                >
+                                  {copiedPhone ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Dynamic QR Code display */}
+                          <div className="flex flex-col sm:flex-row items-center gap-4 rounded-xl border border-amber-200/80 bg-white p-3.5">
+                            <div className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-2xs shrink-0">
+                              <img
+                                src={qrCodeUrl}
+                                alt="UPI Payment QR Code"
+                                className="h-28 w-28 sm:h-24 sm:w-24 object-contain"
+                              />
+                            </div>
+                            <div className="text-xs text-slate-600 space-y-1 text-center sm:text-left">
+                              <p className="font-bold text-slate-900 flex items-center justify-center sm:justify-start gap-1.5">
+                                <QrCode size={14} className="text-amber-700" />
+                                Scan with any UPI app
+                              </p>
+                              <p className="text-[11px] text-slate-500">
+                                Open Google Pay, PhonePe, Paytm, or BHIM on your device and scan this QR code to complete the payment of <b>{formatPrice(payableAmount)}</b>.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </label>
+                </div>
+
+                {/* Cash on Delivery Option */}
+                <div
+                  onClick={() => setPaymentChoice("cod")}
+                  className={`cursor-pointer rounded-2xl border-2 p-4 sm:p-5 transition-all ${
+                    paymentChoice === "cod"
+                      ? "border-brand bg-blue-50/40 shadow-sm"
+                      : "border-slate-200 bg-white hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex items-start gap-3.5">
+                    <input
+                      type="radio"
+                      name="paymentChoice"
+                      checked={paymentChoice === "cod"}
+                      onChange={() => setPaymentChoice("cod")}
+                      className="mt-1 text-brand focus:ring-brand"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <Banknote className="h-5 w-5 text-brand shrink-0" />
+                        <b className="text-ink text-base">Cash on Delivery (COD)</b>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                        Pay cash upon delivery. Inspect pipes, fittings, and sanitary ware at your doorstep before payment.
+                      </p>
+                      <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                        <ShieldCheck size={16} />
+                        Zero advance fees · Genuine goods guarantee
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {submissionError && (
@@ -444,6 +608,11 @@ export function CheckoutPage() {
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Placing Order Safely...
+                    </>
+                  ) : paymentChoice === "upi" ? (
+                    <>
+                      Confirm & Place Order (UPI Online)
+                      <ArrowRight size={16} />
                     </>
                   ) : (
                     <>
@@ -478,7 +647,9 @@ export function CheckoutPage() {
             </div>
             <div className="summary-line">
               <span>Payment mode</span>
-              <span className="text-white font-medium">Cash on Delivery</span>
+              <span className="text-white font-medium">
+                {paymentChoice === "upi" ? "Online via UPI" : "Cash on Delivery"}
+              </span>
             </div>
           </div>
 
@@ -488,8 +659,17 @@ export function CheckoutPage() {
           </div>
 
           <div className="mt-5 rounded-lg bg-white/10 p-3 text-xs leading-relaxed text-slate-300">
-            <p className="font-bold text-white mb-1">COD Payment Notice:</p>
-            Payment status remains <b>Pending</b> until our store driver inspects the products with you and receives cash.
+            {paymentChoice === "upi" ? (
+              <>
+                <p className="font-bold text-white mb-1">Online UPI Payment:</p>
+                Open PhonePe / Google Pay / Paytm on your phone to complete payment directly to <b>{UPI_ID}</b>.
+              </>
+            ) : (
+              <>
+                <p className="font-bold text-white mb-1">COD Payment Notice:</p>
+                Payment status remains <b>Pending</b> until our store driver inspects the products with you and receives cash.
+              </>
+            )}
           </div>
         </aside>
       </div>
