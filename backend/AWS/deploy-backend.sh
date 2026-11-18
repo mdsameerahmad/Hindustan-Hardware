@@ -20,8 +20,12 @@ mv "$release_dir/dist.new" "$release_dir/dist"
 cp "$artifact_dir/package.json" "$artifact_dir/package-lock.json" "$release_dir/"
 cd "$release_dir"
 npm ci --omit=dev --no-audit --no-fund
-NODE_ENV=production pm2 restart hindustan-hardware-api --update-env
-health_url="https://api.hindustan-hardware.in/api/v1/health/ready"
+if pm2 describe hindustan-hardware-api >/dev/null 2>&1; then
+  NODE_ENV=production pm2 restart hindustan-hardware-api --update-env
+else
+  NODE_ENV=production pm2 start "$release_dir/dist/server.js" --name hindustan-hardware-api
+fi
+health_url="http://127.0.0.1:5000/api/v1/health/ready"
 for attempt in $(seq 1 20); do
   if curl --fail --silent --show-error --max-time 10 "$health_url"; then
     echo
