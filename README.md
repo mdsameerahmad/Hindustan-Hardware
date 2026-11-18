@@ -1,223 +1,129 @@
-# Hindustan Hardware
+# Hindustan Hardware & Sanitary
 
-End-to-end architecture and operating guide for the Hindustan Hardware & Sanitary storefront. Application source code is in [`Hindustan-Hardware/`](./Hindustan-Hardware/); the frontend and backend have their own detailed guides:
+A full-stack e-commerce and delivery operations platform for a hardware and sanitaryware retailer. The application brings the customer storefront, store administration, and delivery-partner workflow together around one API and a shared PostgreSQL data model.
 
-- [Frontend README](./Hindustan-Hardware/frontend/Readme.md)
-- [Backend README](./Hindustan-Hardware/backend/README.md)
-- [Frontend deployment guide](./Hindustan-Hardware/frontend/AMPLIFY_DEPLOYMENT.md)
-- [Frontend browser testing guide](./Hindustan-Hardware/frontend/TESTING.md)
-- [Backend verification guide](./Hindustan-Hardware/backend/TESTING.md)
+## What the application does
 
-## Product overview
+Customers can browse and compare products, manage a cart and wishlist, save delivery addresses, place orders, and follow payment and delivery progress. Store staff manage the catalogue, stock, orders, customers, delivery assignments, and payment collection. Delivery partners use a dedicated portal to work assigned orders, share GPS location, navigate to the customer, and verify handoff with an order OTP.
 
-The application supports a hardware and sanitary products storefront, authenticated customer accounts, order placement, admin operations, and a delivery-partner portal with live order tracking. Customers can browse products, manage a cart, place cash-on-delivery orders, and follow order/payment progress. Administrators manage the catalogue, inventory, orders, delivery assignment, payment collection, and the store-wide delivery payment QR. Delivery partners view assigned orders, report GPS location, navigate to the customer, and display the QR when collecting payment.
+The core feature is the connected order lifecycle: catalogue and inventory feed checkout; checkout records an authoritative order and price snapshot; staff assign delivery; the partner reports location and confirms handoff; customer and staff views receive tracking and status updates.
 
-The frontend is a browser-based single-page application. The backend is a versioned REST API and Socket.IO server. Supabase provides authentication, PostgreSQL, and object storage. Road routing and address search use external providers where configured.
+## Stack
+
+| Area | Technologies |
+| --- | --- |
+| Web application | React 19, TypeScript, Vite, React Router 7, Tailwind CSS 4 |
+| Maps and live updates | Leaflet, browser geolocation, Socket.IO client |
+| API | Node.js 22, Express 4, TypeScript, REST API under `/api/v1` |
+| Data and identity | Supabase Auth, Supabase PostgreSQL, SQL migrations, Supabase Storage |
+| API validation and security | Zod, Helmet, CORS allowlist, rate limiting, role-based authorization |
+| Images and catalogue tools | Multer, Sharp, XLSX catalogue import/export utilities |
+| Backend tests | Vitest, Supertest |
+| Frontend tests | Playwright end-to-end test setup |
+| Hosting and delivery | AWS Amplify frontend, AWS EC2 backend, Nginx, PM2, GitHub Actions self-hosted runner |
+
+## Product capabilities
+
+### Customer storefront
+
+- Browse, search, filter, and view products, categories, brands, stock, images, and discounts.
+- Compare products and view alternatives where catalogue comparison data is available.
+- Use a guest cart or a signed-in persistent cart; merge guest cart items after authentication.
+- Save addresses and products to a wishlist.
+- Check delivery coverage and applicable fees during checkout.
+- Place orders and view order history, item and price snapshots, payment status, collected amount, outstanding balance, and collection history.
+- View the delivery OTP on the order page and follow delivery status, map location, route, and best-effort ETA.
+- Share a limited-access tracking link where enabled.
+
+### Admin and staff operations
+
+- Manage products, images, categories, brands, inventory, and customers.
+- Review and manage orders, cancel eligible orders, and assign delivery partners.
+- Create phone orders and record full or partial cash-on-delivery collections.
+- Review inventory movements and audit records.
+- Configure the store-wide payment QR image displayed in the delivery workflow.
+- Configure delivery coverage and fees through the operational settings supported by the backend.
+
+### Delivery partner portal
+
+- View assigned orders and update the delivery workflow.
+- Share validated GPS updates while on delivery; current and historical locations are stored.
+- See customer destination, road route, and estimated arrival information when routing data is available.
+- Verify the customer handoff with the order's six-digit OTP. The backend rejects incorrect, expired, or locked OTP verification; only successful verification completes delivery.
+- View the store payment QR when collecting payment.
+
+## Engineering highlights
+
+- **Server-owned checkout:** the backend validates cart, availability, delivery, and prices. It persists order totals and line-item price snapshots so later catalogue edits do not silently alter an existing order.
+- **Transactional order operations:** order creation, inventory effects, cancellation, delivery verification, and payment collection are coordinated through backend services and database functions/constraints where required.
+- **Authorization at the API boundary:** Supabase access tokens are verified on protected requests. Admin, staff, customer, and delivery-partner capabilities are separated by server-side role and resource-ownership checks; UI route guards are not treated as security controls.
+- **Safer delivery OTPs:** OTPs are generated on the backend, stored as a keyed digest for verification, and encrypted for retrieval by the owning customer. Verification is atomic, attempt-limited, and restricted to the assigned delivery workflow.
+- **Scoped live tracking:** Socket.IO delivery rooms authorize the customer, assigned partner, or permitted staff before subscription. Location and status events are broadcast after the backend accepts and persists the update.
+- **Validated and observable API:** Zod schemas validate inputs; shared middleware handles request IDs, structured logging, rate limiting, response formatting, and centralized error handling. Health and dependency-readiness endpoints support operations.
+- **Database evolution:** ordered SQL files in `backend/migrations/` describe schema and database-function changes. They are applied explicitly to Supabase and are not automatically run by application startup or the deploy workflow.
+- **Practical release flow:** GitHub Actions builds the backend on a hosted runner, packages the artifact, then deploys it to the EC2 self-hosted runner. The deploy script installs production dependencies, restarts PM2, and checks API readiness. Amplify builds and publishes the frontend.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  subgraph Clients
-    C[Customer storefront]
-    A[Admin portal]
-    D[Delivery partner portal]
-  end
-
-  subgraph Frontend["React + Vite frontend"]
-    SPA[Role-aware SPA and API clients]
-    MAP[Leaflet maps and GPS UI]
-  end
-
-  subgraph Backend["Express + TypeScript backend"]
-    HTTP[REST API /api/v1]
-    RT[Socket.IO tracking gateway]
-    SVC[Domain services and validation]
-    AUTH[Supabase token and role checks]
-  end
-
-  subgraph Supabase
-    SA[Supabase Auth]
-    DB[(PostgreSQL)]
-    ST[Storage: product images and delivery QR]
-  end
-
-  ROUTE[OSRM-compatible routing]
-  SEARCH[Photon / optional Google Places]
-
-  C --> SPA
-  A --> SPA
-  D --> SPA
-  SPA --> HTTP
-  MAP --> HTTP
-  SPA <-->|tracking events| RT
-  HTTP --> AUTH
-  RT --> AUTH
-  AUTH --> SA
-  SVC --> DB
-  SVC --> ST
-  HTTP --> SVC
-  RT --> SVC
-  SVC --> ROUTE
-  SVC --> SEARCH
+  C[Customer storefront] --> SPA[React + TypeScript SPA]
+  A[Admin portal] --> SPA
+  D[Delivery partner portal] --> SPA
+  SPA -->|HTTPS REST /api/v1| API[Express + TypeScript API]
+  SPA <-->|Authorized tracking events| WS[Socket.IO]
+  API --> AUTH[Supabase Auth]
+  API --> DB[(Supabase PostgreSQL)]
+  API --> STORAGE[Supabase Storage]
+  WS --> DB
+  API --> ROUTING[OSRM-compatible routing]
+  API --> GEO[Photon / optional Google Places]
+  SPA -. deployed on .-> AMPLIFY[AWS Amplify]
+  API -. Nginx + PM2 on .-> EC2[AWS EC2]
+  CI[GitHub Actions] --> EC2
 ```
 
-### Main components
+The frontend is a role-aware single-page app. It calls the versioned Express API for business operations. Supabase provides identity, PostgreSQL, and object storage. Socket.IO complements REST for live delivery tracking; persisted API state remains available after reconnecting.
 
-| Component | Responsibility |
-| --- | --- |
-| `frontend/` | React 19, TypeScript, Vite, Tailwind CSS, React Router, Leaflet, and Socket.IO client. Owns customer, admin, and delivery-partner user experiences. |
-| `backend/` | Node.js/Express API, request validation, business services, admin and role authorization, file uploads, and Socket.IO tracking. |
-| Supabase Auth | User sign-in and JWTs. The backend verifies tokens and loads the user's role before accessing protected features. |
-| Supabase PostgreSQL | Authoritative catalogue, inventory, profiles, carts, orders, payments, delivery assignments, GPS history, settings, and audit data. |
-| Supabase Storage | Product and other public images, including the current delivery payment QR image. |
-| Socket.IO | Authorized real-time delivery location and status updates in per-delivery rooms. |
-| OSRM-compatible router | Best-effort road-following geometry and ETA input for live delivery views. |
-| Photon / optional Google Places | Address search and place resolution. Google Places API credentials remain on the backend. |
-
-### Source layout
+## Repository layout
 
 ```text
-Hindustan-Hardware/
+.
 ├── frontend/
-│   ├── src/app/
-│   │   ├── user/          # Storefront, account, checkout, order details and tracking
-│   │   ├── admin/         # Admin dashboard and operations
-│   │   ├── partner/       # Delivery partner orders, map and payment QR
-│   │   ├── components/    # Shared UI, GPS, and map components
-│   │   ├── api/           # Shared HTTP client
-│   │   ├── features/      # API clients, hooks, and feature components
-│   │   └── App.tsx        # Application routes
-│   ├── public/
-│   ├── Readme.md
-│   └── AMPLIFY_DEPLOYMENT.md
+│   ├── src/app/user/       # Storefront, checkout, orders, tracking
+│   ├── src/app/admin/      # Store administration
+│   ├── src/app/partner/    # Delivery partner portal
+│   ├── src/app/features/   # API clients, hooks, maps, tracking components
+│   └── public/             # Static assets, PWA manifest and service worker
 ├── backend/
-│   ├── src/
-│   │   ├── routes/        # Versioned HTTP route groups
-│   │   ├── services/      # Checkout, orders, admin, delivery, QR, and other domain logic
-│   │   ├── common/        # Middleware, response helpers, logging, and Socket.IO
-│   │   └── config/        # Environment and Supabase clients
-│   ├── migrations/        # Ordered PostgreSQL migrations
-│   ├── tests/
-│   └── README.md
-├── amplify.yml            # Frontend Amplify build/publish configuration
-└── .github/workflows/     # Backend build and deployment workflow
+│   ├── src/routes/         # HTTP route groups
+│   ├── src/services/       # Checkout, order, catalogue, payment and delivery logic
+│   ├── src/common/         # Middleware, validation, errors and Socket.IO
+│   ├── migrations/         # Ordered PostgreSQL migrations
+│   └── tests/              # Vitest API and service tests
+├── .github/workflows/      # Backend build and EC2 deployment workflow
+└── amplify.yml             # AWS Amplify frontend build configuration
 ```
-
-## End-to-end workflows
-
-### Customer: browse, buy, and track
-
-1. A visitor opens the storefront, browses products, and views available price and stock information from the API.
-2. The visitor signs in or creates a customer account. After sign-in, the customer is routed to the storefront home page; account and order history remain accessible from navigation.
-3. The customer adds products to the cart and submits shipping details. Checkout validates availability and the effective displayed item prices on the server.
-4. The backend creates the order and line-item snapshots atomically. The stored order amounts are authoritative; later catalogue discounts or price edits do not recalculate a placed order.
-5. The customer views the order status page, including order totals, payment status, amount collected, balance due, and collection history. When delivery tracking is active, GPS, route, and best-effort ETA are refreshed from the API and authorized Socket.IO events.
-6. Cancellation is available only when allowed by the order lifecycle. The backend owns the eligibility check and any associated inventory restoration.
-
-### Admin: operate the store and orders
-
-1. An administrator signs in and opens the overview dashboard for store metrics, orders, and operational notifications.
-2. Admin tools manage products, categories, brands, inventory, customers, and audit records through authenticated admin APIs.
-3. The admin reviews an order's immutable item-price snapshots and payable total, updates its permitted operational state, cancels eligible orders, or assigns an available delivery partner.
-4. For a COD order, the admin records all or part of the collected amount. The backend persists the collection event and updates the payment status to `pending`, `partially_paid`, or `paid` based on the total payable amount, including the delivery fee.
-5. The admin can upload or replace the store-wide delivery payment QR from the overview. The setting is persisted in the database, and the image is stored in Supabase Storage.
-6. Admin order views preserve fractional amounts (for example `₹107.75`) rather than rounding them for display. The delivery workflow is separate from the removed redundant “Update Order Milestone” panel.
-
-### Delivery partner: assigned order through delivery
-
-1. The authenticated partner opens the partner portal and sees assignments associated with their account.
-2. The partner selects an order, reviews delivery details, and starts the active delivery workflow.
-3. With browser location permission, the portal submits validated GPS updates. The backend verifies assignment ownership and status, persists accepted locations, and broadcasts committed updates to authorized clients.
-4. The map shows the partner, destination, and road route. Full-screen navigation rotates to follow the current heading when available and uses movement direction as a fallback. The destination marker remains available when the partner marks arrival.
-5. The partner can open the payment QR from the selected order. The QR is read-only in this portal and comes from the admin's current store-wide upload.
-6. Delivery status changes are validated by the backend. Customer and admin tracking views receive status/location events and can also retrieve persisted state after reconnecting.
-
-## Order, payment, and delivery model
-
-### Pricing and payment
-
-- The backend, not the browser, is authoritative for order creation and payment state.
-- Checkout persists order and item price snapshots. The order's original total is not recomputed from current catalogue prices after placement.
-- Payable amount includes the delivery fee when applicable.
-- Every accepted COD collection is recorded as a separate history entry. Partial payments leave an outstanding balance; full collection marks the payment `paid`.
-- Customer, admin, and delivery views should use persisted order/payment data rather than independently recalculating a discount.
-
-### Delivery lifecycle and live tracking
-
-- A delivery assignment connects an order, customer, and delivery partner.
-- Partner GPS is validated, timestamped, persisted as current location and history, and broadcast only after the backend has accepted the update.
-- Socket.IO rooms are delivery-specific. The backend authorizes room subscriptions for the customer who owns the order, assigned partner, or an authorized administrator.
-- Routing and ETA are best-effort estimates, not a delivery guarantee. Stale GPS may cause ETA to be unavailable.
-- The full set of status transitions and field-level API contracts are documented in the backend README and route/service implementation.
-
-## API surface
-
-All application REST endpoints are versioned under `/api/v1`. The backend exposes route groups for:
-
-| Route group | Typical use |
-| --- | --- |
-| `/health` and `/health-check` | Process/dependency health checks. |
-| `/auth` | Authentication-related operations and profile role resolution. |
-| `/products`, `/categories`, `/brands` | Public catalogue browsing. |
-| `/cart`, `/checkout` | Guest/customer cart and order creation. |
-| `/customers/me` | Customer profile, addresses, wishlist, order history, payment details, cancellation, and tracking. |
-| `/admin` | Admin catalogue, inventory, dashboard, customers, order/payment operations, delivery assignment, and QR management. |
-| `/deliveries` | Partner assignments, status, location ingestion/retrieval, route, ETA, and partner QR retrieval. |
-| `/public/tracking` | Limited-access, expiring shared tracking links. |
-
-The API uses bearer JWTs for protected operations. Admin routes require the admin role; delivery routes also enforce assignment ownership. Error responses include request metadata for log correlation. See [backend README](./Hindustan-Hardware/backend/README.md) for detailed endpoints and payloads.
-
-## Database and migration deployment
-
-Database changes live in `Hindustan-Hardware/backend/migrations/` and are applied explicitly to Supabase; starting the Node server does not run migrations. Apply unapplied migration files in numeric order to the Supabase project configured in the backend. Confirm the project before running SQL and do not rerun non-idempotent data migrations blindly.
-
-Recent migrations that affect current checkout/payment/QR behavior:
-
-| Migration | Change |
-| --- | --- |
-| `016_partial_order_payment_collection.sql` | Payment collection records and initial collection RPC. |
-| `017_phone_orders_and_tracking_shares.sql` | Admin phone orders and revocable/expiring public tracking links. |
-| `018_delivery_coverage_and_fee.sql` | Delivery area/fee configuration and order delivery-fee support. |
-| `019_include_delivery_fee_in_payable_amount.sql` | Include delivery fee in the amount due and collection logic. |
-| `020_checkout_preserve_displayed_prices.sql` | Preserve the customer-visible effective price as the order snapshot. |
-| `021_fix_payment_collection_amount_constraint.sql` | Remove the stale collected-amount upper-bound constraint. |
-| `022_show_partial_payment_status.sql` | Add and reconcile `partially_paid` status and related RPC/trigger logic. |
-| `023_delivery_payment_qr_setting.sql` | Add the database setting used by admin upload and partner QR display. |
-
-**QR deployment prerequisite:** apply migration `023` to the same Supabase project used by the backend. The existing public `product-images` storage bucket must be available. The backend must have `SUPABASE_SERVICE_ROLE_KEY` configured; this key must never be exposed to the frontend.
 
 ## Local development
 
-Use Node.js 22 (or the version specified by the deployment pipeline) and npm. Configure the backend and frontend in separate terminals. Do not copy production credentials into local files or commit `.env` files.
+Requirements: Node.js 22 and npm. The frontend and backend run as separate processes.
 
 ### Backend
 
-Create `Hindustan-Hardware/backend/.env` with the necessary local/staging settings. The actual validated configuration is in `backend/src/config/env.ts`.
-
-```dotenv
-NODE_ENV=development
-PORT=5000
-HOST=0.0.0.0
-CORS_ORIGIN=http://localhost:5173
-SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVER_ONLY_SERVICE_ROLE_KEY
-```
-
-Additional optional settings include `GOOGLE_MAPS_API_KEY`, `DELIVERY_OTP_ENCRYPTION_KEY`, tracking freshness/accuracy controls, `OSRM_ROUTER_URL`, and route-cache thresholds. Never publish or commit real key values.
+Create `backend/.env` with local Supabase credentials and the settings required by `backend/src/config/env.ts`. Do not commit real credentials.
 
 ```bash
-cd Hindustan-Hardware/backend
+cd backend
 npm ci
 npm run dev
 ```
 
-The API defaults to `http://localhost:5000`; health routes are available for readiness/liveness checks.
+The API listens on port `5000` by default. The source includes readiness checks at `/api/v1/health/ready`.
 
 ### Frontend
 
-Set the frontend build-time variables in `Hindustan-Hardware/frontend/.env.local` for local development:
+Create `frontend/.env.local` with the local API and Socket.IO URLs:
 
 ```dotenv
 VITE_API_BASE_URL=http://localhost:5000/api/v1
@@ -226,61 +132,48 @@ VITE_PUBLIC_APP_URL=http://localhost:5173
 ```
 
 ```bash
-cd Hindustan-Hardware/frontend
+cd frontend
 npm ci
 npm run dev
 ```
 
-Vite variables are embedded in the browser bundle. Only public URLs and public client configuration belong in `VITE_*`; service-role keys, private API keys, and database credentials must remain backend-only.
+Only public browser configuration belongs in `VITE_*` variables. Supabase service-role credentials, OTP encryption keys, and other secrets must stay on the backend.
 
-## Verification
-
-Run checks from the relevant project directory:
+## Useful commands
 
 ```bash
-# backend
+# Backend, from backend/
+npm run build
 npm run typecheck
 npm test
-npm run build
-```
 
-```bash
-# frontend
+# Frontend, from frontend/
 npm run build
 npm run test:e2e
 ```
 
-The frontend Playwright test may require a browser installation (`npx playwright install chromium`). The backend production smoke checks need a running backend and configured Supabase project. Read each app's `TESTING.md` before running checks against shared or production systems; the optional database integration test must use a disposable database.
+Tests that use a database or external services should use a dedicated test project/account. Do not point destructive or seed workflows at production data.
 
-## Deployment
+## Deployment overview
 
-### Frontend
+- **Frontend:** `amplify.yml` builds the Vite app from `frontend/` and publishes `frontend/dist`. The deployed frontend needs `VITE_API_BASE_URL` and `VITE_SOCKET_URL` configured for its API origin.
+- **Backend:** `.github/workflows/deploy-backend.yml` builds on pushes to `main` affecting backend files (or by manual dispatch), then uses the Linux x64 EC2 self-hosted runner to deploy the artifact. PM2 keeps the Node process running; Nginx terminates HTTPS and proxies requests to the API.
+- **Database:** apply new SQL migrations to the intended Supabase project as a deliberate release step. The GitHub workflow does not run database migrations.
+- **Secrets:** production environment values live on the backend host or in the relevant hosting configuration. Never put server-only secrets in GitHub source files or frontend build variables.
 
-The checked-in `Hindustan-Hardware/amplify.yml` deploys the Vite frontend to AWS Amplify, builds from the `frontend/` app root, and publishes `dist/`. Configure `VITE_API_BASE_URL`, `VITE_SOCKET_URL`, and optionally `VITE_PUBLIC_APP_URL` in the Amplify environment. Add the SPA rewrite from `/<*>` to `/index.html` so deep links and refreshes resolve. The backend is deployed separately.
+## Payment scope
 
-### Backend
+The current order flow supports cash-on-delivery collection, including partial collection and balance tracking. The QR feature displays the store's configured payment reference image to assist collection. The repository does not implement a payment-gateway checkout or automatically reconcile transactions from a payment provider.
 
-The GitHub Actions workflow builds the backend on Node.js 22 for changes under `backend/` on the configured main branch, then deploys the artifact using a self-hosted Linux runner and the checked-in deployment script. The server runs under PM2 behind the configured HTTPS/reverse-proxy endpoint and is checked through its readiness URL.
+## Interview walkthrough
 
-Database migrations are a separate operation and are not run by either frontend or backend deployment. Deploy compatible backend/frontend code and apply the needed SQL migration to the correct Supabase project before enabling a feature that depends on it. An already-installed web app receives frontend updates from the deployed site; it does not need to be reinstalled, though it may need to be reopened or refreshed to load the new version.
+1. Start with the three roles and explain the order lifecycle they share.
+2. Demonstrate product discovery, comparison, cart, checkout, and the customer's order/OTP page.
+3. Show the admin catalogue/inventory and order assignment workflow.
+4. Open the delivery-partner portal and demonstrate live location/status updates and OTP-based delivery completion.
+5. Explain the security and consistency choices: server-side pricing, role and ownership checks, immutable order snapshots, atomic OTP verification, and database migrations.
+6. Finish with the deployment pipeline: Amplify for the SPA and GitHub Actions to EC2/PM2 for the API.
 
-## Security and operational notes
+### Short project summary
 
-- Keep all `.env` files, service-role keys, encryption keys, and test account passwords out of source control and browser bundles.
-- Use a narrow `CORS_ORIGIN` allowlist for deployed environments.
-- Apply role and ownership checks on the server; frontend route guards are not an authorization boundary.
-- Use request IDs from error responses to locate backend logs.
-- Use dedicated staging accounts and a staging database for tests that exercise authenticated workflows.
-- The uploaded QR is a store-wide payment reference image, not a payment provider integration or proof of payment. Payment collection still needs to be recorded through the authorized application workflow.
-- Maps, third-party address search, road routing, browser geolocation, and live ETA depend on provider availability and user/device permissions.
-
-## Recent completed product changes
-
-- Customer login routes back to the storefront home; existing order totals retain checkout price snapshots.
-- Payment status, amount collected, amount due, and collection history appear in customer order details.
-- Admin order totals retain decimal precision; partial COD collection is reflected in the payment status.
-- Admin order detail no longer duplicates delivery milestone controls; the obsolete Delivery Orders sidebar link was removed.
-- Admin notification layout is responsive.
-- Admin overview supports uploading the delivery payment QR; delivery partners can open it from an assigned order.
-- Delivery partner full-screen navigation follows direction, refreshes the route while moving, and presents the destination marker for the arrival workflow.
-- Backend migrations `020`–`023` cover checkout snapshot prices, payment collection constraint/status fixes, and persistent delivery QR settings.
+> I built a full-stack commerce and delivery operations application for a hardware retailer. The customer storefront, admin tools, and delivery-partner portal share a TypeScript API and a PostgreSQL data model. I focused on reliable checkout and price snapshots, role-based access, inventory-aware order operations, OTP-verified handoff, and real-time delivery tracking, then deployed the frontend and backend through AWS hosting and GitHub Actions.
