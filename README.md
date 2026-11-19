@@ -111,7 +111,23 @@ Requirements: Node.js 22 and npm. The frontend and backend run as separate proce
 
 ### Backend
 
+<<<<<<< Updated upstream
 Create `backend/.env` with local Supabase credentials and the settings required by `backend/src/config/env.ts`. Do not commit real credentials.
+=======
+Create `Hindustan-Hardware/backend/.env` with the necessary local/staging settings. The actual validated configuration is in `backend/src/config/env.ts`.
+
+```dotenv
+NODE_ENV=development
+PORT=5000
+HOST=0.0.0.0
+CORS_ORIGIN=http://localhost:5173
+SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVER_ONLY_SERVICE_ROLE_KEY
+```
+
+Additional optional settings include `DELIVERY_OTP_ENCRYPTION_KEY`, tracking freshness/accuracy controls, `OSRM_ROUTER_URL`, and route-cache thresholds. Never publish or commit real key values.
+>>>>>>> Stashed changes
 
 ```bash
 cd backend
