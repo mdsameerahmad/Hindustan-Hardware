@@ -219,6 +219,35 @@ adminRouter.delete('/brands/:id', async (req: Request, res: Response, next: Next
   }
 });
 
+// ----------------- Bulk Discount by Brand & Item Type (Category) -----------------
+adminRouter.get('/products/discounts-summary', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const summary = await ProductService.getDiscountsSummary();
+    return sendSuccess(res, summary, 'Discounts summary fetched successfully');
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.post('/products/bulk-discount', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { categoryId, brandId, discountPercentage } = req.body;
+    if (discountPercentage === undefined || isNaN(Number(discountPercentage))) {
+      throw new BadRequestError('Valid discountPercentage is required.');
+    }
+
+    const result = await ProductService.bulkUpdateDiscountByCriteria({
+      categoryId: categoryId ? String(categoryId) : null,
+      brandId: brandId ? String(brandId) : null,
+      discountPercentage: Number(discountPercentage),
+    });
+
+    return sendSuccess(res, result, result.message);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ----------------- Products Admin CRUD -----------------
 adminRouter.get('/products/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {

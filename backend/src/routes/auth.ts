@@ -313,66 +313,48 @@ authRouter.post(
       const supabase = getSupabaseClient()!;
       const { email, redirectTo } = parsed.data;
 
-      // Request password reset email from Supabase Auth
-      let resetError: any = null;
-      let recoveryLink: string | null = null;
       const adminClient = getSupabaseAdminClient();
-
-      // If custom SMTP is configured, exclusively generate the recovery link and send via your SMTP email
-      if (process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim() && adminClient) {
-        try {
-          const linkRes = await adminClient.auth.admin.generateLink({
-            type: 'recovery',
-            email,
-            options: redirectTo ? { redirectTo } : undefined,
-          });
-          if (linkRes.data?.properties?.action_link) {
-            recoveryLink = linkRes.data.properties.action_link;
-            await EmailService.sendPasswordResetEmail(email, recoveryLink);
-          } else if (linkRes.error) {
-            logger.warn('Failed to generate recovery link for email', {
-              email,
-              error: linkRes.error.message,
-            });
-          }
-        } catch (smtpErr: any) {
-          logger.warn('SMTP password reset generation failed', {
-            error: smtpErr?.message,
-          });
-        }
-      } else {
-        // Fallback only if custom SMTP credentials are NOT configured in .env
-        const { error } = await supabase.auth.resetPasswordForEmail(
-          email,
-          redirectTo ? { redirectTo } : undefined
-        );
-
-        if (error) {
-          resetError = error;
-          logger.warn('Password reset request error', { error: error.message });
-        }
-
-        // If Supabase's built-in email rate limit is hit, use admin client to generate recovery link
-        if (resetError && adminClient) {
-          try {
-            const linkRes = await adminClient.auth.admin.generateLink({
-              type: 'recovery',
-              email,
-              options: redirectTo ? { redirectTo } : undefined,
-            });
-            if (linkRes.data?.properties?.action_link) {
-              recoveryLink = linkRes.data.properties.action_link;
-            }
-          } catch (adminErr: any) {
-            logger.warn('Error calling admin generateLink', { error: adminErr?.message });
-          }
-        }
+      if (!adminClient) {
+        throw new InternalServerError('Administrative client is unavailable.');
       }
 
-      // Generic response to prevent account enumeration, includes recoveryUrl if fallback link was generated
+      // 1. Generate recovery token via Admin client (Does NOT send any email from Supabase)
+      const linkRes = await adminClient.auth.admin.generateLink({
+        type: 'recovery',
+        email,
+      });
+
+      if (linkRes.error) {
+        logger.warn('Failed to generate recovery link', { email, error: linkRes.error.message });
+        return sendSuccess(
+          res,
+          null,
+          'If the email is registered, a password recovery link has been sent.'
+        );
+      }
+
+      const tokenHash = linkRes.data?.properties?.hashed_token;
+      if (!tokenHash) {
+        logger.error('No hashed token returned from Supabase generateLink');
+        return sendSuccess(
+          res,
+          null,
+          'If the email is registered, a password recovery link has been sent.'
+        );
+      }
+
+      // 2. Build the direct frontend URL (Points to YOUR website, never localhost or supabase redirect)
+      const frontendBase = redirectTo
+        ? new URL(redirectTo).origin
+        : (req.get('origin') || req.get('referer') || 'https://hindustanhardware.com');
+      const directResetUrl = `${frontendBase.replace(/\/$/, '')}/reset-password?token_hash=${tokenHash}`;
+
+      // 3. Exclusively send the email via YOUR SMTP Mailer
+      await EmailService.sendPasswordResetEmail(email, directResetUrl);
+
       return sendSuccess(
         res,
-        recoveryLink ? { recoveryUrl: recoveryLink } : null,
+        null,
         'If the email is registered, a password recovery link has been sent.'
       );
     } catch (err) {
@@ -383,12 +365,11 @@ authRouter.post(
 
 /**
  * POST /api/v1/auth/reset-password
- * Completes password reset for an authenticated or recovery-session user.
+ * Completes password reset for an authenticated user OR using tokenHash from SMTP recovery email.
  */
 authRouter.post(
   '/reset-password',
   authRateLimiter,
-  authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = resetPasswordSchema.safeParse(req.body);
@@ -400,41 +381,67 @@ authRouter.post(
         return next(new InternalServerError('Authentication service is not configured.'));
       }
 
-      const { password } = parsed.data;
-      const user = req.user!;
-      const token = req.accessToken!;
-
-      // 1. Try updating user password using authenticated client or admin client
-      let updateError: any = null;
-      const userClient = getAuthenticatedSupabaseClient(token);
-      if (userClient) {
-        const updateRes = await userClient.auth.updateUser({ password });
-        if (updateRes.error) {
-          updateError = updateRes.error;
-        }
+      const { password, tokenHash } = parsed.data;
+      const adminClient = getSupabaseAdminClient();
+      if (!adminClient) {
+        throw new InternalServerError('Administrative client is unavailable.');
       }
 
-      if (updateError || !userClient) {
-        const adminClient = getSupabaseAdminClient();
-        if (adminClient) {
-          const adminUpdateRes = await adminClient.auth.admin.updateUserById(user.id, {
-            password,
-          });
-          if (adminUpdateRes.error) {
-            logger.warn('Admin password update failed', { error: adminUpdateRes.error.message });
-            return next(new BadRequestError(adminUpdateRes.error.message));
-          }
-        } else if (updateError) {
-          logger.warn('Password update failed', { error: updateError.message });
-          return next(new BadRequestError(updateError.message));
+      let targetUserId: string | null = null;
+      let targetUserEmail: string | null = null;
+
+      // Scenario A: User came via email tokenHash
+      if (tokenHash) {
+        const verifyRes = await adminClient.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: 'recovery',
+        });
+
+        if (verifyRes.error || !verifyRes.data?.user) {
+          logger.warn('Token hash verification failed', { error: verifyRes.error?.message });
+          return next(new BadRequestError(verifyRes.error?.message || 'Invalid or expired recovery token.'));
         }
+
+        targetUserId = verifyRes.data.user.id;
+        targetUserEmail = verifyRes.data.user.email || null;
+      } else {
+        // Scenario B: User is authenticated via Bearer token
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return next(new UnauthorizedError('Missing authentication or recovery token.'));
+        }
+        const token = authHeader.substring(7).trim();
+        const userClient = getAuthenticatedSupabaseClient(token);
+        if (!userClient) {
+          return next(new UnauthorizedError('Invalid access token.'));
+        }
+        const { data: userData, error: userError } = await userClient.auth.getUser();
+        if (userError || !userData?.user) {
+          return next(new UnauthorizedError(userError?.message || 'Unauthorized'));
+        }
+        targetUserId = userData.user.id;
+        targetUserEmail = userData.user.email || null;
       }
 
-      // 2. Issue a fresh login session with the newly set password
+      if (!targetUserId || !targetUserEmail) {
+        return next(new BadRequestError('Could not identify user for password reset.'));
+      }
+
+      // Update password via admin
+      const adminUpdateRes = await adminClient.auth.admin.updateUserById(targetUserId, {
+        password,
+      });
+
+      if (adminUpdateRes.error) {
+        logger.warn('Admin password update failed', { error: adminUpdateRes.error.message });
+        return next(new BadRequestError(adminUpdateRes.error.message));
+      }
+
+      // Issue a fresh login session with the newly set password
       let session: any = null;
       const supabase = getSupabaseClient()!;
       const loginRes = await supabase.auth.signInWithPassword({
-        email: user.email,
+        email: targetUserEmail,
         password,
       });
 
@@ -442,14 +449,21 @@ authRouter.post(
         session = loginRes.data.session;
       }
 
+      // Query persistent user profile
+      const { data: profile } = await adminClient
+        .from('profiles')
+        .select('*')
+        .eq('id', targetUserId)
+        .maybeSingle();
+
       return sendSuccess(
         res,
         {
           user: {
-            id: user.id,
-            email: user.email,
-            role: user.role,
-            profile: user.profile,
+            id: targetUserId,
+            email: targetUserEmail,
+            role: profile?.role || 'customer',
+            profile: profile || null,
           },
           session: session
             ? {

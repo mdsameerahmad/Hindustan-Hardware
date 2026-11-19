@@ -52,6 +52,7 @@ export const resetPasswordSchema = z.object({
     .string()
     .min(8, 'Password must be at least 8 characters long')
     .max(128, 'Password must not exceed 128 characters'),
+  tokenHash: z.string().optional(),
 });
 
 export const updateProfileSchema = z.object({

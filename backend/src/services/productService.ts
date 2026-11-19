@@ -894,4 +894,225 @@ export class ProductService {
       details,
     };
   }
+
+  /**
+   * Bulk update discount percentage for all products matching Category (Item Type) and/or Brand.
+   */
+  static async bulkUpdateDiscountByCriteria(criteria: {
+    categoryId?: string | null;
+    brandId?: string | null;
+    discountPercentage: number;
+  }): Promise<{ updatedCount: number; message: string }> {
+    const adminClient = getSupabaseAdminClient();
+    if (!adminClient) throw new InternalServerError('Administrative database client is unavailable.');
+
+    const { categoryId, brandId, discountPercentage } = criteria;
+    if (!categoryId && !brandId) {
+      throw new BadRequestError('Either category (Item Type) or brand must be specified.');
+    }
+    if (discountPercentage < 0 || discountPercentage > 100) {
+      throw new BadRequestError('Discount percentage must be between 0 and 100.');
+    }
+
+    let query = adminClient
+      .from('products')
+      .select('id, name, sku, base_price, compare_at_price, specs');
+
+    if (categoryId) {
+      query = query.eq('category_id', categoryId);
+    }
+    if (brandId) {
+      query = query.eq('brand_id', brandId);
+    }
+
+    const { data: products, error: fetchError } = await query;
+    if (fetchError) {
+      throw new InternalServerError(`Failed to fetch products for discount update: ${fetchError.message}`);
+    }
+
+    if (!products || products.length === 0) {
+      return { updatedCount: 0, message: 'No products matched the given criteria.' };
+    }
+
+    let updatedCount = 0;
+    for (const prod of products) {
+      const mrp = prod.compare_at_price != null && Number(prod.compare_at_price) > 0
+        ? Number(prod.compare_at_price)
+        : Number(prod.base_price || 0);
+
+      const calculatedSellingPrice = discountPercentage > 0
+        ? Math.round(mrp * (1 - discountPercentage / 100) * 100) / 100
+        : mrp;
+
+      const updatedSpecs: Record<string, any> = {
+        ...(prod.specs || {}),
+      };
+
+      if (discountPercentage > 0) {
+        updatedSpecs.discount_percentage = String(discountPercentage);
+      } else {
+        delete updatedSpecs.discount_percentage;
+        delete updatedSpecs.discountPercentage;
+      }
+
+      const { error: updateError } = await adminClient
+        .from('products')
+        .update({
+          compare_at_price: mrp,
+          base_price: calculatedSellingPrice,
+          specs: updatedSpecs,
+        })
+        .eq('id', prod.id);
+
+      if (!updateError) {
+        updatedCount++;
+      }
+    }
+
+    return {
+      updatedCount,
+      message: `Successfully applied ${discountPercentage}% discount to ${updatedCount} product(s).`,
+    };
+  }
+
+  /**
+   * Get discount summary by Item Type (Category) and Brand.
+   */
+  static async getDiscountsSummary(): Promise<{
+    pairs: {
+      categoryId: string;
+      categoryName: string;
+      brandId: string;
+      brandName: string;
+      productCount: number;
+      averageDiscount: number;
+      minDiscount: number;
+      maxDiscount: number;
+      commonDiscount: number;
+    }[];
+    categories: {
+      id: string;
+      name: string;
+      productCount: number;
+      averageDiscount: number;
+    }[];
+  }> {
+    const adminClient = getSupabaseAdminClient();
+    if (!adminClient) throw new InternalServerError('Administrative database client is unavailable.');
+
+    // Fetch all products with their category and brand info
+    const { data: products, error } = await adminClient
+      .from('products')
+      .select('id, category_id, brand_id, compare_at_price, base_price, specs, category:categories(id, name), brand:brands(id, name)');
+
+    if (error) {
+      throw new InternalServerError(`Failed to fetch discount summary: ${error.message}`);
+    }
+
+    const pairMap: Record<string, {
+      categoryId: string;
+      categoryName: string;
+      brandId: string;
+      brandName: string;
+      discounts: number[];
+      discountCounts: Record<number, number>;
+    }> = {};
+
+    const categoryMap: Record<string, {
+      id: string;
+      name: string;
+      discounts: number[];
+    }> = {};
+
+    for (const prod of (products || []) as any[]) {
+      const catObj = Array.isArray(prod.category) ? prod.category[0] : prod.category;
+      const brandObj = Array.isArray(prod.brand) ? prod.brand[0] : prod.brand;
+      const catId = catObj?.id || prod.category_id;
+      const catName = catObj?.name || 'Uncategorized';
+      const brandId = brandObj?.id || prod.brand_id;
+      const brandName = brandObj?.name || 'Unbranded';
+
+      if (!catId || !brandId) continue;
+
+      let discount = 0;
+      if (prod.specs?.discount_percentage != null) {
+        discount = Number(prod.specs.discount_percentage);
+      } else if (prod.compare_at_price && Number(prod.compare_at_price) > Number(prod.base_price || 0)) {
+        const mrp = Number(prod.compare_at_price);
+        const base = Number(prod.base_price);
+        discount = Math.round(((mrp - base) / mrp) * 100);
+      }
+
+      if (isNaN(discount) || discount < 0) discount = 0;
+
+      // Group by Category + Brand pair
+      const pairKey = `${catId}_${brandId}`;
+      if (!pairMap[pairKey]) {
+        pairMap[pairKey] = {
+          categoryId: catId,
+          categoryName: catName,
+          brandId,
+          brandName,
+          discounts: [],
+          discountCounts: {},
+        };
+      }
+      pairMap[pairKey].discounts.push(discount);
+      pairMap[pairKey].discountCounts[discount] = (pairMap[pairKey].discountCounts[discount] || 0) + 1;
+
+      // Group by Category
+      if (!categoryMap[catId]) {
+        categoryMap[catId] = {
+          id: catId,
+          name: catName,
+          discounts: [],
+        };
+      }
+      categoryMap[catId].discounts.push(discount);
+    }
+
+    const pairs = Object.values(pairMap).map((item) => {
+      const count = item.discounts.length;
+      const sum = item.discounts.reduce((a, b) => a + b, 0);
+      const avg = count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
+      const min = count > 0 ? Math.min(...item.discounts) : 0;
+      const max = count > 0 ? Math.max(...item.discounts) : 0;
+
+      // Find the most frequent (mode) discount
+      let mostCommonDiscount = 0;
+      let highestFreq = 0;
+      for (const [d, freq] of Object.entries(item.discountCounts)) {
+        if (freq > highestFreq) {
+          highestFreq = freq;
+          mostCommonDiscount = Number(d);
+        }
+      }
+
+      return {
+        categoryId: item.categoryId,
+        categoryName: item.categoryName,
+        brandId: item.brandId,
+        brandName: item.brandName,
+        productCount: count,
+        averageDiscount: avg,
+        minDiscount: min,
+        maxDiscount: max,
+        commonDiscount: mostCommonDiscount,
+      };
+    }).sort((a, b) => a.categoryName.localeCompare(b.categoryName) || a.brandName.localeCompare(b.brandName));
+
+    const categories = Object.values(categoryMap).map((cat) => {
+      const count = cat.discounts.length;
+      const sum = cat.discounts.reduce((a, b) => a + b, 0);
+      const avg = count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
+      return {
+        id: cat.id,
+        name: cat.name,
+        productCount: count,
+        averageDiscount: avg,
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+
+    return { pairs, categories };
+  }
 }
