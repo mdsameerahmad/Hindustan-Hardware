@@ -268,4 +268,48 @@ export const catalogueApi = {
       requiresAuth: true,
     })
   },
+
+  /**
+   * Bulk update discount percentage by Brand & Item Type (Category).
+   */
+  bulkUpdateDiscountByCriteria: async (payload: {
+    categoryId?: string | null
+    brandId?: string | null
+    discountPercentage: number
+  }): Promise<{ updatedCount: number; message: string }> => {
+    return apiRequest<{ updatedCount: number; message: string }>("/admin/products/bulk-discount", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" },
+      requiresAuth: true,
+    })
+  },
+
+  /**
+   * Get discount summary by Item Type (Category) and Brand.
+   */
+  getDiscountsSummary: async (): Promise<{
+    pairs: {
+      categoryId: string
+      categoryName: string
+      brandId: string
+      brandName: string
+      productCount: number
+      averageDiscount: number
+      minDiscount: number
+      maxDiscount: number
+      commonDiscount: number
+    }[]
+    categories: {
+      id: string
+      name: string
+      productCount: number
+      averageDiscount: number
+    }[]
+  }> => {
+    return apiRequest("/admin/products/discounts-summary", {
+      method: "GET",
+      requiresAuth: true,
+    })
+  },
 }

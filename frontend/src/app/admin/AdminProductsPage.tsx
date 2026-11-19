@@ -7,7 +7,7 @@ import {
   Plus,
   RefreshCcw,
   Search,
-  Trash2,
+  Trash2
 } from "lucide-react"
 import { useState } from "react"
 import { Link } from "react-router"
@@ -16,12 +16,13 @@ import {
   Button,
   PageHeader,
 } from "../components"
-import { formatAdminPrice as formatPrice } from "./formatAdminPrice"
 import { type Product } from "../data"
 import { ProductImage } from "../features/components/ProductImage"
 import { useAdminCategories } from "../features/hooks/useAdminCategories"
 import { useAdminProducts } from "../features/hooks/useAdminProducts"
+import { BulkDiscountModal } from "./BulkDiscountModal"
 import { BulkPriceUpdateModal } from "./BulkPriceUpdateModal"
+import { formatAdminPrice as formatPrice } from "./formatAdminPrice"
 
 export function AdminProductsPage() {
   const { categories: backendCategories } = useAdminCategories()
@@ -30,6 +31,7 @@ export function AdminProductsPage() {
   const [pendingDelete, setPendingDelete] = useState<Product | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
+  const [isBulkDiscountModalOpen, setIsBulkDiscountModalOpen] = useState(false)
 
   const {
     products,
@@ -86,13 +88,13 @@ export function AdminProductsPage() {
         title="Product catalog"
         description="Authoritative database product records, search, pagination, and inventory status."
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               onClick={() => setIsBulkModalOpen(true)}
-              className="border-amber-300 text-amber-900 bg-amber-50/50 hover:bg-amber-100/60"
+              className="border-slate-300 text-slate-800 bg-white hover:bg-slate-50"
             >
-              <FileSpreadsheet size={16} className="text-amber-700" />
+              <FileSpreadsheet size={16} className="text-slate-600" />
               <span>Bulk Price Update (Excel)</span>
             </Button>
             <Link to="/admin/products/new">
@@ -126,7 +128,7 @@ export function AdminProductsPage() {
               value={categoryFilter}
               onChange={(e) => handleCategoryChange(e.target.value)}
             >
-              <option value="">All categories</option>
+              <option value="">All Items</option>
               {backendCategories.map((item) => (
                 <option key={item.id} value={item.slug}>
                   {item.name}
@@ -423,6 +425,15 @@ export function AdminProductsPage() {
       <BulkPriceUpdateModal
         isOpen={isBulkModalOpen}
         onClose={() => setIsBulkModalOpen(false)}
+        onSuccess={() => {
+          refetch()
+        }}
+      />
+
+      {/* Bulk Discount Modal (Brand + Item Type) */}
+      <BulkDiscountModal
+        isOpen={isBulkDiscountModalOpen}
+        onClose={() => setIsBulkDiscountModalOpen(false)}
         onSuccess={() => {
           refetch()
         }}

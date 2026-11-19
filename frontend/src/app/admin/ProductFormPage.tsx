@@ -271,11 +271,6 @@ export function ProductFormPage() {
                 value={formData.name}
                 onChange={(value) => set("name", value)}
               />
-              <AdminField
-                label="Slug (optional, generated if blank)"
-                value={formData.slug}
-                onChange={(value) => set("slug", value)}
-              />
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="field-label block text-xs font-bold uppercase tracking-wider text-slate-600">
@@ -316,14 +311,14 @@ export function ProductFormPage() {
                 </select>
               </label>
               <label className="field-label block text-xs font-bold uppercase tracking-wider text-slate-600">
-                Category
+                Item Type
                 <select
                   className="field mt-2 w-full"
                   required
                   value={formData.categoryId}
                   onChange={(event) => set("categoryId", event.target.value)}
                 >
-                  <option value="" disabled>Select category</option>
+                  <option value="" disabled>Select Item Type</option>
                   {backendCategories.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
@@ -416,11 +411,6 @@ export function ProductFormPage() {
                 onChange={(value) => set("productType", value)}
               />
               <AdminField
-                label="Material"
-                value={formData.material}
-                onChange={(value) => set("material", value)}
-              />
-              <AdminField
                 label="Diameter / size"
                 value={formData.diameter}
                 onChange={(value) => set("diameter", value)}
@@ -429,26 +419,6 @@ export function ProductFormPage() {
                 label="Length"
                 value={formData.length}
                 onChange={(value) => set("length", value)}
-              />
-              <AdminField
-                label="Pressure rating"
-                value={formData.pressureRating}
-                onChange={(value) => set("pressureRating", value)}
-              />
-              <AdminField
-                label="Technical standard"
-                value={formData.technicalStandard}
-                onChange={(value) => set("technicalStandard", value)}
-              />
-              <AdminField
-                label="Intended application"
-                value={formData.intendedApplication}
-                onChange={(value) => set("intendedApplication", value)}
-              />
-              <AdminField
-                label="Comparison group"
-                value={formData.comparisonGroupId}
-                onChange={(value) => set("comparisonGroupId", value)}
               />
               <AdminField
                 label="Primary Image URL"

@@ -77,19 +77,22 @@ export function AuthPage() {
       const params = new URLSearchParams(hash.startsWith("#") ? hash.substring(1) : hash)
       const token = params.get("access_token")
       const type = params.get("type")
-      if (token && type === "recovery") {
+      const queryParams = new URLSearchParams(search)
+      const qTokenHash = queryParams.get("token_hash")
+      const qToken = queryParams.get("token") || queryParams.get("access_token")
+
+      if (qTokenHash) {
+        setRecoveryToken(qTokenHash)
+        setMode("reset")
+      } else if (token && type === "recovery") {
         setRecoveryToken(token)
         setMode("reset")
       } else if (token) {
         setRecoveryToken(token)
         setMode("reset")
-      } else {
-        const queryParams = new URLSearchParams(search)
-        const qToken = queryParams.get("token") || queryParams.get("access_token")
-        if (qToken) {
-          setRecoveryToken(qToken)
-          setMode("reset")
-        }
+      } else if (qToken) {
+        setRecoveryToken(qToken)
+        setMode("reset")
       }
     } catch {
       // Ignore URL parsing errors
@@ -158,7 +161,14 @@ export function AuthPage() {
           return
         }
 
-        await resetPassword(password, recoveryToken || undefined)
+        const searchParams = new URLSearchParams(search)
+        const isHashToken = !!searchParams.get("token_hash")
+
+        if (isHashToken && recoveryToken) {
+          await resetPassword(password, undefined, recoveryToken)
+        } else {
+          await resetPassword(password, recoveryToken || undefined)
+        }
 
         setSuccessInfo({
           title: "Password updated successfully!",

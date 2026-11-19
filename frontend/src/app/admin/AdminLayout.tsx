@@ -8,6 +8,7 @@ import {
     LogOut,
     Menu,
     Package,
+    Percent,
     Tags,
     Users,
     X
@@ -53,7 +54,8 @@ export function AdminHeaderUser() {
 const adminNav = [
   ["Overview", "/admin", LayoutDashboard],
   ["Products", "/admin/products", Package],
-  ["Categories", "/admin/categories", Boxes],
+  ["Bulk Discounts", "/admin/bulk-discounts", Percent],
+  ["Items", "/admin/categories", Boxes],
   ["Brands", "/admin/brands", Tags],
   ["Inventory", "/admin/inventory", Gauge],
   ["Orders", "/admin/orders", ClipboardList],

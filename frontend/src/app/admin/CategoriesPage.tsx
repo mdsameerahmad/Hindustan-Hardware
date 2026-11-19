@@ -3,12 +3,11 @@ import {
   Boxes,
   Edit3,
   Loader2,
-  Package,
   Plus,
   RefreshCcw,
   Search,
   Trash2,
-  Upload,
+  Upload
 } from "lucide-react"
 import React, { useEffect, useMemo, useState } from "react"
 import {
@@ -17,8 +16,8 @@ import {
   PageHeader,
 } from "../components"
 import { useAdminCategories } from "../features/hooks/useAdminCategories"
-import { AdminField, FormCard } from "./AdminSharedComponents"
 import { convertImageToWebP } from "../utils/imageConverter"
+import { AdminField, FormCard } from "./AdminSharedComponents"
 
 export function CategoriesPage() {
   const {
@@ -249,8 +248,8 @@ export function CategoriesPage() {
     return (
       <>
         <PageHeader
-          title={form.id ? `Edit Category: ${form.name}` : "Add New Category"}
-          description="Configure catalog category hierarchy, parent relationships, display sequencing, and active visibility."
+          title={form.id ? `Edit Item: ${form.name}` : "Add New Item"}
+          description="Configure item types, parent relationships, display sequencing, and active storefront visibility."
         />
 
         {formError && (
@@ -262,10 +261,10 @@ export function CategoriesPage() {
 
         <form onSubmit={submit} className="grid gap-6 xl:grid-cols-[1fr_360px]">
           <div className="space-y-6">
-            <FormCard title="Category details">
+            <FormCard title="Item details">
               <div className="grid gap-4 sm:grid-cols-2">
                 <AdminField
-                  label="Category Name"
+                  label="Item Name"
                   required
                   value={form.name}
                   onChange={(value) => setForm({ ...form, name: value })}
@@ -279,13 +278,13 @@ export function CategoriesPage() {
                 />
                 <div className="sm:col-span-2">
                   <label className="field-label block text-xs font-bold uppercase tracking-wider text-slate-600">
-                    Parent Category (Optional)
+                    Parent Item (Optional)
                     <select
                       className="field mt-2 w-full"
                       value={form.parentId}
                       onChange={(e) => setForm({ ...form, parentId: e.target.value })}
                     >
-                      <option value="">None (Top-level Root Category)</option>
+                      <option value="">None (Top-level Root Item)</option>
                       {availableParents.map((parent) => (
                         <option key={parent.id} value={parent.id}>
                           {parent.name}
@@ -294,7 +293,7 @@ export function CategoriesPage() {
                     </select>
                   </label>
                   <p className="mt-1.5 text-xs text-slate-400">
-                    Assigning a parent category establishes a category tree hierarchy for navigation and filtering.
+                    Assigning a parent item establishes an item hierarchy for navigation and filtering.
                   </p>
                 </div>
                 <div className="sm:col-span-2">
@@ -399,7 +398,7 @@ export function CategoriesPage() {
             <FormCard title="Visibility">
               <label className="toggle-row flex items-center justify-between py-2">
                 <span>
-                  <b className="block text-sm text-slate-800">Active Category</b>
+                  <b className="block text-sm text-slate-800">Active Item</b>
                   <small className="text-xs text-slate-500">Visible to customers in storefront catalog</small>
                 </span>
                 <input
@@ -426,7 +425,7 @@ export function CategoriesPage() {
               </Button>
               <Button type="submit" className="flex-1" disabled={actionLoading}>
                 {actionLoading ? <Loader2 size={16} className="animate-spin" /> : null}
-                {form.id ? "Update Category" : "Create Category"}
+                {form.id ? "Update Item" : "Create Item"}
               </Button>
             </div>
           </aside>
@@ -441,12 +440,12 @@ export function CategoriesPage() {
   return (
     <>
       <PageHeader
-        title="Category catalog"
-        description="Authoritative database product categories, hierarchical classification, sorting, and storefront visibility."
+        title="Items catalog"
+        description="Authoritative database product items and item types, hierarchical classification, sorting, and storefront visibility."
         action={
           <Button onClick={openCreateModal}>
             <Plus size={16} />
-            Add Category
+            Add Item
           </Button>
         }
       />
@@ -463,7 +462,7 @@ export function CategoriesPage() {
               className="field !pl-10 w-full text-xs sm:text-sm"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search categories by name, slug or description..."
+              placeholder="Search items by name, slug or description..."
             />
           </div>
 
@@ -503,12 +502,12 @@ export function CategoriesPage() {
         {loading ? (
           <div className="flex h-56 flex-col items-center justify-center gap-3">
             <Loader2 className="h-7 w-7 animate-spin text-brand" />
-            <p className="text-sm font-medium text-slate-500">Loading catalog categories...</p>
+            <p className="text-sm font-medium text-slate-500">Loading catalog items...</p>
           </div>
         ) : filteredCategories.length === 0 ? (
           <div className="py-16 text-center">
             <Boxes className="mx-auto h-10 w-10 text-slate-300" />
-            <h3 className="mt-2 text-base font-bold text-slate-700">No categories found</h3>
+            <h3 className="mt-2 text-base font-bold text-slate-700">No items found</h3>
             <p className="text-xs text-slate-500 mt-1">Try adjusting your search query or status filter.</p>
           </div>
         ) : (
@@ -518,7 +517,7 @@ export function CategoriesPage() {
               <table className="data-table w-full">
                 <thead>
                   <tr>
-                    <th>Category & Scope</th>
+                    <th>Item & Scope</th>
                     <th>Catalog Slug</th>
                     <th>Bulk Discount %</th>
                     <th>Sort Order</th>
@@ -729,7 +728,7 @@ export function CategoriesPage() {
             <span className="grid h-12 w-12 place-items-center rounded-full bg-red-50 text-red-600">
               <Trash2 />
             </span>
-            <h2 className="mt-4 text-xl font-black">Delete this category?</h2>
+            <h2 className="mt-4 text-xl font-black">Delete this item?</h2>
             <p className="mt-2 text-sm text-slate-500">
               <strong className="text-slate-800">{pendingDelete.name}</strong> will be permanently deleted from the database. This action cannot be undone if products reference it.
             </p>
@@ -754,7 +753,7 @@ export function CategoriesPage() {
                 disabled={actionLoading}
                 onClick={confirmDelete}
               >
-                {actionLoading ? "Deleting..." : "Delete Category"}
+                {actionLoading ? "Deleting..." : "Delete Item"}
               </Button>
             </div>
           </div>

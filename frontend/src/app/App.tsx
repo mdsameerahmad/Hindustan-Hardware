@@ -7,6 +7,7 @@ import {
     AdminOverviewPage,
     AdminProductsPage,
     BrandsAdminPage,
+    BulkDiscountsPage,
     CategoriesPage,
     DeliveryPartnersPage,
     GenericAdminPage,
@@ -142,6 +143,7 @@ const router = createBrowserRouter([
         children: [
           { index: true, Component: AdminOverviewPage },
           { path: "products", Component: AdminProductsPage },
+          { path: "bulk-discounts", Component: BulkDiscountsPage },
           { path: "products/new", Component: ProductFormPage },
           { path: "products/:id/edit", Component: ProductFormPage },
           { path: "categories", Component: CategoriesPage },

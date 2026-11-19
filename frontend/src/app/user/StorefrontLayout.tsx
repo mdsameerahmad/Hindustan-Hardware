@@ -435,10 +435,11 @@ function FooterColumn({ title, links }: { title: string; links: string[] }) {
 
 export function StorefrontLayout() {
   const { pathname } = useLocation()
-  const { cartCount, orders, toasts, categories: storeCategories } = useStore()
+  const { cartCount, orders, toasts, categories: storeCategories, brands: storeBrands } = useStore()
   const [menuOpen, setMenuOpen] = useState(false)
   const [categoriesDropdownOpen, setCategoriesDropdownOpen] = useState(false)
   const [dbCategories, setDbCategories] = useState<any[]>([])
+  const [dbBrands, setDbBrands] = useState<any[]>([])
 
   // Hydrate categories from backend if store is empty or for redundancy
   useEffect(() => {
@@ -451,7 +452,19 @@ export function StorefrontLayout() {
     }
   }, [storeCategories])
 
+  // Hydrate brands from backend if store is empty
+  useEffect(() => {
+    if (storeBrands && storeBrands.length > 0) {
+      setDbBrands(storeBrands)
+    } else {
+      catalogueApi.getBrands().then((brs) => {
+        if (brs && brs.length) setDbBrands(brs)
+      }).catch(() => {})
+    }
+  }, [storeBrands])
+
   const displayCategories = dbCategories.length > 0 ? dbCategories : storeCategories
+  const displayBrands = (dbBrands.length > 0 ? dbBrands : storeBrands || []).filter((b: any) => b.active !== false)
 
   // Always reset page scroll position to top whenever route changes
   useEffect(() => {
@@ -563,11 +576,11 @@ export function StorefrontLayout() {
                   className="flex items-center gap-2 bg-[#D4AF37] px-3.5 py-1.5 font-bold text-[#0B0B0B] hover:bg-[#B89124] transition"
                 >
                   <Menu size={14} />
-                  <span>All Categories</span>
+                  <span>All Items</span>
                 </Link>
                 <button
                   type="button"
-                  aria-label="Toggle categories menu"
+                  aria-label="Toggle items menu"
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
@@ -594,7 +607,7 @@ export function StorefrontLayout() {
                   <div className="absolute left-0 top-full mt-2 w-64 rounded-xl border border-[#222222] bg-[#0B0B0B] py-2 shadow-2xl z-50">
                     <div className="flex items-center justify-between px-4 py-2 border-b border-[#1C1C1C]">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#888888]">
-                        Shop by Category
+                        Shop by Item Type
                       </span>
                     </div>
                     <div className="max-h-[70vh] overflow-y-auto">
@@ -619,7 +632,7 @@ export function StorefrontLayout() {
                       ))}
                       {displayCategories.length === 0 && (
                         <div className="px-4 py-4 text-center text-xs text-[#666666]">
-                          Loading categories...
+                          Loading items...
                         </div>
                       )}
                     </div>
@@ -636,15 +649,15 @@ export function StorefrontLayout() {
               Brands
             </Link>
 
-            {/* All Categories Pills directly in navbar - Scrollable Ribbon */}
+            {/* All Brands Pills directly in navbar - Scrollable Ribbon */}
             <div className="flex items-center gap-1 border-l border-[#222222] ml-1 pl-2 overflow-x-auto scrollbar-none">
-              {displayCategories.map((category) => (
+              {displayBrands.map((brand: any) => (
                 <Link
-                  key={category.id || category.slug}
-                  to={`/category/${category.slug}`}
-                  className="rounded px-3 py-1.5 whitespace-nowrap font-medium text-[#AAAAAA] hover:text-white hover:bg-white/5 transition shrink-0"
+                  key={brand.id || brand.slug}
+                  to={`/brands/${brand.slug || brand.id}`}
+                  className="rounded px-3 py-1.5 whitespace-nowrap font-medium text-[#AAAAAA] hover:text-[#D4AF37] hover:bg-white/5 transition shrink-0"
                 >
-                  {category.name}
+                  {brand.name}
                 </Link>
               ))}
             </div>
@@ -668,16 +681,16 @@ export function StorefrontLayout() {
               All Brands
             </Link>
             <div className="pt-2 text-[11px] font-bold uppercase tracking-wider text-[#777777]">
-              Categories
+              Brands
             </div>
-            {displayCategories.map((cat) => (
+            {displayBrands.map((b: any) => (
               <Link
                 onClick={() => setMenuOpen(false)}
-                key={cat.id || cat.slug}
+                key={b.id || b.slug}
                 className="block border-b border-[#1C1C1C] py-2.5 text-sm font-medium text-[#CCCCCC] hover:text-[#D4AF37]"
-                to={`/category/${cat.slug}`}
+                to={`/brands/${b.slug || b.id}`}
               >
-                {cat.name}
+                {b.name}
               </Link>
             ))}
           </div>

@@ -13,6 +13,31 @@ import { transformBackendProduct } from "../utils/productTransform"
 
 const productSizePattern = /\b\d+(?:\.\d+)?(?:\s*[-/]\s*\d+(?:\/\d+)?)?\s*(?:"|inches?|inch|mm|cm|feet|ft)/i
 
+function parseNumericSize(sizeStr: string): number {
+  if (!sizeStr) return 0
+  const clean = sizeStr.trim()
+
+  // Match fractions like 1 1/2" or 3/4" or 1/2"
+  const mixedFracMatch = clean.match(/^(\d+)\s+(\d+)\s*\/\s*(\d+)/)
+  if (mixedFracMatch) {
+    const whole = parseFloat(mixedFracMatch[1])
+    const num = parseFloat(mixedFracMatch[2])
+    const den = parseFloat(mixedFracMatch[3])
+    if (den > 0) return whole + num / den
+  }
+
+  const fracMatch = clean.match(/(\d+)\s*\/\s*(\d+)/)
+  if (fracMatch) {
+    const num = parseFloat(fracMatch[1])
+    const den = parseFloat(fracMatch[2])
+    if (den > 0) return num / den
+  }
+
+  // Match decimals or integers like 0.75, 1, 1.25, 1.5, 2
+  const numMatch = clean.match(/(\d+(?:\.\d+)?)/)
+  return numMatch ? parseFloat(numMatch[1]) : 0
+}
+
 function getProductSize(product: Product): string {
   const nameSize = product.name.match(productSizePattern)?.[0]
   return (nameSize || product.size || product.diameter || product.length || "").trim().toLowerCase()
@@ -114,7 +139,13 @@ export function ProductDetailPage() {
                 && getProductSize(candidate) !== ""
                 && getProductSize(candidate) !== currentSize,
               )
-              setSizeVariants([transformed, ...matchingSizes])
+              const allVariants = [transformed, ...matchingSizes].sort((a, b) => {
+                const sizeA = parseNumericSize(getProductSize(a))
+                const sizeB = parseNumericSize(getProductSize(b))
+                if (sizeA !== sizeB) return sizeA - sizeB
+                return a.price - b.price
+              })
+              setSizeVariants(allVariants)
             })
             .catch((err: unknown) => {
               console.error("Failed to load same-brand product sizes.", err)

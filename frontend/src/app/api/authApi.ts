@@ -154,14 +154,14 @@ export const authApi = {
   },
 
   /**
-   * Reset password with recovery/bearer token.
+   * Reset password with recovery/bearer token or tokenHash.
    */
-  resetPassword: async (password: string, tokenOverride?: string): Promise<LoginResponse> => {
+  resetPassword: async (password: string, tokenOverride?: string, tokenHash?: string): Promise<LoginResponse> => {
     const res = await apiRequest<LoginResponse>('/auth/reset-password', {
       method: 'POST',
-      requiresAuth: true,
+      requiresAuth: !tokenHash,
       tokenOverride,
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, tokenHash }),
     })
 
     if (res?.session?.accessToken) {

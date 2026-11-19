@@ -1,4 +1,4 @@
-import { SlidersHorizontal, X } from "lucide-react"
+import { ArrowLeft, ChevronRight, Search, SlidersHorizontal, Sparkles, X } from "lucide-react"
 import React, { useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router"
 import { catalogueApi, type BackendCategory, type PaginationMeta } from "../api/catalogueApi"
@@ -80,6 +80,61 @@ export function ProductsPage() {
       (c) => c.slug === categoryParam || c.id === categoryParam || c.name.toLowerCase() === categoryParam.toLowerCase(),
     )
   }, [effectiveCategories, categoryParam])
+
+  const [availableBrandsForCategory, setAvailableBrandsForCategory] = useState<
+    { id: string; name: string; slug: string; logoUrl?: string | null; productCount?: number }[]
+  >([])
+  const [loadingBrandsForCategory, setLoadingBrandsForCategory] = useState(false)
+
+  // When an Item Type (categoryParam) is selected, fetch products for this category to discover its available brands
+  useEffect(() => {
+    if (!categoryParam) {
+      setAvailableBrandsForCategory([])
+      return
+    }
+
+    let isMounted = true
+    setLoadingBrandsForCategory(true)
+
+    catalogueApi
+      .listProducts({
+        category: categoryParam,
+        limit: 100,
+      })
+      .then((res) => {
+        if (!isMounted) return
+        const brandMap = new Map<
+          string,
+          { id: string; name: string; slug: string; logoUrl?: string | null; productCount: number }
+        >()
+        for (const item of res.items) {
+          if (item.brand && item.brand.name) {
+            const bId = item.brand.id || item.brand.slug || item.brand.name
+            const existing = brandMap.get(bId)
+            if (existing) {
+              existing.productCount++
+            } else {
+              brandMap.set(bId, {
+                id: item.brand.id || item.brand.slug || item.brand.name,
+                name: item.brand.name,
+                slug: item.brand.slug || item.brand.name.toLowerCase().replace(/\s+/g, "-"),
+                logoUrl: item.brand.logoUrl || (item.brand as any).logo_url || null,
+                productCount: 1,
+              })
+            }
+          }
+        }
+        setAvailableBrandsForCategory(Array.from(brandMap.values()))
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (isMounted) setLoadingBrandsForCategory(false)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [categoryParam])
 
   // Fetch products from backend API when query / filter / page changes
   useEffect(() => {
@@ -232,9 +287,9 @@ export function ProductsPage() {
         </button>
       </div>
 
-      {/* Category Filter list with radio buttons & counts */}
+      {/* Item Type Filter list with radio buttons & counts */}
       <div>
-        <h4 className="mb-3 text-xs font-black uppercase tracking-wider text-slate-900">Category</h4>
+        <h4 className="mb-3 text-xs font-black uppercase tracking-wider text-slate-900">Item Type</h4>
         <div className="space-y-2 text-xs">
           <label className="flex items-center justify-between cursor-pointer py-0.5 text-slate-700 hover:text-slate-900 font-medium">
             <span className="flex items-center gap-2">
@@ -245,7 +300,7 @@ export function ProductsPage() {
                 onChange={() => setCategoryFilter("")}
                 className="h-3.5 w-3.5 accent-[#0B0B0B]"
               />
-              <span className={!categoryParam ? "font-bold text-slate-900" : ""}>All Categories</span>
+              <span className={!categoryParam ? "font-bold text-slate-900" : ""}>All Items</span>
             </span>
             <span className="text-[11px] text-slate-400 font-semibold">{pagination.total || 1763}</span>
           </label>
@@ -270,54 +325,6 @@ export function ProductsPage() {
               </label>
             )
           })}
-        </div>
-      </div>
-
-      {/* Brand Filter */}
-      <div className="border-t border-slate-100 pt-5">
-        <h4 className="mb-3 text-xs font-black uppercase tracking-wider text-slate-900">Brand</h4>
-        <div className="space-y-2 text-xs">
-          <label className="flex items-center justify-between cursor-pointer py-0.5 text-slate-700 hover:text-slate-900 font-medium">
-            <span className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={!brandParam}
-                onChange={() => setBrandFilter("")}
-                className="h-3.5 w-3.5 rounded accent-[#0B0B0B]"
-              />
-              <span className={!brandParam ? "font-bold text-slate-900" : ""}>All Brands</span>
-            </span>
-            <span className="text-[11px] text-slate-400 font-semibold">{pagination.total || 1763}</span>
-          </label>
-
-          {displayedBrands.map((brand) => {
-            const isSelected = brandParam === brand.id || brandParam === brand.slug
-            return (
-              <label key={brand.id} className="flex items-center justify-between cursor-pointer py-0.5 text-slate-600 hover:text-slate-900 font-medium">
-                <span className="flex items-center gap-2 truncate pr-1">
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => setBrandFilter(isSelected ? "" : (brand.slug || brand.id))}
-                    className="h-3.5 w-3.5 rounded accent-[#0B0B0B]"
-                  />
-                  <span className={`truncate ${isSelected ? "font-bold text-slate-900" : ""}`}>{brand.name}</span>
-                </span>
-                <span className="text-[11px] text-slate-400 font-medium">
-                  {Math.floor(((brand.name.length * 23) % 150) + 35)}
-                </span>
-              </label>
-            )
-          })}
-
-          {brands.length > 7 && (
-            <button
-              onClick={() => setShowAllBrands(!showAllBrands)}
-              className="mt-1 text-xs font-bold text-[#B89124] hover:underline"
-            >
-              {showAllBrands ? "– Show less" : `+ Show more`}
-            </button>
-          )}
         </div>
       </div>
 
@@ -471,7 +478,7 @@ export function ProductsPage() {
           {(categoryParam || brandParam || query) && (
             <div className="mb-4 flex flex-wrap gap-2">
               {query && <Badge tone="blue">Search: {query}</Badge>}
-              {categoryParam && <Badge tone="blue">Category: {matchedCategory?.name || categoryParam}</Badge>}
+              {categoryParam && <Badge tone="blue">Item: {matchedCategory?.name || categoryParam}</Badge>}
               {brandParam && (
                 <Badge tone="blue">
                   Brand: {brands.find((b) => b.id === brandParam || b.slug === brandParam)?.name || brandParam}
@@ -480,59 +487,262 @@ export function ProductsPage() {
             </div>
           )}
 
-          {/* Products Grid or List View */}
-          {loading ? (
-            <div className={viewMode === "grid" ? "product-grid" : "space-y-3"}>
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="h-80 animate-pulse rounded-xl bg-slate-100" />
-              ))}
-            </div>
-          ) : error ? (
-            <EmptyState
-              icon={<X className="text-red-500" />}
-              title="Unable to load products"
-              text={error}
-              action={<Button onClick={() => window.location.reload()}>Retry</Button>}
-            />
-          ) : visibleProducts.length ? (
-            <>
-              <div className={viewMode === "grid" ? "product-grid" : "space-y-3"}>
-                {visibleProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} viewMode={viewMode} />
-                ))}
+          {/* STAGE 1: When Item Type is chosen but NO Brand selected yet -> Show Brand Cards only */}
+          {categoryParam && !brandParam ? (
+            <div className="space-y-5">
+              {/* Premium Hero Banner */}
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0F0F0F] via-[#1C1812] to-[#2B2310] p-6 sm:p-7 text-white shadow-xl border border-[#D4AF37]/30">
+                <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-48 h-48 rounded-full bg-[#D4AF37]/10 blur-3xl pointer-events-none" />
+                <div className="relative z-10">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/30 px-3 py-1 text-[11px] font-bold text-[#D4AF37] uppercase tracking-wider">
+                    <span>Manufacturer Selection</span>
+                  </div>
+                  <h3 className="mt-3 text-2xl sm:text-3xl font-black text-white tracking-tight">
+                    {matchedCategory?.name || "All Brands"}
+                  </h3>
+                  <p className="mt-1.5 text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
+                    Choose from {availableBrandsForCategory.length} trusted manufacturers authorized for genuine{" "}
+                    <strong className="text-white font-semibold">{matchedCategory?.name}</strong>.
+                  </p>
+                </div>
               </div>
 
-              {pagination.totalPages > 1 && (
-                <div className="mt-10 flex items-center justify-center gap-3 border-t border-slate-200 pt-6">
-                  <Button
-                    variant="outline"
-                    disabled={!pagination.hasPrevPage}
-                    onClick={() => handlePageChange(pagination.page - 1)}
-                    className="border-slate-300 text-slate-800 hover:border-[#D4AF37]"
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-xs sm:text-sm font-semibold text-slate-600">
-                    Page {pagination.page} of {pagination.totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    disabled={!pagination.hasNextPage}
-                    onClick={() => handlePageChange(pagination.page + 1)}
-                    className="border-slate-300 text-slate-800 hover:border-[#D4AF37]"
-                  >
-                    Next
-                  </Button>
+              {loadingBrandsForCategory ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 pt-1">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="h-40 rounded-2xl bg-slate-100 animate-pulse border border-slate-200" />
+                  ))}
+                </div>
+              ) : availableBrandsForCategory.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 pt-1">
+                  {availableBrandsForCategory.map((b) => {
+                    const initials = b.name
+                      .split(" ")
+                      .map((word) => word[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase()
+
+                    return (
+                      <div
+                        key={b.id}
+                        onClick={() => setBrandFilter(b.slug || b.id)}
+                        className="group relative cursor-pointer rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs hover:border-[#D4AF37] hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
+                      >
+                        <div>
+                          {/* Brand Logo or Stylized Monogram Badge */}
+                          <div className="h-16 w-full rounded-xl bg-slate-50/80 border border-slate-100 p-2 flex items-center justify-center overflow-hidden group-hover:bg-amber-50/40 group-hover:border-amber-200/50 transition-all">
+                            {b.logoUrl ? (
+                              <img
+                                src={b.logoUrl}
+                                alt={b.name}
+                                className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-105"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = "none"
+                                  const fallback = (e.target as HTMLElement).nextElementSibling as HTMLElement
+                                  if (fallback) fallback.style.display = "flex"
+                                }}
+                              />
+                            ) : null}
+                            <div
+                              className={`h-11 w-11 rounded-xl bg-gradient-to-tr from-[#0B0B0B] via-[#1A1A1A] to-[#2B2414] text-xs font-black tracking-wider text-[#D4AF37] border border-[#D4AF37]/30 shadow-xs items-center justify-center ${
+                                b.logoUrl ? "hidden" : "flex"
+                              }`}
+                            >
+                              {initials}
+                            </div>
+                          </div>
+
+                          <h4 className="mt-3.5 font-bold text-slate-900 text-sm sm:text-base group-hover:text-amber-800 transition-colors truncate">
+                            {b.name}
+                          </h4>
+                          <p className="text-[11px] font-medium text-slate-500 mt-0.5 truncate">
+                            {matchedCategory?.name}
+                          </p>
+                        </div>
+
+                        <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-amber-900 group-hover:text-amber-700">
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            {b.productCount ? `${b.productCount} models` : "Explore"}
+                          </span>
+                          <span className="inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform text-amber-800 font-bold">
+                            View <ChevronRight size={13} />
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="py-14 text-center rounded-3xl border border-dashed border-slate-300 bg-white p-6 shadow-xs">
+                  <div className="grid h-12 w-12 place-items-center rounded-2xl bg-amber-50 text-amber-700 mx-auto mb-3">
+                    <Sparkles size={22} />
+                  </div>
+                  <p className="text-sm font-bold text-slate-800">No specific brands registered for this item type.</p>
+                  <p className="text-xs text-slate-500 mt-1">Products will appear once assigned in the catalog.</p>
                 </div>
               )}
-            </>
+            </div>
           ) : (
-            <EmptyState
-              icon={<X />}
-              title="No matching products"
-              text="Try adjusting your filter selection, search query or clear all filters."
-              action={<Button onClick={clear}>Clear filters</Button>}
-            />
+            /* STAGE 2: Either on All Items OR a specific Brand has been clicked inside an Item Type */
+            <>
+              {categoryParam && brandParam && (
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setBrandFilter("")}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-300 px-3 py-1.5 text-xs font-bold text-slate-800 hover:text-amber-900 transition-colors"
+                    >
+                      <ArrowLeft size={14} />
+                      <span>Back to All Brands</span>
+                    </button>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                        Active Brand Filter
+                      </span>
+                      <b className="text-sm font-black text-slate-900">
+                        {brands.find((b) => b.id === brandParam || b.slug === brandParam)?.name || brandParam}
+                      </b>
+                    </div>
+                  </div>
+
+                  {/* Quick switch between other brands for this item */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1">
+                    {availableBrandsForCategory.map((b) => {
+                      const isSelected = brandParam === b.id || brandParam === b.slug || brandParam.toLowerCase() === b.name.toLowerCase()
+                      return (
+                        <button
+                          key={b.id}
+                          onClick={() => setBrandFilter(b.slug || b.id)}
+                          className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all shrink-0 ${
+                            isSelected
+                              ? "bg-slate-900 text-white"
+                              : "bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100"
+                          }`}
+                        >
+                          {b.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Dedicated Search within this specific Brand/Category selection */}
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-md">
+                  <Search
+                    size={15}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                  />
+                  <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setParams(
+                        (prev) => {
+                          const next = new URLSearchParams(prev)
+                          if (val) next.set("q", val)
+                          else next.delete("q")
+                          next.set("page", "1")
+                          return next
+                        },
+                        { replace: true }
+                      )
+                    }}
+                    placeholder={
+                      brandParam
+                        ? `Search within ${brands.find((b) => b.id === brandParam || b.slug === brandParam)?.name || "this brand"} products...`
+                        : "Search products in this list..."
+                    }
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-9 text-xs font-medium text-slate-800 placeholder:text-slate-400 shadow-2xs outline-none transition focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                  />
+                  {query && (
+                    <button
+                      onClick={() => {
+                        setParams(
+                          (prev) => {
+                            const next = new URLSearchParams(prev)
+                            next.delete("q")
+                            next.set("page", "1")
+                            return next
+                          },
+                          { replace: true }
+                        )
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {query && (
+                  <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+                    Filtering for <strong className="text-slate-800 font-bold">"{query}"</strong>
+                  </span>
+                )}
+              </div>
+
+              {/* Products Grid or List View */}
+              {loading ? (
+                <div className={viewMode === "grid" ? "product-grid" : "space-y-3"}>
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="h-80 animate-pulse rounded-xl bg-slate-100" />
+                  ))}
+                </div>
+              ) : error ? (
+                <EmptyState
+                  icon={<X className="text-red-500" />}
+                  title="Unable to load products"
+                  text={error}
+                  action={<Button onClick={() => window.location.reload()}>Retry</Button>}
+                />
+              ) : visibleProducts.length ? (
+                <>
+                  <div className={viewMode === "grid" ? "product-grid" : "space-y-3"}>
+                    {visibleProducts.map((product) => (
+                      <ProductCard key={product.id} product={product} viewMode={viewMode} />
+                    ))}
+                  </div>
+
+                  {pagination.totalPages > 1 && (
+                    <div className="mt-10 flex items-center justify-center gap-3 border-t border-slate-200 pt-6">
+                      <Button
+                        variant="outline"
+                        disabled={!pagination.hasPrevPage}
+                        onClick={() => handlePageChange(pagination.page - 1)}
+                        className="border-slate-300 text-slate-800 hover:border-[#D4AF37]"
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-xs sm:text-sm font-semibold text-slate-600">
+                        Page {pagination.page} of {pagination.totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        disabled={!pagination.hasNextPage}
+                        onClick={() => handlePageChange(pagination.page + 1)}
+                        className="border-slate-300 text-slate-800 hover:border-[#D4AF37]"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <EmptyState
+                  title="No products found"
+                  text="No products available matching this selection. Try choosing another brand or clearing filters."
+                  action={
+                    <Button onClick={() => setBrandFilter("")}>
+                      View Other Brands
+                    </Button>
+                  }
+                />
+              )}
+            </>
           )}
         </div>
       </div>
