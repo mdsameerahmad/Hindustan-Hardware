@@ -532,12 +532,14 @@ export function BrandDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchFilter, setSearchFilter] = useState("")
+  const [selectedCategory, setSelectedCategory] = useState<string>("all")
 
   useEffect(() => {
     let isMounted = true
     if (!slug) return
     setLoading(true)
     setError(null)
+    setSelectedCategory("all")
 
     // Authoritatively query brand and its products straight from the database
     catalogueApi
@@ -575,16 +577,52 @@ export function BrandDetailPage() {
     }
   }, [slug])
 
+  // Extract available item types (categories) for this brand from its products
+  const availableCategories = useMemo(() => {
+    const categoryMap = new Map<string, { id: string; name: string; count: number }>()
+
+    for (const item of items) {
+      const catKey = (item.category || item.categoryId || "General").trim()
+      const catName = (item.category || "General").trim()
+      const existing = categoryMap.get(catKey.toLowerCase())
+      if (existing) {
+        existing.count += 1
+      } else {
+        categoryMap.set(catKey.toLowerCase(), {
+          id: item.categoryId || catKey,
+          name: catName,
+          count: 1,
+        })
+      }
+    }
+
+    return Array.from(categoryMap.values()).sort((a, b) => b.count - a.count)
+  }, [items])
+
   const visibleProducts = useMemo(() => {
-    if (!searchFilter.trim()) return items
-    const q = searchFilter.toLowerCase().trim()
-    return items.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q) ||
-        p.material.toLowerCase().includes(q)
-    )
-  }, [items, searchFilter])
+    let list = items
+
+    // Filter by selected item type / category
+    if (selectedCategory !== "all") {
+      list = list.filter((p) => {
+        const catKey = (p.category || p.categoryId || "").toLowerCase().trim()
+        const target = selectedCategory.toLowerCase().trim()
+        return catKey === target || (p.categoryId && p.categoryId === selectedCategory)
+      })
+    }
+
+    // Filter by search query
+    if (searchFilter.trim()) {
+      const q = searchFilter.toLowerCase().trim()
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.category.toLowerCase().includes(q) ||
+          p.material.toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [items, selectedCategory, searchFilter])
 
   if (loading) {
     return (
@@ -615,10 +653,14 @@ export function BrandDetailPage() {
     )
   }
 
+  const selectedCategoryObj = availableCategories.find(
+    (c) => c.name.toLowerCase() === selectedCategory.toLowerCase() || c.id === selectedCategory
+  )
+
   return (
     <div className="container-wide py-9">
       {/* Brand Hero Banner */}
-      <div className="relative mb-10 overflow-hidden rounded-3xl bg-gradient-to-br from-[#0B0B0B] via-[#161616] to-[#241E12] p-8 md:p-10 border border-[#D4AF37]/30 shadow-2xl text-white">
+      <div className="relative mb-8 overflow-hidden rounded-3xl bg-gradient-to-br from-[#0B0B0B] via-[#161616] to-[#241E12] p-8 md:p-10 border border-[#D4AF37]/30 shadow-2xl text-white">
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex items-center gap-5">
             <div className="relative grid h-20 w-20 place-items-center rounded-2xl bg-white p-2 shadow-xl border border-slate-200 shrink-0">
@@ -662,13 +704,102 @@ export function BrandDetailPage() {
         </div>
       </div>
 
+      {/* Item Types (Categories) Section for this Brand */}
+      {availableCategories.length > 0 && (
+        <div className="mb-8 bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs">
+          <div className="flex items-center justify-between mb-3.5">
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                <LayoutGrid size={16} className="text-[#D4AF37]" />
+                Item Types by {brand.name}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Select an item type to view products manufactured by {brand.name} in that category.
+              </p>
+            </div>
+            {selectedCategory !== "all" && (
+              <button
+                type="button"
+                onClick={() => setSelectedCategory("all")}
+                className="text-xs font-bold text-[#D4AF37] hover:underline"
+              >
+                View All Categories ({items.length})
+              </button>
+            )}
+          </div>
+
+          {/* Category Cards / Pills */}
+          <div className="flex flex-wrap gap-2.5">
+            <button
+              type="button"
+              onClick={() => setSelectedCategory("all")}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                selectedCategory === "all"
+                  ? "bg-[#0B0B0B] text-white shadow-xs"
+                  : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/80"
+              }`}
+            >
+              <span>All Item Types</span>
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                  selectedCategory === "all"
+                    ? "bg-[#D4AF37] text-[#0B0B0B]"
+                    : "bg-slate-200 text-slate-600"
+                }`}
+              >
+                {items.length}
+              </span>
+            </button>
+
+            {availableCategories.map((cat) => {
+              const isSelected =
+                selectedCategory.toLowerCase() === cat.name.toLowerCase() ||
+                selectedCategory === cat.id
+              return (
+                <button
+                  key={cat.id || cat.name}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat.name)}
+                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    isSelected
+                      ? "bg-[#0B0B0B] text-white shadow-xs ring-2 ring-[#D4AF37]/50"
+                      : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/80"
+                  }`}
+                >
+                  <span>{cat.name}</span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                      isSelected
+                        ? "bg-[#D4AF37] text-[#0B0B0B]"
+                        : "bg-slate-200 text-slate-600"
+                    }`}
+                  >
+                    {cat.count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Brand Product Listing Header */}
       <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-black text-slate-900 tracking-tight">
-            Products by {brand.name} ({visibleProducts.length})
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">Authoritative products fetched from database catalog.</p>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">
+              {brand.name}
+              {selectedCategory !== "all" && selectedCategoryObj
+                ? ` › ${selectedCategoryObj.name}`
+                : ""}{" "}
+              ({visibleProducts.length})
+            </h2>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {selectedCategory !== "all" && selectedCategoryObj
+              ? `Showing ${brand.name} products under ${selectedCategoryObj.name}.`
+              : `Authoritative products fetched from database catalog.`}
+          </p>
         </div>
 
         {items.length > 0 && (
@@ -692,16 +823,28 @@ export function BrandDetailPage() {
         </div>
       ) : (
         <EmptyState
-          title={searchFilter ? "No matching products found" : "No products listed"}
+          title={
+            searchFilter
+              ? "No matching products found"
+              : selectedCategory !== "all"
+              ? `No products in ${selectedCategory}`
+              : "No products listed"
+          }
           text={
             searchFilter
               ? `No products match "${searchFilter}" under ${brand.name}.`
+              : selectedCategory !== "all"
+              ? `No products available under ${brand.name} for the selected item type.`
               : `There are currently no active products in the database catalogue for ${brand.name}.`
           }
           action={
             searchFilter ? (
               <Button onClick={() => setSearchFilter("")} variant="outline">
                 Clear Product Filter
+              </Button>
+            ) : selectedCategory !== "all" ? (
+              <Button onClick={() => setSelectedCategory("all")} variant="outline">
+                Show All {brand.name} Products
               </Button>
             ) : (
               <Link to="/products">
