@@ -9,7 +9,7 @@ import {
   Search,
   Trash2
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { Link, useSearchParams } from "react-router"
 import {
   Badge,
@@ -60,6 +60,58 @@ export function AdminProductsPage() {
     brand: initialBrand || undefined,
   })
 
+  const isFirstRender = useRef(true)
+
+  // Debounced search effect: optimizes typing by waiting 250ms before firing request
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+
+    const handler = setTimeout(() => {
+      const trimmed = searchQuery.trim()
+      updateUrlParams({ search: trimmed, page: 1 })
+      setFilters((prev) => ({
+        ...prev,
+        page: 1,
+        search: trimmed || undefined,
+      }))
+    }, 250)
+
+    return () => clearTimeout(handler)
+  }, [searchQuery])
+
+  // Optimize displayed products by SKU match relevance:
+  // If the search query matches the suffix/end of an SKU (e.g. searching last 3-5 digits of 70000XYZ),
+  // boost those exact SKU matches to the very top of the list!
+  const sortedProducts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q || products.length <= 1) return products
+
+    return [...products].sort((a, b) => {
+      const skuA = (a.sku || "").toLowerCase()
+      const skuB = (b.sku || "").toLowerCase()
+
+      // Exact match gets highest priority
+      const exactA = skuA === q ? 4 : 0
+      const exactB = skuB === q ? 4 : 0
+      if (exactA !== exactB) return exactB - exactA
+
+      // Suffix match (e.g. typing XYZ for 70000XYZ)
+      const endsA = skuA.endsWith(q) ? 3 : 0
+      const endsB = skuB.endsWith(q) ? 3 : 0
+      if (endsA !== endsB) return endsB - endsA
+
+      // Contains in SKU
+      const containsA = skuA.includes(q) ? 2 : 0
+      const containsB = skuB.includes(q) ? 2 : 0
+      if (containsA !== containsB) return containsB - containsA
+
+      return 0
+    })
+  }, [products, searchQuery])
+
   // Synchronize URL search params whenever filter changes
   const updateUrlParams = (updates: { search?: string; category?: string; brand?: string; page?: number }) => {
     setSearchParams((prev) => {
@@ -84,15 +136,8 @@ export function AdminProductsPage() {
     }, { replace: true })
   }
 
-  // Debounce search input or submit on Enter/typing
   const handleSearchChange = (value: string) => {
     setSearchQuery(value)
-    updateUrlParams({ search: value, page: 1 })
-    setFilters((prev) => ({
-      ...prev,
-      page: 1,
-      search: value.trim() || undefined,
-    }))
   }
 
   const handleCategoryChange = (slug: string) => {
@@ -242,7 +287,7 @@ export function AdminProductsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map((product) => {
+                  {sortedProducts.map((product) => {
                     const mrpVal = product.mrp && product.mrp > 0 ? product.mrp : product.price
                     const discountVal =
                       product.discountPercentage != null
@@ -343,7 +388,7 @@ export function AdminProductsPage() {
 
             {/* Mobile Card List */}
             <div className="block md:hidden divide-y divide-border">
-              {products.map((product) => {
+              {sortedProducts.map((product) => {
                 const mrpVal = product.mrp && product.mrp > 0 ? product.mrp : product.price
                 const discountVal =
                   product.discountPercentage != null
