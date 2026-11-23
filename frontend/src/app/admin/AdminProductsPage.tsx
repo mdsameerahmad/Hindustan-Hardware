@@ -9,8 +9,8 @@ import {
   Search,
   Trash2
 } from "lucide-react"
-import { useState } from "react"
-import { Link } from "react-router"
+import { useState, useEffect } from "react"
+import { Link, useSearchParams } from "react-router"
 import {
   Badge,
   Button,
@@ -18,6 +18,7 @@ import {
 } from "../components"
 import { type Product } from "../data"
 import { ProductImage } from "../features/components/ProductImage"
+import { useAdminBrands } from "../features/hooks/useAdminBrands"
 import { useAdminCategories } from "../features/hooks/useAdminCategories"
 import { useAdminProducts } from "../features/hooks/useAdminProducts"
 import { BulkDiscountModal } from "./BulkDiscountModal"
@@ -25,9 +26,18 @@ import { BulkPriceUpdateModal } from "./BulkPriceUpdateModal"
 import { formatAdminPrice as formatPrice } from "./formatAdminPrice"
 
 export function AdminProductsPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const { categories: backendCategories } = useAdminCategories()
-  const [searchQuery, setSearchQuery] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState("")
+  const { brands: backendBrands } = useAdminBrands()
+
+  const initialSearch = searchParams.get("search") || ""
+  const initialCategory = searchParams.get("category") || ""
+  const initialBrand = searchParams.get("brand") || ""
+  const initialPage = parseInt(searchParams.get("page") || "1", 10) || 1
+
+  const [searchQuery, setSearchQuery] = useState(initialSearch)
+  const [categoryFilter, setCategoryFilter] = useState(initialCategory)
+  const [brandFilter, setBrandFilter] = useState(initialBrand)
   const [pendingDelete, setPendingDelete] = useState<Product | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
@@ -43,13 +53,41 @@ export function AdminProductsPage() {
     deleteProduct,
     refetch,
   } = useAdminProducts({
-    page: 1,
+    page: initialPage,
     limit: 15,
+    search: initialSearch || undefined,
+    category: initialCategory || undefined,
+    brand: initialBrand || undefined,
   })
+
+  // Synchronize URL search params whenever filter changes
+  const updateUrlParams = (updates: { search?: string; category?: string; brand?: string; page?: number }) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (updates.search !== undefined) {
+        if (updates.search.trim()) next.set("search", updates.search.trim())
+        else next.delete("search")
+      }
+      if (updates.category !== undefined) {
+        if (updates.category) next.set("category", updates.category)
+        else next.delete("category")
+      }
+      if (updates.brand !== undefined) {
+        if (updates.brand) next.set("brand", updates.brand)
+        else next.delete("brand")
+      }
+      if (updates.page !== undefined) {
+        if (updates.page > 1) next.set("page", String(updates.page))
+        else next.delete("page")
+      }
+      return next
+    }, { replace: true })
+  }
 
   // Debounce search input or submit on Enter/typing
   const handleSearchChange = (value: string) => {
     setSearchQuery(value)
+    updateUrlParams({ search: value, page: 1 })
     setFilters((prev) => ({
       ...prev,
       page: 1,
@@ -59,6 +97,7 @@ export function AdminProductsPage() {
 
   const handleCategoryChange = (slug: string) => {
     setCategoryFilter(slug)
+    updateUrlParams({ category: slug, page: 1 })
     setFilters((prev) => ({
       ...prev,
       page: 1,
@@ -66,8 +105,19 @@ export function AdminProductsPage() {
     }))
   }
 
+  const handleBrandChange = (brandSlug: string) => {
+    setBrandFilter(brandSlug)
+    updateUrlParams({ brand: brandSlug, page: 1 })
+    setFilters((prev) => ({
+      ...prev,
+      page: 1,
+      brand: brandSlug || undefined,
+    }))
+  }
+
   const handlePageChange = (newPage: number) => {
     if (newPage < 1 || newPage > pagination.totalPages) return
+    updateUrlParams({ page: newPage })
     setFilters((prev) => ({ ...prev, page: newPage }))
   }
 
@@ -122,16 +172,31 @@ export function AdminProductsPage() {
             />
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <select
               className="field flex-1 sm:w-auto text-xs sm:text-sm"
               value={categoryFilter}
               onChange={(e) => handleCategoryChange(e.target.value)}
+              title="Filter by Item Type / Category"
             >
-              <option value="">All Items</option>
+              <option value="">All Item Types</option>
               {backendCategories.map((item) => (
                 <option key={item.id} value={item.slug}>
                   {item.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="field flex-1 sm:w-auto text-xs sm:text-sm"
+              value={brandFilter}
+              onChange={(e) => handleBrandChange(e.target.value)}
+              title="Filter by Brand"
+            >
+              <option value="">All Brands</option>
+              {backendBrands.map((brand) => (
+                <option key={brand.id} value={brand.slug}>
+                  {brand.name}
                 </option>
               ))}
             </select>

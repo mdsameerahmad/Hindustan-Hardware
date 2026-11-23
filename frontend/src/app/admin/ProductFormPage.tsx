@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2 } from "lucide-react"
 import React, { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router"
 import { Button, PageHeader } from "../components"
@@ -231,7 +231,11 @@ export function ProductFormPage() {
         })
         notify("Product created successfully in database")
       }
-      navigate("/admin/products")
+      if (window.history.length > 1) {
+        navigate(-1)
+      } else {
+        navigate("/admin/products")
+      }
     } catch (err: any) {
       setFormError(err?.message || "Failed to persist product record.")
     } finally {
@@ -250,6 +254,23 @@ export function ProductFormPage() {
 
   return (
     <>
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={() => {
+            if (window.history.length > 1) {
+              navigate(-1)
+            } else {
+              navigate("/admin/products")
+            }
+          }}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-slate-900 transition"
+        >
+          <ArrowLeft size={14} />
+          <span>Back</span>
+        </button>
+      </div>
+
       <PageHeader
         title={id ? "Edit product" : "Add new product"}
         description="Persisted catalog records, pricing, inventory initialization, and technical attributes."
@@ -492,7 +513,13 @@ export function ProductFormPage() {
               variant="outline"
               className="flex-1"
               disabled={submitting}
-              onClick={() => navigate("/admin/products")}
+              onClick={() => {
+                if (window.history.length > 1) {
+                  navigate(-1)
+                } else {
+                  navigate("/admin/products")
+                }
+              }}
             >
               Cancel
             </Button>

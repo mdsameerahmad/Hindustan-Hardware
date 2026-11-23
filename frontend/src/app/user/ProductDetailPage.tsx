@@ -1,4 +1,4 @@
-import { Heart, ShoppingCart, Star } from "lucide-react"
+import { ArrowLeft, Heart, ShoppingCart, Star } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router"
 import { catalogueApi, type BackendProduct } from "../api/catalogueApi"
@@ -210,13 +210,46 @@ export function ProductDetailPage() {
 
   return (
     <div className="container-wide max-w-6xl py-5 sm:py-6 pb-28 md:pb-8">
-      {/* Breadcrumb line */}
-      <div className="mb-4 flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-        <Link to="/" className="hover:text-slate-800">Home</Link>
-        <span>&gt;</span>
-        <Link to="/products" className="hover:text-slate-800">Products</Link>
-        <span>&gt;</span>
-        <span className="text-slate-800 font-bold truncate max-w-md">{product.name}</span>
+      {/* Top Navigation & Breadcrumb line */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            if (window.history.length > 1) {
+              navigate(-1)
+            } else {
+              navigate("/products")
+            }
+          }}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-slate-900 transition"
+        >
+          <ArrowLeft size={14} />
+          <span>Back</span>
+        </button>
+
+        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium overflow-hidden">
+          <Link to="/" className="hover:text-slate-800 shrink-0">Home</Link>
+          <span>&gt;</span>
+          <Link to="/products" className="hover:text-slate-800 shrink-0">Products</Link>
+          {product.category && (
+            <>
+              <span>&gt;</span>
+              <Link to={`/category/${product.categoryId || product.category.toLowerCase().replace(/\s+/g, "-")}`} className="hover:text-slate-800 truncate max-w-[120px]">
+                {product.category}
+              </Link>
+            </>
+          )}
+          {product.brandName && (
+            <>
+              <span>&gt;</span>
+              <Link to={`/brands/${product.brandId || product.brandName.toLowerCase().replace(/\s+/g, "-")}`} className="hover:text-slate-800 truncate max-w-[100px]">
+                {product.brandName}
+              </Link>
+            </>
+          )}
+          <span>&gt;</span>
+          <span className="text-slate-800 font-bold truncate max-w-[160px] sm:max-w-xs">{product.name}</span>
+        </div>
       </div>
 
       {/* Main Product Showcase Card */}
