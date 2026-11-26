@@ -541,10 +541,10 @@ export function BrandDetailPage() {
     setError(null)
     setSelectedCategory("all")
 
-    // Authoritatively query brand and its products straight from the database
+    // Authoritatively query brand and ALL its products (across all pages) from the database
     catalogueApi
       .getBrandBySlug(slug)
-      .then((b: any) => {
+      .then(async (b: any) => {
         if (!isMounted) return null
         const mappedBrand: Brand = {
           id: b.id,
@@ -558,11 +558,26 @@ export function BrandDetailPage() {
           discountPercentage: b.discount_percentage ?? b.discountPercentage ?? null,
         }
         setBrand(mappedBrand)
-        return catalogueApi.listProducts({ brand: b.id, limit: 100 })
+
+        // Fetch all pages of products for this brand so all item types and products are loaded
+        const allProducts: any[] = []
+        let page = 1
+        let hasNextPage = true
+
+        while (hasNextPage && isMounted) {
+          const res = await catalogueApi.listProducts({ brand: b.id, page, limit: 100 })
+          if (res?.items) {
+            allProducts.push(...res.items)
+          }
+          hasNextPage = Boolean(res?.pagination?.hasNextPage)
+          page += 1
+        }
+
+        return allProducts
       })
-      .then((res) => {
-        if (!isMounted || !res) return
-        setItems(res.items.map(transformBackendProduct))
+      .then((allItems) => {
+        if (!isMounted || !allItems) return
+        setItems(allItems.map(transformBackendProduct))
       })
       .catch((err: any) => {
         if (!isMounted) return
