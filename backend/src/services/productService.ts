@@ -230,10 +230,16 @@ export class ProductService {
       query = query.eq('is_featured', featured);
     }
 
-    // Filter by search keyword (safe text matching against name, description, or SKU / Item Code)
+    // Filter by search keyword (safe text matching against name, SKU / Item Code, and description for long queries)
     if (search && search.trim() !== '') {
       const sanitized = search.trim().replace(/[%_]/g, '');
-      query = query.or(`name.ilike.%${sanitized}%,description.ilike.%${sanitized}%,sku.ilike.%${sanitized}%`);
+      // When searching short terms (such as Item Codes or last digits like '70000XYZ' or '4521'),
+      // search directly against indexed name and sku to leverage the fast GIN trigram index and avoid table scans.
+      if (sanitized.length <= 15) {
+        query = query.or(`name.ilike.%${sanitized}%,sku.ilike.%${sanitized}%`);
+      } else {
+        query = query.or(`name.ilike.%${sanitized}%,sku.ilike.%${sanitized}%,description.ilike.%${sanitized}%`);
+      }
     }
 
     // Sorting column mapping
