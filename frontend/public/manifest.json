@@ -1,8 +1,8 @@
 {
-  "id": "hindustan-hardware-sanitary-pwa",
-  "name": "Hindustan Hardware & Sanitary",
+  "id": "hindustan-hardware-pwa",
+  "name": "Hindustan Hardware",
   "short_name": "Hindustan Hardware",
-  "description": "Premium Hardware & Sanitary E-Commerce Store & Live Delivery Tracking",
+  "description": "Premium Hardware E-Commerce Store & Live Delivery Tracking",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -58,7 +58,7 @@ function NotFound() {
     <div className="container-wide py-16">
       <EmptyState
         title="Page not found"
-        text="The page you requested does not exist in this prototype."
+        text="The page you requested does not exist."
         action={
           <Link to="/">
             <Button>Back to home</Button>
