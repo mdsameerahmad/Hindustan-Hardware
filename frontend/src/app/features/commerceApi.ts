@@ -3,7 +3,7 @@
  * Cart Merging, and Customer Wishlist.
  */
 
-import { apiRequest } from "../api/client"
+import { apiRequest, apiRequestWithMeta } from "../api/client"
 import type {
   CustomerAddress,
   CreateAddressPayload,
@@ -481,6 +481,35 @@ export const adminApi = {
   },
 
   // ----------------- Products Admin API -----------------
+  listProducts: async (params: import("../api/catalogueApi").ProductListParams = {}) => {
+    const searchParams = new URLSearchParams()
+    if (params.page) searchParams.set("page", String(params.page))
+    if (params.limit) searchParams.set("limit", String(params.limit))
+    if (params.search && params.search.trim()) searchParams.set("search", params.search.trim())
+    if (params.category && params.category.trim()) searchParams.set("category", params.category.trim())
+    if (params.brand && params.brand.trim()) searchParams.set("brand", params.brand.trim())
+    if (params.sortBy) searchParams.set("sortBy", params.sortBy)
+    if (params.sortOrder) searchParams.set("sortOrder", params.sortOrder)
+
+    const query = searchParams.toString() ? `?${searchParams.toString()}` : ""
+    const result = await apiRequestWithMeta<import("../api/catalogueApi").BackendProduct[]>(`/admin/products${query}`, {
+      method: "GET",
+      requiresAuth: true,
+    })
+
+    return {
+      items: Array.isArray(result.data) ? result.data : [],
+      pagination: result.meta?.pagination || {
+        page: params.page || 1,
+        limit: params.limit || 20,
+        total: Array.isArray(result.data) ? result.data.length : 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPrevPage: false,
+      },
+    } as import("../api/catalogueApi").PaginatedProductsResponse
+  },
+
   getProduct: async (id: string) => {
     return apiRequest<any>(`/admin/products/${id}`, {
       method: "GET",

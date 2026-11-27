@@ -218,13 +218,13 @@ function refreshSession(): Promise<RefreshResult> {
 }
 
 /**
- * Standard fetch wrapper handling headers, bearer token injection, JSON parsing,
+ * Core fetch helper handling headers, bearer token injection, JSON parsing,
  * transparent token refresh (1 month lifespan), and standardized error envelopes.
  */
-export async function apiRequest<T = any>(
+async function apiRequestEnvelope<T = any>(
   endpoint: string,
   options: RequestOptions = {},
-): Promise<T> {
+): Promise<{ data: T; meta?: any }> {
   const { requiresAuth = false, tokenOverride, headers: customHeaders, _isRetry = false, ...restOptions } = options
   const isFormData = typeof FormData !== "undefined" && restOptions.body instanceof FormData
 
@@ -273,7 +273,7 @@ export async function apiRequest<T = any>(
   if (response.status === 401 && !_isRetry && !skipsRefresh) {
     const refreshResult = await refreshSession()
     if (refreshResult === "refreshed") {
-      return apiRequest<T>(endpoint, { ...options, _isRetry: true })
+      return apiRequestEnvelope<T>(endpoint, { ...options, _isRetry: true })
     }
   } else if (response.status === 401 && _isRetry) {
     tokenStorage.clear()
@@ -307,10 +307,30 @@ export async function apiRequest<T = any>(
     throw new ApiError(message, response.status, code, details)
   }
 
-  // Handle standard backend sendSuccess envelope: { success: true, data: ..., message: ... }
   if (body && typeof body === "object" && "data" in body) {
-    return body.data as T
+    return { data: body.data as T, meta: body.meta }
   }
 
-  return body as T
+  return { data: body as T }
+}
+
+/**
+ * Standard fetch wrapper returning the unwrapped `data` payload.
+ */
+export async function apiRequest<T = any>(
+  endpoint: string,
+  options: RequestOptions = {},
+): Promise<T> {
+  const { data } = await apiRequestEnvelope<T>(endpoint, options)
+  return data
+}
+
+/**
+ * Fetch wrapper returning both `data` and `meta` (e.g., pagination metadata).
+ */
+export async function apiRequestWithMeta<T = any>(
+  endpoint: string,
+  options: RequestOptions = {},
+): Promise<{ data: T; meta?: any }> {
+  return apiRequestEnvelope<T>(endpoint, options)
 }

@@ -24,7 +24,7 @@ export function useAdminProducts(initialFilters?: ProductFilters) {
     setLoading(true)
     setError(null)
     try {
-      const response = await catalogueApi.listProducts(filters)
+      const response = await adminApi.listProducts(filters)
       const mapped = (response.items || []).map(transformBackendProduct)
       setProducts(mapped)
       if (response.pagination) {
