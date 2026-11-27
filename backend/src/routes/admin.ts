@@ -11,6 +11,7 @@ import {
   updateProductSchema,
   createVariantSchema,
   updateInventorySchema,
+  productListingQuerySchema,
 } from '../common/validation/catalogueSchemas';
 import {
   uploadImageMetadataSchema,
@@ -249,6 +250,25 @@ adminRouter.post('/products/bulk-discount', async (req: Request, res: Response, 
 });
 
 // ----------------- Products Admin CRUD -----------------
+adminRouter.get('/products', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsedQuery = productListingQuerySchema.safeParse(req.query);
+    if (!parsedQuery.success) {
+      return next(parsedQuery.error);
+    }
+
+    const result = await ProductService.listProducts({
+      ...parsedQuery.data,
+      includeInactive: true,
+    });
+    return sendSuccess(res, result.items, 'Admin products retrieved successfully', 200, {
+      pagination: result.pagination,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 adminRouter.get('/products/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const product = await ProductService.getProductForAdmin(String(req.params.id));

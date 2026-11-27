@@ -17,6 +17,7 @@ export interface ProductQueryOptions {
   sortOrder: 'asc' | 'desc';
   featured?: boolean;
   availability: 'in_stock' | 'all';
+  includeInactive?: boolean;
 }
 
 export class ProductService {
@@ -159,12 +160,14 @@ export class ProductService {
       sortOrder,
       featured,
       availability,
+      includeInactive = false,
     } = options;
 
     const offset = (page - 1) * limit;
+    const client = includeInactive ? (getSupabaseAdminClient() || supabase) : supabase;
 
     // Build base query on products
-    let query = supabase
+    let query = client
       .from('products')
       .select(
         `
@@ -176,8 +179,11 @@ export class ProductService {
         product_images:product_images(*)
       `,
         { count: 'exact' }
-      )
-      .eq('is_active', true);
+      );
+
+    if (!includeInactive) {
+      query = query.eq('is_active', true);
+    }
 
     // Filter by category (by ID or Slug)
     if (category) {
@@ -254,7 +260,7 @@ export class ProductService {
       throw new InternalServerError(`Failed to query products: ${error.message}`);
     }
 
-    const rowsWithImages = await this.attachProductImages(supabase, data || []);
+    const rowsWithImages = await this.attachProductImages(client, data || []);
     let items = rowsWithImages.map((row) => this.parseProductRow(row));
 
     // In-stock availability filter if requested
